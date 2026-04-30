@@ -3,6 +3,13 @@ name: Deploy Frontend to Reg.ru FTP
 on:
   push:
     branches: ["main"]
+    paths:
+      - "src/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-reg-ftp.yml"
   workflow_dispatch:
 
 jobs:

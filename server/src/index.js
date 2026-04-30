@@ -1,6 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import multer from "multer";
 import { calculateDelivery, getPickupPoints, searchCities } from "./cdek.js";
 import {
   addOrder,
@@ -52,14 +55,68 @@ dotenv.config();
 const app = express();
 const port = Number(process.env.PORT || 8787);
 const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+const uploadDir = path.resolve(process.cwd(), "server", "data", "uploads");
+
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "").toLowerCase() || ".jpg";
+    cb(null, `${Date.now()}-${Math.floor(Math.random() * 100000)}${ext}`);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files are allowed"));
+    }
+    cb(null, true);
+  },
+});
 
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/uploads", express.static(uploadDir));
 
 const DEFAULT_CATEGORY_ORDER = ["Фильтр", "Эспрессо", "Дрип", "Оборудование", "Аксессуары"];
 
 function byDateDesc(a, b) {
   return new Date(b?.date || 0) - new Date(a?.date || 0);
+}
+
+async function seedDefaultAdmin() {
+  const adminPhone = "79819747388";
+  const adminPassword = "NechaiPass2026";
+
+  const users = await getUsers();
+  const existing = users.find((u) => u.phone === adminPhone);
+
+  if (!existing) {
+    const admin = {
+      id: `admin-${Date.now()}`,
+      name: "Nechai Admin",
+      phone: adminPhone,
+      password: adminPassword,
+      role: "admin",
+      created_at: new Date().toISOString(),
+      loyaltyLevel: 0,
+      discount: 0,
+      totalKg: 0,
+    };
+    await setUsers([admin, ...users]);
+    return;
+  }
+
+  if (existing.role !== "admin" || existing.password !== adminPassword) {
+    const updated = { ...existing, role: "admin", password: adminPassword };
+    await setUsers(users.map((u) => (u.id === existing.id ? updated : u)));
+  }
 }
 
 app.get("/health", (_req, res) => {
@@ -553,8 +610,23 @@ app.post("/api/retail/init-test-data", async (_req, res) => {
   res.json({ success: true, count: seed.length });
 });
 
-app.post("/api/retail/upload-image", async (_req, res) => {
-  res.status(501).json({ error: "Image upload is not configured on VPS yet" });
+app.post("/api/retail/upload-image", upload.single("file"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "file is required" });
+
+  const apiBase =
+    process.env.FRONTEND_BASE_URL ||
+    process.env.ALLOWED_ORIGIN ||
+    `http://localhost:${port}`;
+  const cleanBase = String(apiBase).replace(/\/+$/, "");
+  const url = `${cleanBase}/api/uploads/${req.file.filename}`;
+
+  res.status(201).json({
+    success: true,
+    url,
+    filename: req.file.filename,
+    mimetype: req.file.mimetype,
+    size: req.file.size,
+  });
 });
 
 app.get("/api/retail/category-order", async (_req, res) => {
@@ -944,6 +1016,14 @@ app.get("/api/utilities/list-all-order-keys", async (_req, res) => {
   });
 });
 
+app.use((error, _req, res, next) => {
+  if (!error) return next();
+  if (error instanceof multer.MulterError || error.message === "Only image files are allowed") {
+    return res.status(400).json({ error: error.message });
+  }
+  return next(error);
+});
+
 app.use("/api", (_req, res) => {
   res.status(404).json({
     error: "API route not found",
@@ -951,6 +1031,7 @@ app.use("/api", (_req, res) => {
 });
 
 initStorage()
+  .then(seedDefaultAdmin)
   .then(() => {
     app.listen(port, () => {
       console.log(`[site-api] listening on http://localhost:${port}`);
