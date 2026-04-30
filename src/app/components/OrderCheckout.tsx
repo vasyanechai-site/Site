@@ -1,6 +1,6 @@
 import { CartItem } from '../types';
 import { Button } from './ui/button';
-import { ChevronDown, ChevronUp, X } from 'lucide-react@0.454.0';
+import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useState } from 'react';
 
 interface OrderCheckoutProps {

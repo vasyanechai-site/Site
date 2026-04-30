@@ -1,4 +1,4 @@
-import { CheckCircle } from 'lucide-react@0.454.0';
+import { CheckCircle } from 'lucide-react';
 import { Button } from './ui/button';
 import { Logo } from './Logo';
 import { ImageWithFallback } from './figma/ImageWithFallback';

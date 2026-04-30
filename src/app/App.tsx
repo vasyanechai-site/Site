@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router@7.12.0";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from "react-router";
 import { CatalogPage } from "./components/CatalogPage";
 import { FavoritesPage } from "./components/FavoritesPage";
 import { SuccessPage } from "./components/SuccessPage";
@@ -255,7 +255,7 @@ function App() {
       setCart(newCart);
       
       // Показываем тосты если есть проблемы
-      const { toast } = await import('sonner@2.0.3');
+      const { toast } = await import('sonner');
       if (missingItems.length > 0) {
         toast.error('Некоторые товары закончились', {
           description: `Недоступно: ${missingItems.join(', ')}`
@@ -271,7 +271,7 @@ function App() {
       }
     } catch (error) {
       console.error('Failed to repeat order:', error);
-      const { toast } = await import('sonner@2.0.3');
+      const { toast } = await import('sonner');
       toast.error('Не удалось повторить заказ');
     }
   };

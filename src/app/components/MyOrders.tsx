@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Order, CoffeeItem } from '../types';
 import { fetchUserOrders, fetchCoffeeItems } from '../lib/api';
 import { Button } from './ui/button';
-import { ArrowLeft, Package, Loader2 } from 'lucide-react@0.454.0';
+import { ArrowLeft, Package, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';

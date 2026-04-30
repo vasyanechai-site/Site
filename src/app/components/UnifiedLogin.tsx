@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
-import { Link, useNavigate } from 'react-router@7.12.0';
+import { Link, useNavigate } from 'react-router';
 import { supabase } from '../lib/supabaseClient';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 

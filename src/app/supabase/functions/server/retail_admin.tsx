@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
+import { createClient } from 'jsr:@supabase/supabase-js';
 import * as kv from './kv_store.tsx';
 
 // Initialize Supabase Admin Client (Service Role)

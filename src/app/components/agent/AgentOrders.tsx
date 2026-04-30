@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAgent } from './AgentLayout';
 import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { ShoppingBag } from 'lucide-react@0.454.0';
+import { ShoppingBag } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 

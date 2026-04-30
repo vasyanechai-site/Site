@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 /**
  * Компонент для мониторинга и автоматического исправления битых текстов (проблемы с кодировкой UTF-8)

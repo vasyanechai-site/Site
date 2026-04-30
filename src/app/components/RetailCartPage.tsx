@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router@7.12.0';
+import { Link } from 'react-router';
 import { IMaskInput } from 'react-imask';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Badge } from './ui/badge';
 import { cn } from './ui/utils';
 import { Switch } from './ui/switch';

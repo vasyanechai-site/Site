@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { RetailHeader } from './RetailHeader';
 import { supabase } from '../lib/supabaseClient';
 import { Loader2, Plus, Clock } from 'lucide-react';

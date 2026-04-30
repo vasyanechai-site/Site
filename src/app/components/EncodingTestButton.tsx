@@ -1,7 +1,7 @@
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { CheckCircle2, AlertCircle } from 'lucide-react@0.454.0';
-import { toast } from 'sonner@2.0.3';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
 
 /**
  * Тестовый компонент для проверки системы исправления кодировки

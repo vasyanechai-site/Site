@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Button } from './ui/button';
-import { Upload, FileJson, AlertCircle } from 'lucide-react@0.454.0';
+import { Upload, FileJson, AlertCircle } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 
 export function DataImport() {

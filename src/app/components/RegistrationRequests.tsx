@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { RefreshCw } from 'lucide-react@0.454.0';
+import { RefreshCw } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { eventBus, EVENTS } from '../lib/events';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface Registration {
   id: string;

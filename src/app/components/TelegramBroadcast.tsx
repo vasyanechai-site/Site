@@ -4,10 +4,10 @@ import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Input } from './ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Loader2, Send, Upload, X, Users, CheckCircle, RefreshCw } from 'lucide-react@0.454.0';
+import { Loader2, Send, Upload, X, Users, CheckCircle, RefreshCw } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function TelegramBroadcast() {
   const [text, setText] = useState('');

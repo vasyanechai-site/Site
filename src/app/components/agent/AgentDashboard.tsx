@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useAgent } from './AgentLayout';
-import { Users, ShoppingBag, TrendingUp, BadgePercent, CheckCircle2, Wallet, Loader2 } from 'lucide-react@0.454.0';
-import { useNavigate, useParams } from 'react-router@7.12.0';
+import { Users, ShoppingBag, TrendingUp, BadgePercent, CheckCircle2, Wallet, Loader2 } from 'lucide-react';
+import { useNavigate, useParams } from 'react-router';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 

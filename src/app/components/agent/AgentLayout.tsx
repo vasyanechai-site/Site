@@ -1,13 +1,13 @@
 import { useState, useEffect, createContext, useContext } from 'react';
-import { useNavigate, useParams, NavLink, Outlet } from 'react-router@7.12.0';
+import { useNavigate, useParams, NavLink, Outlet } from 'react-router';
 import { Logo } from '../Logo';
 import { Button } from '../ui/button';
 import {
   LayoutDashboard, Users, ShoppingBag, Wallet, LogOut, Menu, X,
-} from 'lucide-react@0.454.0';
+} from 'lucide-react';
 import { fetchAgentStats } from '../../lib/agentApi';
 import type { AgentFullData } from '../../types/agent';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 // ── Context ───────────────────────────────────────────────────────────────
 

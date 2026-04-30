@@ -6,7 +6,7 @@ import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Switch } from './ui/switch';
 import { GripVertical, Pencil, Trash2, Plus, Database, Loader2, Upload, X, ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   fetchRetailProducts,
   createRetailProduct,

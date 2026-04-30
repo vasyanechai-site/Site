@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { Logo } from './Logo';
 import { Button } from './ui/button';
 import { Footer } from "./Footer";

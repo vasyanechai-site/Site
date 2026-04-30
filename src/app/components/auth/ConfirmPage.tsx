@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/button';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Logo } from '../Logo';
 import { Loader2 } from 'lucide-react';
 

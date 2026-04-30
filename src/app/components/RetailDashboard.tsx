@@ -4,7 +4,7 @@ import { fetchRetailOrdersAdmin } from '../lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { format, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { TrendingUp, ShoppingBag, CreditCard, Package } from 'lucide-react@0.454.0';
+import { TrendingUp, ShoppingBag, CreditCard, Package } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { FadeIn } from './ui/fade-in';

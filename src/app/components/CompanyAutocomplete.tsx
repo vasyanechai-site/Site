@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Input } from './ui/input';
-import { Loader2 } from 'lucide-react@0.454.0';
+import { Loader2 } from 'lucide-react';
 import { searchCompanies, DadataCompany } from '../lib/dadata';
 
 interface CompanyAutocompleteProps {

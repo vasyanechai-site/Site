@@ -1,5 +1,5 @@
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 

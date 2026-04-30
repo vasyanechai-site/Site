@@ -23,9 +23,9 @@ import {
   fetchUserLoyalty,
 } from '../lib/api';
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { ChevronRight } from 'lucide-react@0.454.0';
+import { ChevronRight } from 'lucide-react';
 
 // ─── Ступени лояльности «Нечай» ───────────────────────────────────────────────
 const LOYALTY_LEVELS = [

@@ -10,7 +10,7 @@
 
 ### 1. ❌ Нефиксированная версия React Router
 **Было:** `import ... from "react-router-dom"`
-**Стало:** `import ... from "react-router@7.11.0"`
+**Стало:** `import ... from "react-router"`
 
 Проблема: CDN esm.sh автоматически обновлял версию до нестабильной 7.12.0+, что вызывало конфликты.
 
@@ -97,7 +97,7 @@ console.groupEnd();
 Откройте консоль браузера после загрузки приложения. Вы должны увидеть:
 ```
 🔍 React Router Diagnostics - Version 7.11.0 Fixed
-✅ React Router импортирован из: react-router@7.11.0
+✅ React Router импортирован из: react-router
 ✅ CatalogPage: OK
 ✅ FavoritesPage: OK
 ...

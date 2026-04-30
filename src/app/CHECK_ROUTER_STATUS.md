@@ -7,7 +7,7 @@
 
 ```
 🔍 React Router Diagnostics - Version 7.11.0 Fixed
-  ✅ React Router импортирован из: react-router@7.11.0
+  ✅ React Router импортирован из: react-router
   ✅ CatalogPage: OK
   ✅ FavoritesPage: OK
   ✅ SuccessPage: OK
@@ -70,10 +70,10 @@
 ### ❌ Если версия React Router изменилась
 1. Проверьте импорт в `/App.tsx` (строка 2):
    ```tsx
-   import { ... } from "react-router@7.11.0"; // ✅ правильно
+   import { ... } from "react-router"; // ✅ правильно
    import { ... } from "react-router-dom";    // ❌ неправильно
    ```
-2. Если версия изменилась, замените все импорты на `react-router@7.11.0`
+2. Если версия изменилась, замените все импорты на `react-router`
 
 ## Контрольный чек-лист
 

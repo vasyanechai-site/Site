@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from './ui/dialog';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { Plus, Trash2, Pencil, RotateCcw, UserCheck, Search, X, Zap, Lock, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react@0.454.0';
+import { Plus, Trash2, Pencil, RotateCcw, UserCheck, Search, X, Zap, Lock, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import {
   AlertDialog,
@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { fetchAgents } from '../lib/agentApi';
 import type { Agent } from '../types/agent';

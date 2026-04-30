@@ -1,5 +1,5 @@
 import { CoffeeItem } from '../types';
-import { Minus, Plus, Heart } from 'lucide-react@0.454.0';
+import { Minus, Plus, Heart } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { motion } from "motion/react";

@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '../ui/dialog';
-import { FileDown, Loader2 } from 'lucide-react@0.454.0';
+import { FileDown, Loader2 } from 'lucide-react';
 import { fetchCoffeeItems, fetchCategoryOrder } from '../../lib/api';
 import type { CoffeeItem } from '../../types';
 import { format } from 'date-fns';

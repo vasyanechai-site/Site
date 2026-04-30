@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
-import { Plus, Pencil, Trash2, Loader2, DollarSign, Save, GripVertical } from 'lucide-react@0.454.0';
+import { Plus, Pencil, Trash2, Loader2, DollarSign, Save, GripVertical } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 import { DndProvider, useDrag, useDrop } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -28,7 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from './ui/alert-dialog';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 // Drag and Drop Types
 const ItemType = 'COFFEE_ITEM';

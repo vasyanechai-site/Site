@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { RefreshCw, Trash2, CheckCircle2, AlertCircle } from 'lucide-react@0.454.0';
+import { RefreshCw, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 
 interface EncodingLogEntry {

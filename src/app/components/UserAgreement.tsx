@@ -1,6 +1,6 @@
 import { Button } from "./ui/button";
 import { ArrowLeft, Download } from "lucide-react";
-import { useNavigate } from "react-router@7.12.0";
+import { useNavigate } from "react-router";
 import { Footer } from "./Footer";
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { useEffect } from 'react';

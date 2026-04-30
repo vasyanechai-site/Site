@@ -4,8 +4,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Switch } from './ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { toast } from 'sonner@2.0.3';
-import { Loader2, Save } from 'lucide-react@0.454.0';
+import { toast } from 'sonner';
+import { Loader2, Save } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 interface TickerSettings {

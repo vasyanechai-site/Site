@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import {
   Plus, Pencil, Eye, Power, PowerOff, Loader2, TrendingUp,
   Users, ShoppingBag, Wallet, ArrowLeft, BadgePercent, CheckCircle2,
-} from 'lucide-react@0.454.0';
-import { toast } from 'sonner@2.0.3';
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import {
   fetchAgents, createAgent, updateAgent, fetchAgentStats, createPayout, updatePayout, createAgentClient,

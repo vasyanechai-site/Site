@@ -4,7 +4,7 @@ import { OrderDialog } from './OrderDialog';
 import { Logo } from './Logo';
 import { CoffeeTable } from './CoffeeTable';
 import { ThemeToggle } from './ThemeToggle';
-import { ArrowLeft } from 'lucide-react@0.454.0';
+import { ArrowLeft } from 'lucide-react';
 import { Ticker } from './Ticker';
 import type { CoffeeItem, OrderFormData, CartItem } from '../types';
 import { fetchCoffeeItems, fetchFavorites, removeFromFavorites, createOrder, fetchUserOrders } from '../lib/api';
@@ -15,7 +15,7 @@ import { PriceSort } from './PriceSort';
 import { OrderCheckout } from './OrderCheckout';
 import { Badge } from './ui/badge';
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 interface FavoritesPageProps {
   userId: string;

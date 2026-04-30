@@ -4,11 +4,11 @@ import { fetchRetailOrdersAdmin, deleteRetailOrder } from '../lib/api';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from './ui/drawer';
-import { Eye, Copy, X, Trash2 } from 'lucide-react@0.454.0';
+import { Eye, Copy, X, Trash2 } from 'lucide-react';
 import { Button } from './ui/button';
 import { motion } from "motion/react";
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import {
   AlertDialog,
   AlertDialogAction,

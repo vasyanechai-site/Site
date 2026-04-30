@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
-import { Download, FileJson, Mail, Calendar, Database } from 'lucide-react@0.454.0';
+import { Download, FileJson, Mail, Calendar, Database } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 
 export function DataExport() {
   const [isExporting, setIsExporting] = useState(false);

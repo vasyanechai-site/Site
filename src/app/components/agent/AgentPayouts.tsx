@@ -1,5 +1,5 @@
 import { useAgent } from './AgentLayout';
-import { Wallet, CheckCircle2, BadgePercent, Clock } from 'lucide-react@0.454.0';
+import { Wallet, CheckCircle2, BadgePercent, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 

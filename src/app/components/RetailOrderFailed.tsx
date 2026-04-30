@@ -1,4 +1,4 @@
-import { useSearchParams, useNavigate } from 'react-router@7.12.0';
+import { useSearchParams, useNavigate } from 'react-router';
 import { Button } from './ui/button';
 import { FadeIn } from './ui/fade-in';
 import { XCircle } from 'lucide-react';

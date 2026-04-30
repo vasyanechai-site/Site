@@ -1,4 +1,4 @@
-import { createClient } from 'jsr:@supabase/supabase-js@2.49.8';
+import { createClient } from 'jsr:@supabase/supabase-js';
 
 // Edge Function для Long Polling Telegram бота
 // Запускается по расписанию каждую минуту через Supabase Cron

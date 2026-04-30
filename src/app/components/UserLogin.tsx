@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { ArrowLeft, Loader2 } from 'lucide-react@0.454.0';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
 
 interface UserLoginProps {

@@ -1,4 +1,4 @@
-import { Link } from 'react-router@7.12.0';
+import { Link } from 'react-router';
 import { cn } from './ui/utils';
 
 interface FooterProps {

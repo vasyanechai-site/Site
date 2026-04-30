@@ -3,7 +3,7 @@ import { Card } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { MessageCircle, Send } from 'lucide-react@0.454.0';
+import { MessageCircle, Send } from 'lucide-react';
 
 /**
  * Демо-компонент для тестирования генерации ссылок на мессенджеры

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ChevronDown, Mountain, Droplets } from 'lucide-react';
 import { RetailHeader } from './RetailHeader';

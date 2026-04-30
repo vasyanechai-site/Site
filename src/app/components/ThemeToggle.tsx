@@ -1,4 +1,4 @@
-import { Moon, Sun } from "lucide-react@0.460.0"
+import { Moon, Sun } from "lucide-react"
 import { Button } from "./ui/button"
 import {
   DropdownMenu,

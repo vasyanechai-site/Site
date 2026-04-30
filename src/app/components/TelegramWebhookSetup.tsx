@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { CheckCircle, AlertCircle, Loader2, Link as LinkIcon, Trash2, RefreshCw } from 'lucide-react@0.454.0';
-import { toast } from 'sonner@2.0.3';
+import { CheckCircle, AlertCircle, Loader2, Link as LinkIcon, Trash2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 export function TelegramWebhookSetup() {

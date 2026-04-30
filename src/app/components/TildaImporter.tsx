@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from './ui/button';
 import { Upload, Loader2, Database } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { createRetailProduct } from '../lib/api';
 
 interface TildaImporterProps {

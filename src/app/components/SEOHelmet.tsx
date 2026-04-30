@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useLocation } from 'react-router@7.12.0';
+import { useLocation } from 'react-router';
 
 interface SEOProps {
   title?: string;

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
-import { CheckCircle2, XCircle, Loader2, RefreshCw, Info } from 'lucide-react@0.454.0';
+import { CheckCircle2, XCircle, Loader2, RefreshCw, Info } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
 interface HealthStatus {

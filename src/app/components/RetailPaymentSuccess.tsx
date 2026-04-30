@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router@7.12.0';
+import { useNavigate, useSearchParams } from 'react-router';
 import { CheckCircle, Package, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Heart, ShoppingCart, MapPin, CalendarDays } from 'lucide-react';
 import { Logo } from './Logo';

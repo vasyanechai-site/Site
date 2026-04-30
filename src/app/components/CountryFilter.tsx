@@ -1,5 +1,5 @@
 import { Input } from './ui/input';
-import { Search } from 'lucide-react@0.454.0';
+import { Search } from 'lucide-react';
 
 interface CountryFilterProps {
   searchQuery: string;
