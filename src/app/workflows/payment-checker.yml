@@ -1,0 +1,44 @@
+name: Check Payment Statuses
+
+on:
+  schedule:
+    # Запускать каждые 5 минут
+    - cron: '*/5 * * * *'
+  
+  # Возможность запустить вручную через GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  check-payments:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check pending retail payments
+        run: |
+          echo "🔄 Starting payment status check..."
+          
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/make-server-aa167a09/retail/check-pending-payments)
+          
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          
+          echo "📊 Response status: $HTTP_CODE"
+          echo "📄 Response body: $BODY"
+          
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "✅ Payment check completed successfully"
+          else
+            echo "❌ Payment check failed with status $HTTP_CODE"
+            exit 1
+          fi
+      
+      - name: Summary
+        if: always()
+        run: |
+          echo "### Payment Status Check Results 💎" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Time: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

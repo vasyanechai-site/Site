@@ -1,0 +1,30 @@
+name: Database Keep-Alive
+
+on:
+  schedule:
+    # Запускать каждые 5 дней в 10:00 UTC (13:00 MSK)
+    - cron: '0 10 */5 * *'
+  workflow_dispatch: # Позволяет запустить вручную через GitHub UI
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase Database
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X GET \
+            "https://pkhinqiplfezrzvsqgwo.supabase.co/functions/v1/make-server-aa167a09/keep-alive" \
+            -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBraGlucWlwbGZlenJ6dnNxZ3dvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMTE3NTksImV4cCI6MjA3NTg4Nzc1OX0.Cr24g9iYvoRES7v0qzdq5GWkdgEhGZrHr0fi84AcQJE")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" -eq 200 ]; then
+            echo "✅ База данных активна"
+          else
+            echo "❌ Ошибка: статус $http_code"
+            exit 1
+          fi
