@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router@7.12.0';
+import { useNavigate, Link } from 'react-router';
 import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 export function LoginForm() {
   const navigate = useNavigate();
@@ -64,7 +65,7 @@ export function LoginForm() {
       // Если введен не email (нет @), проверяем в оптовой базе
       if (!email.includes('@')) {
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/users/login`,
+          `${API_BASE_URL}/users/login`,
           {
             method: 'POST',
             headers: {

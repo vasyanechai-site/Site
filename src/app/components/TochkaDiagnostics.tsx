@@ -4,6 +4,11 @@ import { Card } from './ui/card';
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
+  ? { Authorization: `Bearer ${publicAnonKey}` }
+  : {};
+
 interface DiagnosticResult {
   success: boolean;
   test?: {
@@ -51,10 +56,10 @@ export function TochkaDiagnostics() {
 
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/tochka/acquiring/test-token`,
+        `${API_BASE_URL}/tochka/acquiring/test-token`,
         {
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
+            ...API_AUTH_HEADER
           }
         }
       );

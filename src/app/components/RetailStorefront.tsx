@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ShoppingCart, User, Heart, AlertCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link, useNavigate, useSearchParams } from 'react-router@7.12.0';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Logo } from './Logo';
 import { Button } from './ui/button';
 import { ImageWithFallback } from './figma/ImageWithFallback';
@@ -14,15 +14,20 @@ import { RetailCartPage } from './RetailCartPage';
 import { RetailFavoritesPage } from './RetailFavoritesPage';
 import { RetailHeader } from './RetailHeader';
 import { FadeIn } from './ui/fade-in';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { transliterate } from '../lib/transliterate';
 import { Footer } from './Footer';
 import { supabase } from '../lib/supabaseClient';
-import { projectId } from '../utils/supabase/info';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import svgPaths from '../imports/svg-39dxhf3pmz';
 import recommendedStickerSrc from 'figma:asset/a2fc853b075f8b77543327aa0e2eedb50e131ffe.png';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
+  ? { Authorization: `Bearer ${publicAnonKey}` }
+  : {};
 
 // ── QuickAddButton ─────────────────────────────────────────────────────────────
 interface QuickAddButtonProps {
@@ -733,12 +738,12 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
       addLog('info', '📤 Отправка заказа на сервер...');
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/orders`,
+        `${API_BASE_URL}/retail/orders`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
+            ...API_AUTH_HEADER
           },
           body: JSON.stringify({
             customerName,
@@ -787,12 +792,12 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
       addLog('info', '💳 Инициализация оплаты...');
       
       const paymentResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/checkout/pay`,
+        `${API_BASE_URL}/retail/checkout/pay`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
+            ...API_AUTH_HEADER
           },
           body: JSON.stringify({
             orderId: orderId,

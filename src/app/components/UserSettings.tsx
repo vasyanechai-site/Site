@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { ArrowLeft, Loader2, Save } from 'lucide-react@0.454.0';
+import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { Logo } from './Logo';
 import { ThemeToggle } from './ThemeToggle';
 import { CompanyAutocomplete } from './CompanyAutocomplete';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface UserSettingsProps {
   userId: string;
@@ -55,7 +56,7 @@ export function UserSettings({ userId, userCompanyName, onBack, onLogout, onNavi
       setIsLoading(true);
       console.log('Loading user settings');
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/user-settings/${userId}`,
+        `${API_BASE_URL}/user-settings/${userId}`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
@@ -168,7 +169,7 @@ export function UserSettings({ userId, userCompanyName, onBack, onLogout, onNavi
     try {
       setIsSaving(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/user-settings/${userId}`,
+        `${API_BASE_URL}/user-settings/${userId}`,
         {
           method: 'PUT',
           headers: {

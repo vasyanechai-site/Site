@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, MapPin, Loader2, Check, Map, ChevronDown, ChevronUp } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface DaDataSuggestion {
   value: string;
@@ -142,7 +143,7 @@ export function AddCafeModal({ onClose, onSubmitted }: AddCafeModalProps) {
     setSaving(true);
     try {
       const res = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/submit-request`,
+        `${API_BASE_URL}/retail-locations/submit-request`,
         {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },

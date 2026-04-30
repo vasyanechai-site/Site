@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router@7.12.0';
+import { Link } from 'react-router';
 import { OrderFormData } from '../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from './ui/dialog';
 import { Button } from './ui/button';
@@ -10,7 +10,8 @@ import { Loader2, X, Check, AlertCircle } from 'lucide-react';
 import { CompanyAutocomplete } from './CompanyAutocomplete';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { verifyPromoCode } from '../lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface OrderDialogProps {
   open: boolean;
@@ -68,7 +69,7 @@ export function OrderDialog({ open, onOpenChange, onSubmit, userId, totalAmount 
     try {
       setIsLoadingSettings(true);
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/user-settings/${userId}`,
+        `${API_BASE_URL}/user-settings/${userId}`,
         {
           headers: {
             'Authorization': `Bearer ${publicAnonKey}`
@@ -116,7 +117,7 @@ export function OrderDialog({ open, onOpenChange, onSubmit, userId, totalAmount 
     try {
       console.log('Saving user settings');
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/user-settings/${userId}`,
+        `${API_BASE_URL}/user-settings/${userId}`,
         {
           method: 'PUT',
           headers: {

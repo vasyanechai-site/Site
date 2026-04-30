@@ -1,0 +1,313 @@
+import fs from "node:fs";
+import path from "node:path";
+import pg from "pg";
+
+const dataDir = path.resolve(process.cwd(), "server", "data");
+const dbFile = path.join(dataDir, "db.json");
+const { Pool } = pg;
+const databaseUrl = process.env.DATABASE_URL;
+const pgPool = databaseUrl ? new Pool({ connectionString: databaseUrl }) : null;
+let pgReady = false;
+
+const defaultDb = {
+  orders: [],
+  retailOrders: [],
+  exchangeRate: { usd_to_rub: 95, updated_at: null },
+  loyaltyByUser: {},
+  retailLocations: [],
+  retailLocationRequests: [],
+  userSettingsByUser: {},
+};
+
+function ensureDb() {
+  if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+  if (!fs.existsSync(dbFile)) {
+    fs.writeFileSync(dbFile, JSON.stringify(defaultDb, null, 2));
+  }
+}
+
+function readDb() {
+  ensureDb();
+  try {
+    return JSON.parse(fs.readFileSync(dbFile, "utf-8"));
+  } catch {
+    return { ...defaultDb };
+  }
+}
+
+function writeDb(db) {
+  ensureDb();
+  fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
+}
+
+async function ensurePgSchema() {
+  if (!pgPool || pgReady) return;
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS orders (
+      order_id TEXT PRIMARY KEY,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS retail_orders (
+      order_id TEXT PRIMARY KEY,
+      payload JSONB NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pgPool.query(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      payload JSONB NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+  await pgPool.query(`
+    INSERT INTO app_settings (key, payload)
+    VALUES ('exchangeRate', '{"usd_to_rub":95,"updated_at":null}'::jsonb)
+    ON CONFLICT (key) DO NOTHING;
+  `);
+  pgReady = true;
+}
+
+async function getJsonSetting(key, fallback) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM app_settings WHERE key = $1 LIMIT 1", [key]);
+    return rows[0]?.payload ?? fallback;
+  }
+  const db = readDb();
+  return db[key] ?? fallback;
+}
+
+async function setJsonSetting(key, value) {
+  if (pgPool) {
+    await ensurePgSchema();
+    await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [key, JSON.stringify(value)],
+    );
+    return value;
+  }
+  const db = readDb();
+  db[key] = value;
+  writeDb(db);
+  return value;
+}
+
+export async function initStorage() {
+  if (pgPool) await ensurePgSchema();
+}
+
+export async function getOrders() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM orders ORDER BY created_at DESC");
+    return rows.map((row) => row.payload);
+  }
+  return readDb().orders || [];
+}
+
+export async function addOrder(order) {
+  if (pgPool) {
+    await ensurePgSchema();
+    await pgPool.query(
+      `INSERT INTO orders (order_id, payload)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (order_id) DO UPDATE SET payload = EXCLUDED.payload`,
+      [order.orderId, JSON.stringify(order)],
+    );
+    return order;
+  }
+  const db = readDb();
+  db.orders = [...(db.orders || []), order];
+  writeDb(db);
+  return order;
+}
+
+export async function getOrderById(orderId) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM orders WHERE order_id = $1 LIMIT 1", [orderId]);
+    return rows[0]?.payload || null;
+  }
+  return (readDb().orders || []).find((order) => order.orderId === orderId) || null;
+}
+
+export async function updateOrderById(orderId, updates) {
+  const current = await getOrderById(orderId);
+  if (!current) return null;
+  const merged = { ...current, ...updates };
+  return addOrder(merged);
+}
+
+export async function deleteOrderById(orderId) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const result = await pgPool.query("DELETE FROM orders WHERE order_id = $1", [orderId]);
+    return result.rowCount > 0;
+  }
+  const db = readDb();
+  const before = (db.orders || []).length;
+  db.orders = (db.orders || []).filter((order) => order.orderId !== orderId);
+  writeDb(db);
+  return (db.orders || []).length !== before;
+}
+
+export async function getRetailOrders() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM retail_orders ORDER BY created_at DESC");
+    return rows.map((row) => row.payload);
+  }
+  return readDb().retailOrders || [];
+}
+
+export async function addRetailOrder(order) {
+  if (pgPool) {
+    await ensurePgSchema();
+    await pgPool.query(
+      `INSERT INTO retail_orders (order_id, payload)
+       VALUES ($1, $2::jsonb)
+       ON CONFLICT (order_id) DO UPDATE SET payload = EXCLUDED.payload`,
+      [order.orderId, JSON.stringify(order)],
+    );
+    return order;
+  }
+  const db = readDb();
+  db.retailOrders = [...(db.retailOrders || []), order];
+  writeDb(db);
+  return order;
+}
+
+export async function getRetailOrderById(orderId) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM retail_orders WHERE order_id = $1 LIMIT 1", [orderId]);
+    return rows[0]?.payload || null;
+  }
+  return (readDb().retailOrders || []).find((order) => order.orderId === orderId) || null;
+}
+
+export async function deleteRetailOrderById(orderId) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const result = await pgPool.query("DELETE FROM retail_orders WHERE order_id = $1", [orderId]);
+    return result.rowCount > 0;
+  }
+  const db = readDb();
+  const before = (db.retailOrders || []).length;
+  db.retailOrders = (db.retailOrders || []).filter((order) => order.orderId !== orderId);
+  writeDb(db);
+  return (db.retailOrders || []).length !== before;
+}
+
+export async function updateRetailOrderById(orderId, updates) {
+  const current = await getRetailOrderById(orderId);
+  if (!current) return null;
+  const merged = { ...current, ...updates };
+  return addRetailOrder(merged);
+}
+
+export async function getPendingRetailOrders() {
+  const orders = await getRetailOrders();
+  return orders.filter((order) => (order.paymentStatus || order.payment_status) === "pending");
+}
+
+export async function getExchangeRate() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query("SELECT payload FROM app_settings WHERE key = 'exchangeRate' LIMIT 1");
+    return rows[0]?.payload || { usd_to_rub: 95, updated_at: null };
+  }
+  return readDb().exchangeRate || { usd_to_rub: 95, updated_at: null };
+}
+
+export async function setExchangeRate(usd_to_rub) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const payload = { usd_to_rub, updated_at: new Date().toISOString() };
+    await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ('exchangeRate', $1::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [JSON.stringify(payload)],
+    );
+    return payload;
+  }
+  const db = readDb();
+  db.exchangeRate = { usd_to_rub, updated_at: new Date().toISOString() };
+  writeDb(db);
+  return db.exchangeRate;
+}
+
+export async function getRetailLoyalty(userId) {
+  if (pgPool) {
+    await ensurePgSchema();
+    const key = `loyalty:${userId}`;
+    const { rows } = await pgPool.query("SELECT payload FROM app_settings WHERE key = $1 LIMIT 1", [key]);
+    return rows[0]?.payload || { userId, balance: 0, bonusClaimedAt: null };
+  }
+  const db = readDb();
+  const value = db.loyaltyByUser?.[userId];
+  return value || { userId, balance: 0, bonusClaimedAt: null };
+}
+
+export async function setRetailLoyalty(userId, updates) {
+  const current = await getRetailLoyalty(userId);
+  const merged = { ...current, ...updates, userId };
+  if (pgPool) {
+    await ensurePgSchema();
+    const key = `loyalty:${userId}`;
+    await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [key, JSON.stringify(merged)],
+    );
+    return merged;
+  }
+  const db = readDb();
+  db.loyaltyByUser = db.loyaltyByUser || {};
+  db.loyaltyByUser[userId] = merged;
+  writeDb(db);
+  return merged;
+}
+
+export async function getRetailLocations() {
+  return getJsonSetting("retailLocations", []);
+}
+
+export async function setRetailLocations(items) {
+  return setJsonSetting("retailLocations", items);
+}
+
+export async function getRetailLocationRequests() {
+  return getJsonSetting("retailLocationRequests", []);
+}
+
+export async function setRetailLocationRequests(items) {
+  return setJsonSetting("retailLocationRequests", items);
+}
+
+export async function getUserSettings(userId) {
+  if (pgPool) {
+    return getJsonSetting(`userSettings:${userId}`, {});
+  }
+  const db = readDb();
+  return db.userSettingsByUser?.[userId] || {};
+}
+
+export async function setUserSettings(userId, settings) {
+  if (pgPool) {
+    return setJsonSetting(`userSettings:${userId}`, settings);
+  }
+  const db = readDb();
+  db.userSettingsByUser = db.userSettingsByUser || {};
+  db.userSettingsByUser[userId] = settings;
+  writeDb(db);
+  return settings;
+}

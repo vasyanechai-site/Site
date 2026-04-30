@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabaseClient';
 import { projectId } from '../../utils/supabase/info';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { Loader2, Trash2, Shield, Plus, Users } from 'lucide-react';
 import {
   Dialog,
@@ -40,7 +41,7 @@ export function RetailUsersPage() {
       // Админ-панель открыта, используем publicAnonKey
       const { publicAnonKey } = await import('../../utils/supabase/info');
       
-      const url = `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-users`;
+      const url = `${API_BASE_URL}/retail-users`;
       
       const response = await fetch(url, {
         headers: {
@@ -80,7 +81,7 @@ export function RetailUsersPage() {
       const { publicAnonKey } = await import('../../utils/supabase/info');
       
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-users/${id}`,
+        `${API_BASE_URL}/retail-users/${id}`,
         {
           method: 'DELETE',
           headers: {
@@ -116,7 +117,7 @@ export function RetailUsersPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
 
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-users`, {
+      const response = await fetch(`${API_BASE_URL}/retail-users`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${session.access_token}`,

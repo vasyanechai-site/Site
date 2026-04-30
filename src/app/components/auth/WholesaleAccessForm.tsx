@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router@7.12.0';
+import { useNavigate, Link } from 'react-router';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 export function WholesaleAccessForm() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export function WholesaleAccessForm() {
 
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/wholesale/request-access`,
+        `${API_BASE_URL}/wholesale/request-access`,
         {
           method: 'POST',
           headers: {

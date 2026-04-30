@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router@7.12.0';
+import { useNavigate } from 'react-router';
 import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { RetailHeader } from '../RetailHeader';
 import { 
   ArrowLeft, 
@@ -28,6 +28,7 @@ import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { transliterate } from '../../lib/transliterate';
 import { projectId } from '../../utils/supabase/info';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
 
@@ -83,7 +84,7 @@ export function RetailDashboard() {
           fetchFavorites(user.id),
           fetchRetailProducts(),
           accessToken 
-            ? fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/loyalty/${user.id}`, {
+            ? fetch(`${API_BASE_URL}/retail/loyalty/${user.id}`, {
                 headers: {
                   'Authorization': `Bearer ${accessToken}`
                 }
@@ -138,7 +139,7 @@ export function RetailDashboard() {
         const accessToken = session?.access_token;
         
         if (accessToken) {
-          const balanceRes = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/loyalty/${user.id}`, {
+          const balanceRes = await fetch(`${API_BASE_URL}/retail/loyalty/${user.id}`, {
             headers: {
               'Authorization': `Bearer ${accessToken}`
             }
@@ -178,12 +179,14 @@ export function RetailDashboard() {
       console.log('🎯 Claiming bonus');
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/loyalty/claim-bonus`,
+        `${API_BASE_URL}/retail/loyalty/claim-bonus`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          }
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ userId: user.id })
         }
       );
 

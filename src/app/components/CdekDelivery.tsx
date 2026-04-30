@@ -5,7 +5,7 @@ import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import type { RetailProduct } from '../lib/api';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { cn } from './ui/utils';
 
 interface PickupPoint {
@@ -55,6 +55,11 @@ declare global {
     ymaps: any;
   }
 }
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
+  ? { Authorization: `Bearer ${publicAnonKey}` }
+  : {};
 
 export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDeliveryProps) {
   const [cityInput, setCityInput] = useState('');
@@ -139,10 +144,10 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     const timer = setTimeout(async () => {
       try {
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/cdek/cities?q=${encodeURIComponent(cityInput)}`,
+          `${API_BASE_URL}/cdek/cities?q=${encodeURIComponent(cityInput)}`,
           {
             headers: {
-              'Authorization': `Bearer ${publicAnonKey}`
+              ...API_AUTH_HEADER
             }
           }
         );
@@ -221,11 +226,11 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
 
     try {
       const pvzResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/cdek/pvz`,
+        `${API_BASE_URL}/cdek/pvz`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            ...API_AUTH_HEADER,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -272,11 +277,11 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
         : undefined;
 
       const calcResponse = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/cdek/calc`,
+        `${API_BASE_URL}/cdek/calc`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            ...API_AUTH_HEADER,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({

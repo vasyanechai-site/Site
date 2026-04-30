@@ -1,10 +1,11 @@
 import { CoffeeItem, Order, OrderFormData, User, AuthUser, ExchangeRate, RetailOrder } from '../types';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 
-const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const API_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const needsSupabaseAuth = API_URL.includes("supabase.co");
 
 const headers = {
-  'Authorization': `Bearer ${publicAnonKey}`,
+  ...(needsSupabaseAuth ? { 'Authorization': `Bearer ${publicAnonKey}` } : {}),
   'Content-Type': 'application/json'
 };
 
@@ -973,9 +974,7 @@ export const uploadRetailImage = async (file: File): Promise<string> => {
 
     const response = await fetch(`${API_URL}/retail/upload-image`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${publicAnonKey}`
-      },
+      headers: needsSupabaseAuth ? { 'Authorization': `Bearer ${publicAnonKey}` } : {},
       body: formData
     });
 

@@ -1,12 +1,17 @@
-import { useSearchParams, useNavigate } from 'react-router@7.12.0';
+import { useSearchParams, useNavigate } from 'react-router';
 import { Button } from './ui/button';
 import { FadeIn } from './ui/fade-in';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { projectId } from '../utils/supabase/info';
+import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { supabase } from '../lib/supabaseClient';
 import { WooshIcon } from './WooshIcon';
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
+  ? { Authorization: `Bearer ${publicAnonKey}` }
+  : {};
 
 function getWooshDeclension(number: number) {
   const cases = [2, 0, 1, 1, 1, 2];
@@ -28,11 +33,11 @@ export function RetailOrderSuccess() {
 
       try {
         const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail/order-payment-info/${orderId}`,
+          `${API_BASE_URL}/retail/order-payment-info/${orderId}`,
           {
             method: 'GET',
             headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
+              ...API_AUTH_HEADER,
               'Content-Type': 'application/json',
             },
           }

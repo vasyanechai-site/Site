@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router@7.12.0';
+import { useNavigate, Link } from 'react-router';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 export function WholesaleLoginForm() {
   const navigate = useNavigate();
@@ -40,7 +41,7 @@ export function WholesaleLoginForm() {
 
       // Пытаемся войти как оптовый пользователь
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/users/login`,
+        `${API_BASE_URL}/users/login`,
         {
           method: 'POST',
           headers: {

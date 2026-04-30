@@ -3,11 +3,12 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
-import { MessageCircle, Send } from 'lucide-react@0.454.0';
+import { MessageCircle, Send } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface BusinessRegistrationProps {
   isOpen: boolean;
@@ -65,7 +66,7 @@ export function BusinessRegistration({ isOpen, onClose }: BusinessRegistrationPr
     try {
       // Отправляем данные на сервер
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/business-registration`,
+        `${API_BASE_URL}/business-registration`,
         {
           method: 'POST',
           headers: {

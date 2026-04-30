@@ -4,8 +4,9 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Loader2, Plus, Pencil, Trash2, MapPin, Check, X, Building2, Home, Map, RefreshCw, Clock, CheckCircle2, XCircle, Phone, User } from 'lucide-react';
-import { toast } from 'sonner@2.0.3';
+import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { API_BASE_URL } from '../../lib/backendConfig';
 
 interface Location {
   id: number;
@@ -138,7 +139,7 @@ export function RetailLocationsManagement() {
   const loadLocations = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       if (!res.ok) throw new Error('Failed to load locations');
       setLocations(await res.json());
     } catch (e) {
@@ -150,7 +151,7 @@ export function RetailLocationsManagement() {
   const loadLocationRequests = async () => {
     setLoadingRequests(true);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/requests`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/requests`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       if (!res.ok) throw new Error('Failed to load requests');
       setLocationRequests(await res.json());
     } catch (e) {
@@ -223,7 +224,7 @@ export function RetailLocationsManagement() {
     if (!selectedCoords) { toast.error('Установите точку на карте или выберите адрес из подсказок'); return; }
     setSaving(true);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations`, {
+      const res = await fetch(`${API_BASE_URL}/retail-locations`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, address, latitude: selectedCoords.lat, longitude: selectedCoords.lon }),
@@ -241,7 +242,7 @@ export function RetailLocationsManagement() {
     if (!selectedCoords) { toast.error('Установите точку на карте или выберите адрес из подсказок'); return; }
     setSaving(true);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/retail-locations/${id}`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, address, latitude: selectedCoords.lat, longitude: selectedCoords.lon }),
@@ -257,7 +258,7 @@ export function RetailLocationsManagement() {
   const handleDelete = async (id: number) => {
     if (!confirm('Вы уверены, что хотите удалить эту точку продаж?')) return;
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       if (!res.ok) throw new Error('Failed to delete location');
       toast.success('Точка продаж удалена');
       await loadLocations();
@@ -268,7 +269,7 @@ export function RetailLocationsManagement() {
     if (!confirm('Одобрить этот запрос и добавить кофейню на карту?')) return;
     setApprovingId(id);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/requests/${id}/approve`, {
+      const res = await fetch(`${API_BASE_URL}/retail-locations/requests/${id}/approve`, {
         method: 'PUT',
         headers: { 'Authorization': `Bearer ${publicAnonKey}` },
       });
@@ -283,7 +284,7 @@ export function RetailLocationsManagement() {
     if (!confirm('Отклонить этот запрос?')) return;
     setRejectingId(id);
     try {
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/requests/${id}`, {
+      const res = await fetch(`${API_BASE_URL}/retail-locations/requests/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${publicAnonKey}` },
       });
@@ -309,7 +310,7 @@ export function RetailLocationsManagement() {
     setInitializing(true);
     try {
       toast.info('🌍 Геокодирование адресов... Пожалуйста, подождите');
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       if (!res.ok) throw new Error('Failed to initialize');
       const data = await res.json();
       toast.success(data.geocoded !== undefined ? `✅ ${data.message}\n📍 Геокодировано: ${data.geocoded} из ${data.count}` : data.message);
@@ -323,9 +324,9 @@ export function RetailLocationsManagement() {
     setInitializing(true);
     try {
       toast.info('🗑️ Очистка старых данных...');
-      await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      await fetch(`${API_BASE_URL}/retail-locations`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       toast.info('🌍 Геокодирование адресов... Пожалуйста, подождите');
-      const res = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
       if (!res.ok) throw new Error('Failed to initialize');
       const data = await res.json();
       toast.success(data.geocoded !== undefined ? `✅ ${data.message}\n📍 Геокодировано: ${data.geocoded} из ${data.count}` : data.message);
