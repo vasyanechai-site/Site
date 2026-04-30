@@ -90,6 +90,16 @@ function byDateDesc(a, b) {
   return new Date(b?.date || 0) - new Date(a?.date || 0);
 }
 
+function sanitizeUser(user) {
+  if (!user || typeof user !== "object") return user;
+  const { password, ...safeUser } = user;
+  return safeUser;
+}
+
+function sanitizeUsers(users) {
+  return Array.isArray(users) ? users.map(sanitizeUser) : [];
+}
+
 async function seedDefaultAdmin() {
   const adminPhone = "79819747388";
   const adminPassword = "NechaiPass2026";
@@ -181,7 +191,7 @@ app.delete("/api/coffee-items/:id", async (req, res) => {
 });
 
 app.get("/api/users", async (_req, res) => {
-  res.json(await getUsers());
+  res.json(sanitizeUsers(await getUsers()));
 });
 
 app.post("/api/users", async (req, res) => {
@@ -199,7 +209,7 @@ app.post("/api/users", async (req, res) => {
     ...body,
   };
   await setUsers([user, ...users]);
-  res.status(201).json(user);
+  res.status(201).json(sanitizeUser(user));
 });
 
 app.post("/api/retail-signup", async (req, res) => {
@@ -216,7 +226,7 @@ app.post("/api/retail-signup", async (req, res) => {
     ...body,
   };
   await setRetailUsers([user, ...users]);
-  res.status(201).json({ success: true, user });
+  res.status(201).json({ success: true, user: sanitizeUser(user) });
 });
 
 app.post("/api/users/login", async (req, res) => {
@@ -227,7 +237,7 @@ app.post("/api/users/login", async (req, res) => {
     users.find((x) => x.phone === phone && x.password === password) ||
     retailUsers.find((x) => x.phone === phone && x.password === password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
-  res.json(user);
+  res.json(sanitizeUser(user));
 });
 
 app.put("/api/users/:id", async (req, res) => {
@@ -237,7 +247,7 @@ app.put("/api/users/:id", async (req, res) => {
   if (!current) return res.status(404).json({ error: "User not found" });
   const updated = { ...current, ...(req.body || {}), id };
   await setUsers(users.map((x) => (x.id === id ? updated : x)));
-  res.json(updated);
+  res.json(sanitizeUser(updated));
 });
 
 app.delete("/api/users/:id", async (req, res) => {
@@ -884,7 +894,7 @@ app.get("/api/admin/retail/orders", async (_req, res) => {
 });
 
 app.get("/api/admin/users", async (_req, res) => {
-  res.json(await getUsers());
+  res.json(sanitizeUsers(await getUsers()));
 });
 
 app.get("/api/admin/users/:id/orders", async (req, res) => {
@@ -895,7 +905,7 @@ app.get("/api/admin/users/:id/orders", async (req, res) => {
 });
 
 app.get("/api/retail-users", async (_req, res) => {
-  res.json({ users: await getRetailUsers() });
+  res.json({ users: sanitizeUsers(await getRetailUsers()) });
 });
 
 app.post("/api/retail-users", async (req, res) => {
@@ -908,7 +918,7 @@ app.post("/api/retail-users", async (req, res) => {
     ...body,
   };
   await setRetailUsers([user, ...users.filter((x) => x.id !== user.id)]);
-  res.status(201).json({ user });
+  res.status(201).json({ user: sanitizeUser(user) });
 });
 
 app.delete("/api/retail-users/:id", async (req, res) => {
@@ -925,7 +935,7 @@ app.post("/api/retail-users/:userId/add-points", async (req, res) => {
   if (!current) return res.status(404).json({ error: "Retail user not found" });
   const updated = { ...current, bonusPoints: Number(current.bonusPoints || 0) + points };
   await setRetailUsers(users.map((x) => (x.id === userId ? updated : x)));
-  res.json(updated);
+  res.json(sanitizeUser(updated));
 });
 
 app.post("/api/admin/retail-users/:id/balance", async (req, res) => {
@@ -936,7 +946,7 @@ app.post("/api/admin/retail-users/:id/balance", async (req, res) => {
   if (!current) return res.status(404).json({ error: "Retail user not found" });
   const updated = { ...current, bonusPoints: Number(current.bonusPoints || 0) + amount };
   await setRetailUsers(users.map((x) => (x.id === id ? updated : x)));
-  res.json(updated);
+  res.json(sanitizeUser(updated));
 });
 
 app.post("/api/business-registration", async (req, res) => {
