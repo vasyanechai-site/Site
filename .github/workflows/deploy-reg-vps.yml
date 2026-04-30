@@ -30,4 +30,11 @@ jobs:
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start server/src/index.js --name site-api
             pm2 save
-            curl -fsS http://127.0.0.1:8787/api/health
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if curl -fsS http://127.0.0.1:8787/api/health; then
+                exit 0
+              fi
+              sleep 2
+            done
+            pm2 logs site-api --lines 80 --nostream
+            exit 1
