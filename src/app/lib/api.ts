@@ -1,11 +1,8 @@
 import { CoffeeItem, Order, OrderFormData, User, AuthUser, ExchangeRate, RetailOrder } from '../types';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from './backendConfig';
 
-const API_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
-const needsSupabaseAuth = API_URL.includes("supabase.co");
-
+const API_URL = API_BASE_URL;
 const headers = {
-  ...(needsSupabaseAuth ? { 'Authorization': `Bearer ${publicAnonKey}` } : {}),
   'Content-Type': 'application/json'
 };
 
@@ -13,14 +10,14 @@ const headers = {
 function getServerUnavailableMessage(originalError: string): string {
   return `Сервер недоступен (${originalError}).
 
-🔧 СКОРЕЕ ВСЕГО: Edge Function не развернута в Supabase
+🔧 СКОРЕЕ ВСЕГО: backend API недоступен
 
 ✅ КАК ИСПРАВИТЬ:
-1. Откройте Supabase Dashboard: https://supabase.com/dashboard/project/${projectId}
-2. Перейдите в Edge Functions → server
-3. Нажмите кнопку "Deploy" или "Redeploy"
-4. Подождите 30-60 секунд
-5. Обновите эту страницу
+1. Проверьте, что backend запущен на VPS
+2. Проверьте Nginx reverse proxy на /api
+3. Проверьте переменную VITE_API_BASE_URL в GitHub Secrets
+4. Перезапустите деплой frontend и backend
+5. Обновите страницу
 
 📖 Или используйте встроенную диагностику ниже`;
 }
@@ -974,7 +971,7 @@ export const uploadRetailImage = async (file: File): Promise<string> => {
 
     const response = await fetch(`${API_URL}/retail/upload-image`, {
       method: 'POST',
-      headers: needsSupabaseAuth ? { 'Authorization': `Bearer ${publicAnonKey}` } : {},
+      headers: {},
       body: formData
     });
 
@@ -1357,8 +1354,6 @@ export const checkServerHealth = async (): Promise<{ status: string; timestamp: 
 export const fetchOrdersAdmin = async (): Promise<Order[]> => {
   console.log('📡 Starting fetchOrdersAdmin...');
   console.log('📡 API_URL:', API_URL);
-  console.log('📡 projectId:', projectId);
-  console.log('📡 publicAnonKey:', publicAnonKey ? 'Present' : 'Missing');
   
   try {
     const url = `${API_URL}/admin/orders`;

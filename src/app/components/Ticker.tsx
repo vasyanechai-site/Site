@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface TickerSettings {
   enabled: boolean;
@@ -25,11 +25,7 @@ export function Ticker({ variant = 'wholesale', className }: TickerProps) {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/ticker-settings?type=${variant}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
-        }
-      });
+      const response = await fetch(`${API_BASE_URL}/ticker-settings?type=${variant}`);
       if (response.ok) {
         const data = await response.json();
         setSettings(data);

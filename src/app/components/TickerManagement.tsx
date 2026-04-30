@@ -6,7 +6,7 @@ import { Switch } from './ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { toast } from 'sonner';
 import { Loader2, Save } from 'lucide-react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 interface TickerSettings {
   enabled: boolean;
@@ -29,11 +29,7 @@ export function TickerManagement({ variant = 'wholesale' }: TickerManagementProp
   const fetchSettings = async () => {
     try {
       console.log(`Fetching ticker settings for ${variant}...`);
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/ticker-settings?type=${variant}`, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`
-        }
-      });
+      const response = await fetch(`${API_BASE_URL}/ticker-settings?type=${variant}`);
       console.log('Ticker settings response status:', response.status);
       if (response.ok) {
         const data = await response.json();
@@ -52,11 +48,10 @@ export function TickerManagement({ variant = 'wholesale' }: TickerManagementProp
     try {
       console.log('Saving ticker settings:', settings);
       setSaving(true);
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/ticker-settings`, {
+      const response = await fetch(`${API_BASE_URL}/ticker-settings`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ ...settings, type: variant }),
       });

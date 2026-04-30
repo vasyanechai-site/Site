@@ -25,6 +25,26 @@ import {
   updateOrderById,
   updateRetailOrderById,
   getUserSettings,
+  getCoffeeItems,
+  setCoffeeItems,
+  getUsers,
+  setUsers,
+  getPromoCodes,
+  setPromoCodes,
+  getFavoritesByUser,
+  setFavoritesByUser,
+  getRetailProducts,
+  setRetailProducts,
+  getCategoryOrder,
+  setCategoryOrder,
+  getBusinessRegistrations,
+  setBusinessRegistrations,
+  getRetailUsers,
+  setRetailUsers,
+  getTickerSettings,
+  setTickerSettings,
+  getWholesaleAccessRequests,
+  setWholesaleAccessRequests,
 } from "./store.js";
 
 dotenv.config();
@@ -35,6 +55,12 @@ const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
 
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json({ limit: "1mb" }));
+
+const DEFAULT_CATEGORY_ORDER = ["Фильтр", "Эспрессо", "Дрип", "Оборудование", "Аксессуары"];
+
+function byDateDesc(a, b) {
+  return new Date(b?.date || 0) - new Date(a?.date || 0);
+}
 
 app.get("/health", (_req, res) => {
   res.json({
@@ -49,6 +75,159 @@ app.get("/api/health", (_req, res) => {
     ok: true,
     env: process.env.NODE_ENV || "development",
   });
+});
+
+app.get("/api/keep-alive", (_req, res) => {
+  res.json({
+    success: true,
+    timestamp: new Date().toISOString(),
+    message: "Server is alive",
+  });
+});
+
+app.get("/api/coffee-items", async (_req, res) => {
+  res.json(await getCoffeeItems());
+});
+
+app.get("/api/coffee-items-admin", async (_req, res) => {
+  res.json(await getCoffeeItems());
+});
+
+app.post("/api/coffee-items", async (req, res) => {
+  const body = req.body || {};
+  const items = await getCoffeeItems();
+  const item = { ...body, id: body.id || `coffee-${Date.now()}-${Math.floor(Math.random() * 1000)}` };
+  await setCoffeeItems([...items.filter((x) => x.id !== item.id), item]);
+  res.status(201).json(item);
+});
+
+app.put("/api/coffee-items/:id", async (req, res) => {
+  const { id } = req.params;
+  const items = await getCoffeeItems();
+  const current = items.find((x) => x.id === id);
+  if (!current) return res.status(404).json({ error: "Coffee item not found" });
+  const updated = { ...current, ...(req.body || {}), id };
+  await setCoffeeItems(items.map((x) => (x.id === id ? updated : x)));
+  res.json(updated);
+});
+
+app.put("/api/coffee-items-reorder", async (req, res) => {
+  const next = Array.isArray(req.body?.items) ? req.body.items : [];
+  await setCoffeeItems(next);
+  res.json({ success: true });
+});
+
+app.delete("/api/coffee-items/:id", async (req, res) => {
+  const items = await getCoffeeItems();
+  await setCoffeeItems(items.filter((x) => x.id !== req.params.id));
+  res.json({ success: true });
+});
+
+app.get("/api/users", async (_req, res) => {
+  res.json(await getUsers());
+});
+
+app.post("/api/users", async (req, res) => {
+  const body = req.body || {};
+  const users = await getUsers();
+  if (body.phone && users.some((x) => x.phone === body.phone)) {
+    return res.status(409).json({ error: "User with this phone already exists" });
+  }
+  const user = {
+    id: body.id || `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    created_at: body.created_at || new Date().toISOString(),
+    loyaltyLevel: 0,
+    discount: 0,
+    totalKg: 0,
+    ...body,
+  };
+  await setUsers([user, ...users]);
+  res.status(201).json(user);
+});
+
+app.post("/api/retail-signup", async (req, res) => {
+  const body = req.body || {};
+  const users = await getRetailUsers();
+  if (body.email && users.some((x) => String(x.email || "").toLowerCase() === String(body.email).toLowerCase())) {
+    return res.status(409).json({ error: "Пользователь с таким email уже существует" });
+  }
+  const user = {
+    id: body.id || `retail-user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    role: body.role || "user",
+    createdAt: body.createdAt || new Date().toISOString(),
+    bonusPoints: Number(body.bonusPoints || 0),
+    ...body,
+  };
+  await setRetailUsers([user, ...users]);
+  res.status(201).json({ success: true, user });
+});
+
+app.post("/api/users/login", async (req, res) => {
+  const { phone, password } = req.body || {};
+  const users = await getUsers();
+  const retailUsers = await getRetailUsers();
+  const user =
+    users.find((x) => x.phone === phone && x.password === password) ||
+    retailUsers.find((x) => x.phone === phone && x.password === password);
+  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  res.json(user);
+});
+
+app.put("/api/users/:id", async (req, res) => {
+  const { id } = req.params;
+  const users = await getUsers();
+  const current = users.find((x) => x.id === id);
+  if (!current) return res.status(404).json({ error: "User not found" });
+  const updated = { ...current, ...(req.body || {}), id };
+  await setUsers(users.map((x) => (x.id === id ? updated : x)));
+  res.json(updated);
+});
+
+app.delete("/api/users/:id", async (req, res) => {
+  const users = await getUsers();
+  await setUsers(users.filter((x) => x.id !== req.params.id));
+  res.json({ success: true });
+});
+
+app.get("/api/users/:id/orders", async (req, res) => {
+  const { id } = req.params;
+  const wholesale = (await getOrders()).filter((o) => o.userId === id || o.user_id === id);
+  const retail = (await getRetailOrders()).filter((o) => o.userId === id || o.user_id === id);
+  res.json([...wholesale, ...retail].sort(byDateDesc));
+});
+
+app.get("/api/users/:id/loyalty", async (req, res) => {
+  const { id } = req.params;
+  const users = await getUsers();
+  const user = users.find((x) => x.id === id);
+  const totalKg = Number(user?.totalKg || 0);
+  const loyaltyLevel = Number(user?.loyaltyLevel || 0);
+  const discount = Number(user?.discount || 0);
+  res.json({
+    loyaltyLevel,
+    discount,
+    loyaltyLevelSetDate: user?.loyaltyLevelSetDate || new Date().toISOString(),
+    totalKg,
+    ordersIn3Mo: 0,
+    ordersIn6Mo: 0,
+    ordersIn12Mo: 0,
+    autoLevel: loyaltyLevel,
+    autoDiscount: discount,
+    isManualOverride: false,
+    nextLevel: null,
+  });
+});
+
+app.post("/api/wholesale/request-access", async (req, res) => {
+  const requests = await getWholesaleAccessRequests();
+  const item = {
+    id: `wholesale-access-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    createdAt: new Date().toISOString(),
+    status: "pending",
+    ...(req.body || {}),
+  };
+  await setWholesaleAccessRequests([item, ...requests]);
+  res.status(201).json({ success: true, request: item });
 });
 
 app.post("/api/orders", async (req, res) => {
@@ -217,6 +396,176 @@ app.get("/api/user-settings/:userId", async (req, res) => {
 
 app.put("/api/user-settings/:userId", async (req, res) => {
   res.json(await setUserSettings(req.params.userId, req.body || {}));
+});
+
+app.get("/api/promo-codes", async (_req, res) => {
+  res.json(await getPromoCodes());
+});
+
+app.post("/api/promo-codes", async (req, res) => {
+  const body = req.body || {};
+  if (!body.code) return res.status(400).json({ error: "code is required" });
+  const promoCodes = await getPromoCodes();
+  const code = String(body.code).toUpperCase();
+  const promo = { ...body, code };
+  await setPromoCodes([promo, ...promoCodes.filter((x) => String(x.code).toUpperCase() !== code)]);
+  res.status(201).json(promo);
+});
+
+app.put("/api/promo-codes/:code", async (req, res) => {
+  const code = String(req.params.code).toUpperCase();
+  const promoCodes = await getPromoCodes();
+  const current = promoCodes.find((x) => String(x.code).toUpperCase() === code);
+  if (!current) return res.status(404).json({ error: "Promo code not found" });
+  const updated = { ...current, ...(req.body || {}), code };
+  await setPromoCodes(promoCodes.map((x) => (String(x.code).toUpperCase() === code ? updated : x)));
+  res.json(updated);
+});
+
+app.delete("/api/promo-codes/:code", async (req, res) => {
+  const code = String(req.params.code).toUpperCase();
+  const promoCodes = await getPromoCodes();
+  await setPromoCodes(promoCodes.filter((x) => String(x.code).toUpperCase() !== code));
+  res.json({ success: true });
+});
+
+app.post("/api/verify-promo", async (req, res) => {
+  const code = String(req.body?.code || "").toUpperCase();
+  const promoCodes = await getPromoCodes();
+  const promo = promoCodes.find((x) => String(x.code).toUpperCase() === code);
+  if (!promo) return res.status(404).json({ valid: false, error: "Промокод не найден" });
+  if (promo.active === false) return res.status(400).json({ valid: false, error: "Промокод неактивен" });
+  const discountPercent = Number(promo.discountPercent || promo.discount || 0);
+  res.json({ valid: true, discountPercent });
+});
+
+app.get("/api/favorites/:userId", async (req, res) => {
+  const map = await getFavoritesByUser();
+  res.json(Array.isArray(map[req.params.userId]) ? map[req.params.userId] : []);
+});
+
+app.post("/api/favorites/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const itemId = req.body?.itemId;
+  if (!itemId) return res.status(400).json({ error: "itemId is required" });
+  const map = await getFavoritesByUser();
+  const current = Array.isArray(map[userId]) ? map[userId] : [];
+  const favorites = current.includes(itemId) ? current : [...current, itemId];
+  await setFavoritesByUser({ ...map, [userId]: favorites });
+  res.json({ favorites });
+});
+
+app.delete("/api/favorites/:userId/:itemId", async (req, res) => {
+  const { userId, itemId } = req.params;
+  const map = await getFavoritesByUser();
+  const current = Array.isArray(map[userId]) ? map[userId] : [];
+  const favorites = current.filter((x) => x !== itemId);
+  await setFavoritesByUser({ ...map, [userId]: favorites });
+  res.json({ favorites });
+});
+
+app.get("/api/ticker-settings", async (req, res) => {
+  const type = String(req.query.type || "wholesale");
+  const settings = await getTickerSettings();
+  res.json(settings?.[type] || settings?.wholesale || { enabled: true, text: "", speed: 30 });
+});
+
+app.put("/api/ticker-settings", async (req, res) => {
+  const body = req.body || {};
+  const type = body.type || "wholesale";
+  const settings = await getTickerSettings();
+  const updated = {
+    ...settings,
+    [type]: {
+      ...(settings?.[type] || {}),
+      ...body,
+      type,
+    },
+  };
+  await setTickerSettings(updated);
+  res.json(updated[type]);
+});
+
+app.get("/api/retail/products", async (_req, res) => {
+  const products = await getRetailProducts();
+  res.json(products.sort((a, b) => Number(a.displayOrder || 0) - Number(b.displayOrder || 0)));
+});
+
+app.post("/api/retail/products", async (req, res) => {
+  const body = req.body || {};
+  const products = await getRetailProducts();
+  const product = { ...body, id: body.id || `retail-product-${Date.now()}-${Math.floor(Math.random() * 1000)}` };
+  await setRetailProducts([...products.filter((x) => x.id !== product.id), product]);
+  res.status(201).json(product);
+});
+
+app.put("/api/retail/products/:id", async (req, res) => {
+  const { id } = req.params;
+  const products = await getRetailProducts();
+  const current = products.find((x) => x.id === id);
+  if (!current) return res.status(404).json({ error: "Product not found" });
+  const updated = { ...current, ...(req.body || {}), id };
+  await setRetailProducts(products.map((x) => (x.id === id ? updated : x)));
+  res.json(updated);
+});
+
+app.delete("/api/retail/products/:id", async (req, res) => {
+  const products = await getRetailProducts();
+  await setRetailProducts(products.filter((x) => x.id !== req.params.id));
+  res.json({ success: true });
+});
+
+app.put("/api/retail/products/reorder", async (req, res) => {
+  const updates = Array.isArray(req.body?.updates) ? req.body.updates : [];
+  const products = await getRetailProducts();
+  const map = new Map(updates.map((x) => [x.id, Number(x.displayOrder || 0)]));
+  const next = products.map((x) => (map.has(x.id) ? { ...x, displayOrder: map.get(x.id) } : x));
+  await setRetailProducts(next);
+  res.json({ success: true });
+});
+
+app.post("/api/retail/products/migrate-dimensions", async (_req, res) => {
+  const products = await getRetailProducts();
+  let updatedProducts = 0;
+  const next = products.map((p) => {
+    const patch = { ...p };
+    if (!Number.isFinite(Number(patch.packageWeight))) {
+      patch.packageWeight = 250;
+      updatedProducts += 1;
+    }
+    if (!Number.isFinite(Number(patch.packageLength))) patch.packageLength = 20;
+    if (!Number.isFinite(Number(patch.packageHeight))) patch.packageHeight = 10;
+    if (!Number.isFinite(Number(patch.packageWidth))) patch.packageWidth = 10;
+    return patch;
+  });
+  await setRetailProducts(next);
+  res.json({ success: true, totalProducts: products.length, updatedProducts, message: "Dimensions migrated" });
+});
+
+app.post("/api/retail/init-test-data", async (_req, res) => {
+  const current = await getRetailProducts();
+  if (current.length > 0) return res.json({ success: true, count: current.length });
+  const seed = [
+    { id: "retail-seed-1", name: "Brazil", price: 890, category: "Эспрессо", displayOrder: 1, published: true },
+    { id: "retail-seed-2", name: "Ethiopia", price: 990, category: "Фильтр", displayOrder: 2, published: true },
+  ];
+  await setRetailProducts(seed);
+  res.json({ success: true, count: seed.length });
+});
+
+app.post("/api/retail/upload-image", async (_req, res) => {
+  res.status(501).json({ error: "Image upload is not configured on VPS yet" });
+});
+
+app.get("/api/retail/category-order", async (_req, res) => {
+  const order = await getCategoryOrder();
+  res.json({ order: order.length ? order : DEFAULT_CATEGORY_ORDER });
+});
+
+app.put("/api/retail/category-order", async (req, res) => {
+  const order = Array.isArray(req.body?.order) ? req.body.order : [];
+  await setCategoryOrder(order.length ? order : DEFAULT_CATEGORY_ORDER);
+  res.json({ success: true });
 });
 
 app.get("/api/retail/orders", async (_req, res) => {
@@ -446,6 +795,152 @@ app.post("/api/retail/check-pending-payments", async (_req, res) => {
     checked: pendingOrders.length,
     updated: 0,
     pendingOrderIds: pendingOrders.map((order) => order.orderId),
+  });
+});
+
+app.get("/api/retail/loyalty/claim-status/:userId", async (req, res) => {
+  const loyalty = await getRetailLoyalty(req.params.userId);
+  res.json({ claimed: Boolean(loyalty?.bonusClaimedAt), bonusClaimedAt: loyalty?.bonusClaimedAt || null });
+});
+
+app.get("/api/admin/orders", async (_req, res) => {
+  res.json((await getOrders()).sort(byDateDesc));
+});
+
+app.get("/api/admin/retail/orders", async (_req, res) => {
+  res.json((await getRetailOrders()).sort(byDateDesc));
+});
+
+app.get("/api/admin/users", async (_req, res) => {
+  res.json(await getUsers());
+});
+
+app.get("/api/admin/users/:id/orders", async (req, res) => {
+  const { id } = req.params;
+  const wholesale = (await getOrders()).filter((o) => o.userId === id || o.user_id === id);
+  const retail = (await getRetailOrders()).filter((o) => o.userId === id || o.user_id === id);
+  res.json([...wholesale, ...retail].sort(byDateDesc));
+});
+
+app.get("/api/retail-users", async (_req, res) => {
+  res.json({ users: await getRetailUsers() });
+});
+
+app.post("/api/retail-users", async (req, res) => {
+  const body = req.body || {};
+  const users = await getRetailUsers();
+  const user = {
+    id: body.id || `retail-user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    role: body.role || "user",
+    createdAt: body.createdAt || new Date().toISOString(),
+    ...body,
+  };
+  await setRetailUsers([user, ...users.filter((x) => x.id !== user.id)]);
+  res.status(201).json({ user });
+});
+
+app.delete("/api/retail-users/:id", async (req, res) => {
+  const users = await getRetailUsers();
+  await setRetailUsers(users.filter((x) => x.id !== req.params.id));
+  res.json({ success: true });
+});
+
+app.post("/api/retail-users/:userId/add-points", async (req, res) => {
+  const { userId } = req.params;
+  const points = Number(req.body?.points || 0);
+  const users = await getRetailUsers();
+  const current = users.find((x) => x.id === userId);
+  if (!current) return res.status(404).json({ error: "Retail user not found" });
+  const updated = { ...current, bonusPoints: Number(current.bonusPoints || 0) + points };
+  await setRetailUsers(users.map((x) => (x.id === userId ? updated : x)));
+  res.json(updated);
+});
+
+app.post("/api/admin/retail-users/:id/balance", async (req, res) => {
+  const { id } = req.params;
+  const amount = Number(req.body?.amount || 0);
+  const users = await getRetailUsers();
+  const current = users.find((x) => x.id === id);
+  if (!current) return res.status(404).json({ error: "Retail user not found" });
+  const updated = { ...current, bonusPoints: Number(current.bonusPoints || 0) + amount };
+  await setRetailUsers(users.map((x) => (x.id === id ? updated : x)));
+  res.json(updated);
+});
+
+app.post("/api/business-registration", async (req, res) => {
+  const body = req.body || {};
+  const items = await getBusinessRegistrations();
+  const item = { id: `biz-${Date.now()}-${Math.floor(Math.random() * 1000)}`, createdAt: new Date().toISOString(), ...body };
+  await setBusinessRegistrations([item, ...items]);
+  res.status(201).json({ success: true, registration: item });
+});
+
+app.get("/api/business-registrations", async (_req, res) => {
+  res.json(await getBusinessRegistrations());
+});
+
+app.delete("/api/business-registration/:id", async (req, res) => {
+  const items = await getBusinessRegistrations();
+  await setBusinessRegistrations(items.filter((x) => x.id !== req.params.id));
+  res.json({ success: true });
+});
+
+app.post("/api/utilities/find-orders-by-total", async (req, res) => {
+  const totals = Array.isArray(req.body?.totals) ? req.body.totals.map(Number) : [];
+  const wholesale = (await getOrders())
+    .filter((x) => totals.includes(Number(x.total)))
+    .map((x) => ({ ...x, _key: `orders:${x.orderId}` }));
+  const retail = (await getRetailOrders())
+    .filter((x) => totals.includes(Number(x.total)))
+    .map((x) => ({ ...x, _key: `retailOrders:${x.orderId}` }));
+  res.json({ wholesale, retail, misplaced: [] });
+});
+
+app.post("/api/utilities/delete-order-by-key", async (req, res) => {
+  const key = String(req.body?.key || "");
+  if (key.startsWith("orders:")) {
+    await deleteOrderById(key.replace("orders:", ""));
+  } else if (key.startsWith("retailOrders:")) {
+    await deleteRetailOrderById(key.replace("retailOrders:", ""));
+  } else {
+    return res.status(400).json({ error: "Unsupported key" });
+  }
+  res.json({ success: true, deletedKey: key });
+});
+
+app.post("/api/utilities/delete-orders-by-keys", async (req, res) => {
+  const keys = Array.isArray(req.body?.keys) ? req.body.keys : [];
+  const deleted = [];
+  const failed = [];
+  for (const key of keys) {
+    try {
+      if (String(key).startsWith("orders:")) {
+        await deleteOrderById(String(key).replace("orders:", ""));
+      } else if (String(key).startsWith("retailOrders:")) {
+        await deleteRetailOrderById(String(key).replace("retailOrders:", ""));
+      } else {
+        throw new Error("Unsupported key");
+      }
+      deleted.push(key);
+    } catch (error) {
+      failed.push({ key, error: error.message || "failed" });
+    }
+  }
+  res.json({ deleted, failed });
+});
+
+app.get("/api/utilities/list-all-order-keys", async (_req, res) => {
+  const wholesale = (await getOrders()).map((x) => ({ key: `orders:${x.orderId}`, orderId: x.orderId, total: x.total }));
+  const retail = (await getRetailOrders()).map((x) => ({
+    key: `retailOrders:${x.orderId}`,
+    orderId: x.orderId,
+    total: x.total,
+  }));
+  res.json({
+    wholesale,
+    retail,
+    problematic: [],
+    summary: { wholesaleCount: wholesale.length, retailCount: retail.length, problematicCount: 0 },
   });
 });
 

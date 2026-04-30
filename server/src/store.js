@@ -12,6 +12,19 @@ let pgReady = false;
 const defaultDb = {
   orders: [],
   retailOrders: [],
+  coffeeItems: [],
+  users: [],
+  promoCodes: [],
+  retailProducts: [],
+  categoryOrder: [],
+  favoritesByUser: {},
+  businessRegistrations: [],
+  retailUsers: [],
+  tickerSettings: {
+    wholesale: { enabled: true, text: "", speed: 30 },
+    retail: { enabled: true, text: "", speed: 30 },
+  },
+  wholesaleAccessRequests: [],
   exchangeRate: { usd_to_rub: 95, updated_at: null },
   loyaltyByUser: {},
   retailLocations: [],
@@ -310,4 +323,102 @@ export async function setUserSettings(userId, settings) {
   db.userSettingsByUser[userId] = settings;
   writeDb(db);
   return settings;
+}
+
+export async function getCollection(key, fallback = []) {
+  const value = await getJsonSetting(key, fallback);
+  return Array.isArray(value) ? value : fallback;
+}
+
+export async function setCollection(key, items) {
+  return setJsonSetting(key, Array.isArray(items) ? items : []);
+}
+
+export async function getMap(key, fallback = {}) {
+  const value = await getJsonSetting(key, fallback);
+  return value && typeof value === "object" ? value : fallback;
+}
+
+export async function setMap(key, value) {
+  return setJsonSetting(key, value && typeof value === "object" ? value : {});
+}
+
+export async function getCoffeeItems() {
+  return getCollection("coffeeItems", []);
+}
+
+export async function setCoffeeItems(items) {
+  return setCollection("coffeeItems", items);
+}
+
+export async function getUsers() {
+  return getCollection("users", []);
+}
+
+export async function setUsers(users) {
+  return setCollection("users", users);
+}
+
+export async function getPromoCodes() {
+  return getCollection("promoCodes", []);
+}
+
+export async function setPromoCodes(items) {
+  return setCollection("promoCodes", items);
+}
+
+export async function getFavoritesByUser() {
+  return getMap("favoritesByUser", {});
+}
+
+export async function setFavoritesByUser(value) {
+  return setMap("favoritesByUser", value);
+}
+
+export async function getRetailProducts() {
+  return getCollection("retailProducts", []);
+}
+
+export async function setRetailProducts(items) {
+  return setCollection("retailProducts", items);
+}
+
+export async function getCategoryOrder() {
+  return getCollection("categoryOrder", []);
+}
+
+export async function setCategoryOrder(items) {
+  return setCollection("categoryOrder", items);
+}
+
+export async function getBusinessRegistrations() {
+  return getCollection("businessRegistrations", []);
+}
+
+export async function setBusinessRegistrations(items) {
+  return setCollection("businessRegistrations", items);
+}
+
+export async function getRetailUsers() {
+  return getCollection("retailUsers", []);
+}
+
+export async function setRetailUsers(items) {
+  return setCollection("retailUsers", items);
+}
+
+export async function getTickerSettings() {
+  return getJsonSetting("tickerSettings", defaultDb.tickerSettings);
+}
+
+export async function setTickerSettings(value) {
+  return setJsonSetting("tickerSettings", value);
+}
+
+export async function getWholesaleAccessRequests() {
+  return getCollection("wholesaleAccessRequests", []);
+}
+
+export async function setWholesaleAccessRequests(items) {
+  return setCollection("wholesaleAccessRequests", items);
 }
