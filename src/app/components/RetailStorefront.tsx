@@ -1135,11 +1135,13 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
         {/* Main content */}
         <div className="container mx-auto px-4 text-center relative z-10 w-full">
           <FadeIn delay={0} duration={0.8} yOffset={30}>
-            <h1 className="text-2xl sm:text-5xl md:text-6xl font-normal mb-3 sm:mb-4 text-[#222222] leading-tight">
+            <h1 className="text-3xl sm:text-5xl md:text-6xl font-normal mb-3 sm:mb-4 text-[#222222] leading-tight">
               Кофе — это Нечай
             </h1>
-            <p className="text-base sm:text-xl md:text-2xl font-normal text-[#222222]/85 leading-snug max-w-2xl mx-auto">
-              Обжариваем свежий кофе в Петербурге
+            <p className="text-lg sm:text-xl md:text-2xl font-normal text-[#222222]/85 leading-snug max-w-2xl mx-auto">
+              {'Обжариваем свежий кофе '}
+              <br className="md:hidden" aria-hidden="true" />
+              {'в Петербурге'}
             </p>
           </FadeIn>
         </div>
