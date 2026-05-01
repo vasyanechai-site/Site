@@ -65,6 +65,27 @@ PostgreSQL **15+** и часть hosted-решений дают ошибку **`
 postgres://site_user:strong_password@127.0.0.1:5432/site_db
 ```
 
+### Если импорт / API падает с `permission denied for schema public` и «таблицы отсутствуют»
+
+Таблицы **`orders`**, **`retail_orders`**, **`app_settings`** должны существовать. Создайте их **один раз** под суперпользователем (на VPS, если Postgres локальный):
+
+```bash
+cd /var/www/site
+sudo -u postgres psql -d site_db -f server/sql/pg-bootstrap.sql
+```
+
+Имя базы (`site_db`) возьмите из **`DATABASE_URL`** (последний сегмент пути URL).
+
+Затем выдайте права роли приложения (имя роли — пользователь из `DATABASE_URL`, до `:`):
+
+```sql
+GRANT CREATE ON SCHEMA public TO site_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO site_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO site_user;
+```
+
+Если Postgres **не на этом VPS** (managed Reg.ru и т.д.), выполните **`pg-bootstrap.sql`** в SQL-консоли панели провайдера под администратором, затем в той же панели выдайте `GRANT` на роль из `DATABASE_URL`.
+
 ## 4) PM2 setup once on VPS
 
 ```bash

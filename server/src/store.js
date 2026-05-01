@@ -93,10 +93,10 @@ async function ensurePgSchema() {
       if (!ok) {
         throw new Error(
           "PostgreSQL: permission denied for schema public — the DB role cannot CREATE TABLE and required tables are missing. " +
-            "As a superuser (or DB owner), run: GRANT CREATE ON SCHEMA public TO your_app_role; " +
-            "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_role; " +
+            "As postgres (superuser), create tables once: psql -d YOUR_DB -f server/sql/pg-bootstrap.sql " +
+            "then GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_role; " +
             "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_app_role; " +
-            "then restart — or create orders, retail_orders, app_settings manually.",
+            "GRANT CREATE ON SCHEMA public TO your_app_role; (see DEPLOY_REGRU.md).",
         );
       }
       console.warn(
