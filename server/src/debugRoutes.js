@@ -7,6 +7,7 @@ import {
   formatWholesaleOrderMessage,
   serializeFetchError,
 } from "./telegram.js";
+import { ipv4HttpsRequest } from "./ipv4Https.js";
 
 function chatIdHint(chatId) {
   const s = String(chatId || "").trim();
@@ -78,11 +79,8 @@ export function registerDebugRoutes(app) {
     if (token) {
       try {
         const url = `https://api.telegram.org/bot${token}/getMe`;
-        const ac = new AbortController();
-        const timer = setTimeout(() => ac.abort(), 12000);
-        const gr = await fetch(url, { signal: ac.signal });
-        clearTimeout(timer);
-        const gj = await gr.json().catch(() => ({}));
+        const gr = await ipv4HttpsRequest(url, { method: "GET" });
+        const gj = await gr.json();
         getMe = {
           http: gr.status,
           ok: gj.ok === true,
@@ -126,19 +124,20 @@ export function registerDebugRoutes(app) {
   /** Проверка TCP/TLS до api.telegram.org (без токена в URL). */
   app.post("/api/debug/telegram/network-probe", requireDebugSecret, async (_req, res) => {
     const url = "https://api.telegram.org/";
-    const ac = new AbortController();
-    const timer = setTimeout(() => ac.abort(), 12000);
     try {
-      const r = await fetch(url, { method: "GET", signal: ac.signal, redirect: "manual" });
-      clearTimeout(timer);
+      const r = await ipv4HttpsRequest(url, { method: "GET" });
       res.json({
         ok: true,
         telegramHttpStatus: r.status,
-        note: "Соединение с api.telegram.org установлено. Если ping всё ещё падает — смотрите errorSummary в ответе ping.",
+        note: "Соединение с api.telegram.org установлено (IPv4). Если раньше был ETIMEDOUT через fetch — проверьте ping снова.",
       });
     } catch (e) {
-      clearTimeout(timer);
-      res.json({ ok: false, url, ...serializeFetchError(e) });
+      res.json({
+        ok: false,
+        url,
+        ...serializeFetchError(e),
+        hint: "Если снова ETIMEDOUT — у провайдера/VPS закрыт исходящий HTTPS к api.telegram.org; нужен другой хостинг или HTTP(S)-прокси.",
+      });
     }
   });
 

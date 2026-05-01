@@ -3,6 +3,8 @@
  * Переменные окружения: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (числовой id чата или @channelusername).
  */
 
+import { ipv4HttpsRequest } from "./ipv4Https.js";
+
 /** Разбор цепочки cause у TypeError fetch failed (Node / undici). */
 export function serializeFetchError(e) {
   const parts = [];
@@ -46,7 +48,7 @@ export async function sendTelegramHtml(text) {
   }
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   try {
-    const res = await fetch(url, {
+    const res = await ipv4HttpsRequest(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -56,7 +58,7 @@ export async function sendTelegramHtml(text) {
         disable_web_page_preview: true,
       }),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json();
     if (!res.ok) {
       console.error("[telegram] sendMessage HTTP", res.status, data);
       return { ok: false, httpStatus: res.status, data };
