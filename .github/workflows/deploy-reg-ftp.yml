@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - "src/**"
+      - "public/**"
       - "index.html"
       - "vite.config.ts"
       - "package.json"
