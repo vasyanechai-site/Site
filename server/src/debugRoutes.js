@@ -1,5 +1,5 @@
 /**
- * Диагностические маршруты (/api/debug/*). Тесты с побочными эффектами — по DEBUG_SECRET.
+ * Диагностические маршруты (/api/debug/*). POST-тесты Telegram без секрета — ограничьте доступ к API (сеть / файрвол), если нужно.
  */
 
 import {
@@ -23,21 +23,6 @@ function maskMiddle(s, keep = 4) {
   const t = s.trim();
   if (t.length <= keep * 2) return "•".repeat(Math.min(t.length, 8));
   return `${t.slice(0, keep)}…${t.slice(-keep)}`;
-}
-
-function requireDebugSecret(req, res, next) {
-  const expected = (process.env.DEBUG_SECRET || "").trim();
-  if (!expected) {
-    return res.status(503).json({
-      error:
-        "На сервере не задан DEBUG_SECRET. Добавьте в .env (и при деплое через GitHub Secrets), затем заголовок X-Debug-Secret в запросах с этой страницы.",
-    });
-  }
-  const got = String(req.get("x-debug-secret") || "").trim();
-  if (got !== expected) {
-    return res.status(401).json({ error: "Неверный или отсутствующий заголовок X-Debug-Secret" });
-  }
-  next();
 }
 
 function sampleWholesaleOrder() {
@@ -131,7 +116,6 @@ export function registerDebugRoutes(app) {
       tokenPreview: token ? maskMiddle(token, 6) : null,
       chatIdPreview: chatId ? maskMiddle(chatId, 4) : null,
       nodeEnv: process.env.NODE_ENV || "",
-      debugSecretConfigured: Boolean((process.env.DEBUG_SECRET || "").trim()),
       outboundProxyConfigured: proxyOn,
       getMe,
       hints,
@@ -139,7 +123,7 @@ export function registerDebugRoutes(app) {
   });
 
   /** Проверка TCP/TLS до api.telegram.org (без токена в URL). */
-  app.post("/api/debug/telegram/network-probe", requireDebugSecret, async (_req, res) => {
+  app.post("/api/debug/telegram/network-probe", async (_req, res) => {
     const url = "https://api.telegram.org/";
     try {
       const r = await ipv4HttpsRequest(url, { method: "GET" });
@@ -158,7 +142,7 @@ export function registerDebugRoutes(app) {
     }
   });
 
-  app.post("/api/debug/telegram/ping", requireDebugSecret, async (req, res) => {
+  app.post("/api/debug/telegram/ping", async (req, res) => {
     const message =
       (req.body && typeof req.body.message === "string" && req.body.message.trim()) ||
       "🔧 <b>Тест Telegram</b>\nСообщение со страницы /debug API.";
@@ -166,7 +150,7 @@ export function registerDebugRoutes(app) {
     res.json({ ok: result.ok, result });
   });
 
-  app.post("/api/debug/telegram/wholesale-sample", requireDebugSecret, async (req, res) => {
+  app.post("/api/debug/telegram/wholesale-sample", async (req, res) => {
     const html = formatWholesaleOrderMessage(sampleWholesaleOrder());
     const result = await sendTelegramHtml(html);
     res.json({ ok: result.ok, result, htmlChars: html.length });

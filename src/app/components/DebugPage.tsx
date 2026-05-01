@@ -2,11 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { API_BASE_URL } from "../lib/backendConfig";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { Card } from "./ui/card";
 import { Loader2, ArrowLeft, Send, ClipboardList } from "lucide-react";
-
-const DEBUG_SECRET_KEY = "nechai_debug_secret";
 
 type TelegramStatus = {
   hasToken: boolean;
@@ -16,7 +13,6 @@ type TelegramStatus = {
   tokenPreview: string | null;
   chatIdPreview: string | null;
   nodeEnv: string;
-  debugSecretConfigured: boolean;
   outboundProxyConfigured?: boolean;
   getMe?: {
     ok?: boolean;
@@ -43,26 +39,11 @@ export function DebugPage() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [debugSecret, setDebugSecret] = useState(() => {
-    try {
-      return sessionStorage.getItem(DEBUG_SECRET_KEY) || "";
-    } catch {
-      return "";
-    }
-  });
 
   const appendLog = useCallback((line: string) => {
     const ts = new Date().toLocaleTimeString("ru-RU", { hour12: false });
     setLogs((prev) => [...prev.slice(-300), `[${ts}] ${line}`]);
   }, []);
-
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(DEBUG_SECRET_KEY, debugSecret);
-    } catch {
-      /* ignore */
-    }
-  }, [debugSecret]);
 
   const loadTelegramStatus = useCallback(async () => {
     setStatusLoading(true);
@@ -90,21 +71,13 @@ export function DebugPage() {
   }, [loadTelegramStatus]);
 
   const postTelegramTest = async (path: "ping" | "wholesale-sample" | "network-probe") => {
-    const secret = debugSecret.trim();
-    if (!secret) {
-      appendLog("Введите DEBUG_SECRET (тот же, что в .env на сервере).");
-      return;
-    }
     setActionLoading(path);
     appendLog(`POST /api/debug/telegram/${path} …`);
     try {
       const res = await fetch(`${API_BASE_URL}/debug/telegram/${path}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Secret": secret,
-        },
-        body: path === "ping" ? JSON.stringify({}) : JSON.stringify({}),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
       });
       const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       appendLog(`HTTP ${res.status}: ${formatJson(data)}`);
@@ -170,10 +143,8 @@ export function DebugPage() {
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Уведомления идут через <code className="text-xs">TELEGRAM_BOT_TOKEN</code> и{" "}
                 <code className="text-xs">TELEGRAM_CHAT_ID</code> на API-сервере. Ниже — только
-                маскированные подсказки и длины, без секретов. Для отправки тестовых сообщений
-                задайте на сервере <code className="text-xs">DEBUG_SECRET</code> (и при желании
-                тот же ключ в GitHub Secret <code className="text-xs">DEBUG_SECRET</code> для
-                деплоя на VPS).
+                маскированные подсказки и длины. Тесты ниже сразу дергают API (без отдельного секрета);
+                при публичном API имеет смысл ограничить доступ к <code className="text-xs">/api/debug</code> на уровне сети.
               </p>
 
               <div className="flex flex-wrap gap-2">
@@ -195,7 +166,6 @@ export function DebugPage() {
                   <li>chat: {status.hasChatId ? `да (${status.chatIdLength} симв.)` : "нет"}</li>
                   <li>tokenPreview: {status.tokenPreview ?? "—"}</li>
                   <li>chatIdPreview: {status.chatIdPreview ?? "—"}</li>
-                  <li>DEBUG_SECRET на сервере: {status.debugSecretConfigured ? "задан" : "нет"}</li>
                   <li>
                     Прокси к Telegram:{" "}
                     {status.outboundProxyConfigured ? "да (TELEGRAM_HTTPS_PROXY или HTTPS_PROXY)" : "нет"}
@@ -217,18 +187,6 @@ export function DebugPage() {
                   {h}
                 </p>
               ))}
-
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">DEBUG_SECRET</label>
-                <Input
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Секрет из .env сервера"
-                  value={debugSecret}
-                  onChange={(e) => setDebugSecret(e.target.value)}
-                  className="font-mono text-sm"
-                />
-              </div>
 
               <div className="flex flex-wrap gap-2">
                 <Button

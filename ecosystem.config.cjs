@@ -1,5 +1,5 @@
 /**
- * PM2: переменные TELEGRAM_*, DEBUG_SECRET и др. читает `dotenv` из `.env` в корне репозитория
+ * PM2: переменные TELEGRAM_* и др. читает `dotenv` из `.env` в корне репозитория
  * (рядом с package.json). Запуск: `cd /path/to/Site && pm2 start ecosystem.config.cjs`
  */
 module.exports = {
