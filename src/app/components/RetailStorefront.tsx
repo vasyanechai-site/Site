@@ -1088,26 +1088,6 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
       {/* SEO Meta Tags */}
       <SEOHelmet {...SEOConfig.home} />
 
-      {/* Inline JSON-LD — главная страница (обновляется после гидрации JS) */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify({
-          "@context": "https://schema.org",
-          "@type": "WebPage",
-          "@id": "https://coffeenechai.ru/#webpage",
-          "url": "https://coffeenechai.ru/",
-          "name": "Кофе Нечай — обжарщики specialty кофе, доставка по России",
-          "description": "Кофе Нечай — свежеобжаренный specialty кофе в зернах из Бразилии, Эфиопии, Колумбии, Кении. Обжарка в Санкт-Петербурге. Доставка по всей России.",
-          "inLanguage": "ru-RU",
-          "isPartOf": { "@id": "https://coffeenechai.ru/#website" },
-          "about": { "@id": "https://coffeenechai.ru/#organization" },
-          "breadcrumb": {
-            "@type": "BreadcrumbList",
-            "itemListElement": [{ "@type": "ListItem", "position": 1, "name": "Главная", "item": "https://coffeenechai.ru/" }]
-          }
-        })}}
-      />
-
       {/* Header */}
       <RetailHeader 
         currentUser={currentUser}
@@ -1156,7 +1136,7 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
         <div className="container mx-auto px-4 text-center relative z-10 w-full">
           <FadeIn delay={0} duration={0.8} yOffset={30}>
             <h1 className="text-2xl sm:text-5xl md:text-6xl font-normal mb-8 text-[#222222] leading-tight">
-              Обжариваем свежий кофе<br />в Петербурге
+              Кофе Нечай — обжариваем свежий кофе<br />в Петербурге
             </h1>
           </FadeIn>
         </div>
