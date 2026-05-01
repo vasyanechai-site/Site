@@ -11,6 +11,13 @@
 - `CERTBOT_EMAIL` *(optional)* — email for Let's Encrypt; required **on first** HTTPS issuance for `API_PUBLIC_HOST` (after DNS already resolves to the VPS).
 - `ALLOWED_ORIGINS` *(optional)* — e.g. `https://coffeenechai.ru,https://www.coffeenechai.ru`. If set, each deploy writes this line into `${VPS_APP_PATH}/.env` (via `server/deploy/patch_dotenv.py`) so you do not need to edit `.env` over SSH for CORS.
 
+**Optional — same `patch_dotenv` on each VPS deploy** (Repository secrets; if empty, строка в `.env` не трогается):
+
+- `CDEK_ACCOUNT`, `CDEK_SECRET` — СДЭК API
+- `TOCHKA_JWT_TOKEN` — JWT для API Точки (оптовые счета `bills`, эквайринг и т.д.)
+- `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
+- `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
+
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 
 **Sudo:** the deploy SSH user must be able to run `nginx`, `systemctl reload nginx` / `service nginx reload`, `certbot`, and `apt-get install` via `sudo` **without an interactive password** (configure `sudoers` for that user), or run `bash server/deploy/install-api-proxy.sh` once manually as root and then only use Actions for app restarts.

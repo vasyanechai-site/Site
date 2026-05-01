@@ -363,14 +363,17 @@ export const deleteCoffeeItem = async (id: string): Promise<void> => {
 // ORDERS API
 // ============================================================================
 
-export const createOrder = async (orderData: OrderFormData & { items: any[], total: number }): Promise<Order> => {
+export const createOrder = async (
+  orderData: OrderFormData & { items: any[]; total: number; userId?: string; orderId?: string }
+): Promise<Order> => {
   const timestamp = Date.now();
   const random = Math.floor(Math.random() * 1000);
-  const orderId = `ORD-${timestamp}-${random}`;
-  
+  const orderId = orderData.orderId || `ORD-${timestamp}-${random}`;
+  const date = new Date().toISOString();
+
   const order: Order = {
     orderId,
-    date: new Date().toISOString(),
+    date,
     orderType: 'wholesale', // Маркируем как оптовый заказ
     company: orderData.company,
     contact: orderData.contact,
@@ -382,17 +385,17 @@ export const createOrder = async (orderData: OrderFormData & { items: any[], tot
     items: orderData.items,
     total: orderData.total
   };
-  
+
   if (USE_FALLBACK) {
     saveLocalOrder(order);
     return order;
   }
-  
+
   try {
     const response = await fetch(`${API_URL}/orders`, {
       method: 'POST',
       headers,
-      body: JSON.stringify(orderData)
+      body: JSON.stringify({ ...orderData, orderId, date })
     });
     if (!response.ok) {
       throw new Error(`Failed to create order: ${response.statusText}`);

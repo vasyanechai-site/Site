@@ -393,24 +393,24 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
         });
       }
 
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000);
+      const orderId = `ORD-${timestamp}-${random}`;
+
       const orderData = {
         ...formData,
         items: orderItems,
         total: finalTotal,
-        userId: isUserAuthenticated ? userId : undefined
+        userId: isUserAuthenticated ? userId : undefined,
+        orderId
       };
-      
-      // Генерируем orderId сразу и переходим на страницу успеха
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      const orderId = `ORD-${timestamp}-${random}`;
-      
+
       // Сразу переходим на страницу успеха
       setCart(new Map());
       setIsOrderDialogOpen(false);
       onOrderSuccess(orderId);
-      
-      // Создаем заказ в фоне
+
+      // Создаем заказ в фоне (тот же orderId уйдёт на сервер)
       createOrder(orderData).catch(err => {
         console.error('Failed to create order:', err);
       });

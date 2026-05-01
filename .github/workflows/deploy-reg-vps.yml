@@ -1,5 +1,5 @@
 name: Deploy to Reg VPS
-# При push сюда: деплой backend; TELEGRAM_* из GitHub Secrets пишутся в .env на VPS (если заданы).
+# При push: деплой backend; выбранные Secrets пишутся в .env на VPS (patch_dotenv), если заданы.
 
 on:
   push:
@@ -36,6 +36,30 @@ jobs:
             fi
             if [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
               python3 server/deploy/patch_dotenv.py TELEGRAM_CHAT_ID "${{ secrets.TELEGRAM_CHAT_ID }}"
+            fi
+            if [ -n "${{ secrets.CDEK_ACCOUNT }}" ]; then
+              python3 server/deploy/patch_dotenv.py CDEK_ACCOUNT "${{ secrets.CDEK_ACCOUNT }}"
+            fi
+            if [ -n "${{ secrets.CDEK_SECRET }}" ]; then
+              python3 server/deploy/patch_dotenv.py CDEK_SECRET "${{ secrets.CDEK_SECRET }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_JWT_TOKEN }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_JWT_TOKEN "${{ secrets.TOCHKA_JWT_TOKEN }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_CUSTOMER_CODE }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_CUSTOMER_CODE "${{ secrets.TOCHKA_CUSTOMER_CODE }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_INVOICE_ACCOUNT_ID }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_INVOICE_ACCOUNT_ID "${{ secrets.TOCHKA_INVOICE_ACCOUNT_ID }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_MERCHANT_ID }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_MERCHANT_ID "${{ secrets.TOCHKA_MERCHANT_ID }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_TERMINAL_ID }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_TERMINAL_ID "${{ secrets.TOCHKA_TERMINAL_ID }}"
+            fi
+            if [ -n "${{ secrets.TOCHKA_CLIENT_ID }}" ]; then
+              python3 server/deploy/patch_dotenv.py TOCHKA_CLIENT_ID "${{ secrets.TOCHKA_CLIENT_ID }}"
             fi
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start server/src/index.js --name site-api

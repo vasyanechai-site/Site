@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import express from "express";
 import multer from "multer";
 import { calculateDelivery, getPickupPoints, searchCities } from "./cdek.js";
+import { createWholesaleTochkaBill } from "./tochkaWholesaleInvoice.js";
 import {
   addOrder,
   addRetailOrder,
@@ -330,7 +331,16 @@ app.post("/api/orders", async (req, res) => {
     orderType: "wholesale",
     ...body,
   };
-  const saved = await addOrder(order);
+  let saved = await addOrder(order);
+  const bill = await createWholesaleTochkaBill(saved);
+  if (bill) {
+    saved =
+      (await updateOrderById(saved.orderId, {
+        invoiceId: bill.invoiceId,
+        invoiceCreatedAt: new Date().toISOString(),
+        invoiceUrl: bill.invoiceUrl,
+      })) || saved;
+  }
   void notifyTelegram(formatWholesaleOrderMessage(saved));
   res.json(saved);
 });
