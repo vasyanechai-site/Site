@@ -217,7 +217,6 @@ export function BusinessPublicPage({ onNavigateToRetail, onNavigateToLogin }: Bu
         <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-4 sm:py-6 flex items-center justify-between">
           <Logo onClick={onNavigateToRetail} />
           <div className="flex items-center gap-3 sm:gap-4">
-            <ThemeToggle />
             <button 
               onClick={onNavigateToRetail}
               className="text-foreground hover:opacity-70 transition-opacity text-sm font-medium"

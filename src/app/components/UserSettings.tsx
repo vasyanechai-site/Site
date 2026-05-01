@@ -4,7 +4,6 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { Logo } from './Logo';
-import { ThemeToggle } from './ThemeToggle';
 import { CompanyAutocomplete } from './CompanyAutocomplete';
 import { toast } from 'sonner';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
@@ -209,7 +208,6 @@ export function UserSettings({ userId, userCompanyName, onBack, onLogout, onNavi
           <div className="flex items-center justify-between mb-4">
             <Logo onClick={onNavigateToRetail} />
             <div className="flex items-center gap-2">
-              <ThemeToggle />
               {onNavigateToRetail && (
                 <Button 
                   variant="ghost"

@@ -4,7 +4,6 @@ import { fetchUserOrders, fetchCoffeeItems } from '../lib/api';
 import { Button } from './ui/button';
 import { ArrowLeft, Package, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
-import { ThemeToggle } from './ThemeToggle';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { UserDashboard } from './UserDashboard';
 
@@ -103,7 +102,6 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
           <div className="flex items-center justify-between mb-4">
             <Logo onClick={onNavigateToRetail} />
             <div className="flex items-center gap-2">
-              <ThemeToggle />
               {onNavigateToRetail && (
                 <Button 
                   variant="ghost"

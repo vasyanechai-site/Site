@@ -3,7 +3,6 @@ import { Button } from './ui/button';
 import { OrderDialog } from './OrderDialog';
 import { Logo } from './Logo';
 import { GroupedCoffeeTable } from './GroupedCoffeeTable';
-import { ThemeToggle } from './ThemeToggle';
 import { Ticker } from './Ticker';
 import { Badge } from './ui/badge';
 import { CountryFilter } from './CountryFilter';
@@ -438,7 +437,6 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
         <div className="max-w-[1440px] mx-auto px-4 sm:px-8 py-4 sm:py-6 flex items-center justify-between">
           <Logo onClick={onNavigateToRetail} />
           <div className="flex items-center gap-3 sm:gap-4">
-            <ThemeToggle />
             {!isUserAuthenticated && (
               <button 
                 onClick={onNavigateToAdmin}

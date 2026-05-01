@@ -3,7 +3,6 @@ import { Button } from './ui/button';
 import { OrderDialog } from './OrderDialog';
 import { Logo } from './Logo';
 import { CoffeeTable } from './CoffeeTable';
-import { ThemeToggle } from './ThemeToggle';
 import { ArrowLeft } from 'lucide-react';
 import { Ticker } from './Ticker';
 import type { CoffeeItem, OrderFormData, CartItem } from '../types';
@@ -289,7 +288,6 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
             <Logo onClick={onNavigateToRetail} />
           </div>
           <div className="flex items-center gap-2">
-            <ThemeToggle />
             {onNavigateToRetail && (
               <Button 
                 variant="ghost"
