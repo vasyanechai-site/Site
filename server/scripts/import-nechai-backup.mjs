@@ -2,8 +2,10 @@
  * Import Nechai JSON backup (Figma Make / legacy) into this API's store (Postgres app_settings or db.json).
  *
  * Usage (from repo root, with .env / DATABASE_URL as on production):
- *   node server/scripts/import-nechai-backup.mjs /path/to/nechai-backup-2025-11-26.json
- *   node server/scripts/import-nechai-backup.mjs --dry-run /path/to/backup.json
+ *   node server/scripts/import-nechai-backup.mjs
+ *     → reads server/seed-data/nechai-backup.json (bundled default)
+ *   node server/scripts/import-nechai-backup.mjs --dry-run
+ *   node server/scripts/import-nechai-backup.mjs /path/to/other-backup.json
  *
  * Passwords: backup usually has no passwords. For users without password, sets
  * password to last 6 digits of normalized phone (digits only); print summary at end.
@@ -82,9 +84,12 @@ async function main() {
   const args = process.argv.slice(2);
   const dry = args.includes("--dry-run");
   const paths = args.filter((a) => !a.startsWith("--"));
-  const filePath = paths[0] || process.env.BACKUP_PATH;
+  const bundled = path.join(process.cwd(), "server", "seed-data", "nechai-backup.json");
+  const filePath = paths[0] || process.env.BACKUP_PATH || (fs.existsSync(bundled) ? bundled : null);
   if (!filePath) {
-    console.error("Usage: node server/scripts/import-nechai-backup.mjs [--dry-run] <path-to-backup.json>");
+    console.error(
+      "No backup file. Expected server/seed-data/nechai-backup.json in repo root, or set BACKUP_PATH, or pass a path argument.",
+    );
     process.exit(1);
   }
   const abs = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
