@@ -30,6 +30,12 @@ jobs:
             if [ -n "${{ secrets.ALLOWED_ORIGINS }}" ]; then
               python3 server/deploy/patch_dotenv.py ALLOWED_ORIGINS "${{ secrets.ALLOWED_ORIGINS }}"
             fi
+            if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+              python3 server/deploy/patch_dotenv.py TELEGRAM_BOT_TOKEN "${{ secrets.TELEGRAM_BOT_TOKEN }}"
+            fi
+            if [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
+              python3 server/deploy/patch_dotenv.py TELEGRAM_CHAT_ID "${{ secrets.TELEGRAM_CHAT_ID }}"
+            fi
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start server/src/index.js --name site-api
             pm2 save
