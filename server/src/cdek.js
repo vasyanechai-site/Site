@@ -58,16 +58,33 @@ async function cdekRequest(endpoint, init = {}) {
 }
 
 export async function searchCities(query) {
-  if (!query || query.length < 2) {
+  const q = (query || "").trim();
+  if (q.length < 2) {
     return { cities: [] };
   }
 
-  const cities = await cdekRequest(
-    `/location/cities?city=${encodeURIComponent(query)}&country_codes=RU&size=20`,
-  );
+  // Как в legacy Supabase: city_like + фильтр по подстроке (подсказки при вводе).
+  let raw;
+  try {
+    raw = await cdekRequest(
+      `/location/cities?city_like=${encodeURIComponent(q)}&country_codes=RU&size=500`,
+    );
+  } catch {
+    raw = await cdekRequest(
+      `/location/cities?city_like=${encodeURIComponent(q)}&country_code=RU&size=500`,
+    );
+  }
+
+  const list = Array.isArray(raw) ? raw : [];
+  const lower = q.toLowerCase();
+  const filtered = list.filter((i) => {
+    const city = String(i.city || "").toLowerCase();
+    const region = String(i.region || "").toLowerCase();
+    return city.includes(lower) || region.includes(lower);
+  });
 
   return {
-    cities: (cities || []).map((city) => ({
+    cities: filtered.slice(0, 20).map((city) => ({
       code: city.code,
       city: city.city,
       region: city.region,
@@ -75,8 +92,8 @@ export async function searchCities(query) {
       country_code: city.country_code,
       city_code: city.code,
       full_name: city.region ? `${city.city}, ${city.region}` : city.city,
-      latitude: city.latitude || 0,
-      longitude: city.longitude || 0,
+      latitude: Number(city.latitude) || 0,
+      longitude: Number(city.longitude) || 0,
     })),
   };
 }
@@ -96,15 +113,17 @@ export async function getPickupPoints({ city_to, city_code }) {
   }
 
   const pvz = await cdekRequest(`/deliverypoints?city_code=${cityCode}&type=PVZ`);
+  const rows = Array.isArray(pvz) ? pvz : [];
+  const onlyPvz = rows.filter((p) => p.type === "PVZ" || !p.type);
   return {
     city_code: cityCode,
-    pickup_points: (pvz || []).map((point) => ({
+    pickup_points: onlyPvz.map((point) => ({
       code: point.code,
       name: point.name,
       address: point.location?.address_full || point.location?.address || "Адрес не указан",
       location: {
-        latitude: point.location?.latitude || 0,
-        longitude: point.location?.longitude || 0,
+        latitude: Number(point.location?.latitude) || 0,
+        longitude: Number(point.location?.longitude) || 0,
       },
       work_time: point.work_time || "Не указано",
       phones: point.phones || [],

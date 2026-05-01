@@ -3,8 +3,9 @@ import { MapPin, Package, Clock, Phone, Search, X, ChevronRight, Loader2, Pencil
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { publicAnonKey } from '../utils/supabase/info';
 import type { RetailProduct } from '../lib/api';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
 
@@ -56,10 +57,12 @@ declare global {
   }
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
 const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
   ? { Authorization: `Bearer ${publicAnonKey}` }
   : {};
+
+const YANDEX_MAPS_KEY =
+  import.meta.env.VITE_YANDEX_MAPS_API_KEY || "d273f32f-f343-413c-b1d4-9fc8c0879682";
 
 export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDeliveryProps) {
   const [cityInput, setCityInput] = useState('');
@@ -85,6 +88,8 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
   const mapInstanceRef = useRef<any>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  /** После выбора города один раз открываем карту; не переоткрывать, если пользователь закрыл её без выбора ПВЗ. */
+  const autoMapPendingRef = useRef(false);
 
   // Load Yandex Maps API
   useEffect(() => {
@@ -94,7 +99,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     }
 
     const script = document.createElement('script');
-    script.src = 'https://api-maps.yandex.ru/2.1/?apikey=d273f32f-f343-413c-b1d4-9fc8c0879682&lang=ru_RU';
+    script.src = `https://api-maps.yandex.ru/2.1/?apikey=${encodeURIComponent(YANDEX_MAPS_KEY)}&lang=ru_RU`;
     script.async = true;
     script.onload = () => {
       window.ymaps.ready(() => setMapLoaded(true));
@@ -108,11 +113,37 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     };
   }, []);
 
+  // Центр карты: координаты города из СДЭК или первый ПВЗ
+  useEffect(() => {
+    if (!selectedCity || pickupPoints.length === 0 || cityCoordinates) return;
+    const p = pickupPoints.find(
+      (x) => Number(x.location.latitude) && Number(x.location.longitude),
+    );
+    if (p) setCityCoordinates([Number(p.location.latitude), Number(p.location.longitude)]);
+  }, [pickupPoints, selectedCity, cityCoordinates]);
+
+  // После выбора города и загрузки ПВЗ — открыть карту (как раньше)
+  useEffect(() => {
+    if (!autoMapPendingRef.current) return;
+    if (!selectedCity || cityError || isLoadingPvz || pickupPoints.length === 0) return;
+    if (selectedPvz) {
+      autoMapPendingRef.current = false;
+      return;
+    }
+    setIsMapOpen(true);
+    autoMapPendingRef.current = false;
+  }, [selectedCity, pickupPoints, cityError, isLoadingPvz, selectedPvz]);
+
   // Initialize map when dialog opens
   useEffect(() => {
-    if (isMapOpen && mapLoaded && cityCoordinates && pickupPoints.length > 0) {
-      // Small delay to allow dialog animation to finish and refs to be ready
-      setTimeout(initMap, 200);
+    if (isMapOpen && mapLoaded && pickupPoints.length > 0) {
+      const hasCenter =
+        cityCoordinates &&
+        Number(cityCoordinates[0]) &&
+        Number(cityCoordinates[1]);
+      if (hasCenter || pickupPoints.some((p) => Number(p.location.latitude))) {
+        setTimeout(initMap, 200);
+      }
     }
   }, [isMapOpen, mapLoaded, cityCoordinates, pickupPoints]);
 
@@ -204,8 +235,11 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     setSelectedCity(suggestion.city);
     setSelectedCityCode(suggestion.code);
     setCityInput(suggestion.city);
-    setCityCoordinates([suggestion.latitude, suggestion.longitude]);
+    const la = Number(suggestion.latitude);
+    const lo = Number(suggestion.longitude);
+    setCityCoordinates(la && lo ? [la, lo] : null);
     setShowSuggestions(false);
+    autoMapPendingRef.current = true;
   };
 
   const clearCity = () => {
@@ -215,6 +249,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     setCitySuggestions([]);
     setShowSuggestions(false);
     setCityCoordinates(null);
+    autoMapPendingRef.current = false;
   };
 
   const loadDeliveryInfo = async () => {
@@ -317,14 +352,26 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
   };
 
   const initMap = () => {
-    if (!window.ymaps || !cityCoordinates || !mapRef.current) return;
+    if (!window.ymaps || !mapRef.current || pickupPoints.length === 0) return;
 
     if (mapInstanceRef.current) {
       mapInstanceRef.current.destroy();
     }
 
+    const fromPvz = pickupPoints.find(
+      (p) => Number(p.location.latitude) && Number(p.location.longitude),
+    );
+    const center: [number, number] =
+      cityCoordinates &&
+      Number(cityCoordinates[0]) &&
+      Number(cityCoordinates[1])
+        ? [Number(cityCoordinates[0]), Number(cityCoordinates[1])]
+        : fromPvz
+          ? [Number(fromPvz.location.latitude), Number(fromPvz.location.longitude)]
+          : [55.751574, 37.573856];
+
     const map = new window.ymaps.Map(mapRef.current, {
-      center: cityCoordinates,
+      center,
       zoom: 11,
       controls: ['zoomControl']
     });
@@ -332,8 +379,12 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     mapInstanceRef.current = map;
 
     pickupPoints.forEach((pvz) => {
+      const la = Number(pvz.location.latitude);
+      const lo = Number(pvz.location.longitude);
+      if (!la || !lo) return;
+
       const placemark = new window.ymaps.Placemark(
-        [pvz.location.latitude, pvz.location.longitude],
+        [la, lo],
         {
           balloonContentHeader: `<div style="font-size: 14px; font-weight: 600; padding-right: 20px;">${pvz.name}</div>`,
           balloonContentBody: `
