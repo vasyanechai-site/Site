@@ -27,6 +27,9 @@ jobs:
             cd "${{ secrets.VPS_APP_PATH }}"
             git fetch --all
             git reset --hard origin/main
+            if [ -n "${{ secrets.ALLOWED_ORIGINS }}" ]; then
+              python3 server/deploy/patch_dotenv.py ALLOWED_ORIGINS "${{ secrets.ALLOWED_ORIGINS }}"
+            fi
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start server/src/index.js --name site-api
             pm2 save

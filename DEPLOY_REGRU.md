@@ -9,6 +9,7 @@
 - `VPS_APP_PATH` - project path on server (example: `/var/www/site`)
 - `API_PUBLIC_HOST` *(optional)* — subdomain that points **by DNS A-record** to this VPS (example: `api.coffeenechai.ru`). If set, each VPS deploy runs `server/deploy/install-api-proxy.sh`: nginx reverse proxy to `127.0.0.1:8787`, optional Let's Encrypt.
 - `CERTBOT_EMAIL` *(optional)* — email for Let's Encrypt; required **on first** HTTPS issuance for `API_PUBLIC_HOST` (after DNS already resolves to the VPS).
+- `ALLOWED_ORIGINS` *(optional)* — e.g. `https://coffeenechai.ru,https://www.coffeenechai.ru`. If set, each deploy writes this line into `${VPS_APP_PATH}/.env` (via `server/deploy/patch_dotenv.py`) so you do not need to edit `.env` over SSH for CORS.
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 
