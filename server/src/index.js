@@ -49,6 +49,15 @@ import {
   getWholesaleAccessRequests,
   setWholesaleAccessRequests,
 } from "./store.js";
+import {
+  notifyTelegram,
+  formatWholesaleOrderMessage,
+  formatRetailOrderMessage,
+  formatWholesaleAccessRequest,
+  formatBusinessRegistration,
+  formatLocationRequest,
+  formatPaymentReceived,
+} from "./telegram.js";
 
 dotenv.config();
 
@@ -309,6 +318,7 @@ app.post("/api/wholesale/request-access", async (req, res) => {
     ...(req.body || {}),
   };
   await setWholesaleAccessRequests([item, ...requests]);
+  void notifyTelegram(formatWholesaleAccessRequest(item));
   res.status(201).json({ success: true, request: item });
 });
 
@@ -320,7 +330,9 @@ app.post("/api/orders", async (req, res) => {
     orderType: "wholesale",
     ...body,
   };
-  res.json(await addOrder(order));
+  const saved = await addOrder(order);
+  void notifyTelegram(formatWholesaleOrderMessage(saved));
+  res.json(saved);
 });
 
 app.get("/api/orders", async (_req, res) => {
@@ -361,7 +373,9 @@ app.post("/api/retail/orders", async (req, res) => {
     paymentStatus: body.paymentStatus || "pending",
     ...body,
   };
-  res.json(await addRetailOrder(order));
+  const saved = await addRetailOrder(order);
+  void notifyTelegram(formatRetailOrderMessage(saved));
+  res.json(saved);
 });
 
 app.get("/api/retail/loyalty/:userId", async (req, res) => {
@@ -445,6 +459,7 @@ app.post("/api/retail-locations/submit-request", async (req, res) => {
     submittedAt: new Date().toISOString(),
   };
   await setRetailLocationRequests([item, ...requests]);
+  void notifyTelegram(formatLocationRequest(item));
   res.json(item);
 });
 
@@ -868,6 +883,11 @@ app.post("/api/tochka/webhook", async (req, res) => {
     }
 
     if (orderId) {
+      const before =
+        (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
+      const prevPaid = ["paid", "success", "completed"].includes(
+        String(before?.paymentStatus || before?.payment_status || "").toLowerCase(),
+      );
       const updates = {
         paymentStatus: statusMapped,
         payment_status: statusMapped,
@@ -876,6 +896,11 @@ app.post("/api/tochka/webhook", async (req, res) => {
         tochkaWebhookPayload: payload,
       };
       (await updateRetailOrderById(orderId, updates)) || (await updateOrderById(orderId, updates));
+      if (statusMapped === "paid" && before && !prevPaid) {
+        const after =
+          (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
+        if (after) void notifyTelegram(formatPaymentReceived(after));
+      }
     }
 
     return res.status(200).send("OK");
@@ -969,6 +994,7 @@ app.post("/api/business-registration", async (req, res) => {
   const items = await getBusinessRegistrations();
   const item = { id: `biz-${Date.now()}-${Math.floor(Math.random() * 1000)}`, createdAt: new Date().toISOString(), ...body };
   await setBusinessRegistrations([item, ...items]);
+  void notifyTelegram(formatBusinessRegistration(item));
   res.status(201).json({ success: true, registration: item });
 });
 
