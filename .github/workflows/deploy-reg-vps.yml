@@ -32,9 +32,14 @@ jobs:
             pm2 save
             for i in 1 2 3 4 5 6 7 8 9 10; do
               if curl -fsS http://127.0.0.1:8787/api/health; then
-                exit 0
+                break
               fi
               sleep 2
+              if [ "$i" -eq 10 ]; then
+                pm2 logs site-api --lines 80 --nostream
+                exit 1
+              fi
             done
-            pm2 logs site-api --lines 80 --nostream
-            exit 1
+            export API_PUBLIC_HOST="${{ secrets.API_PUBLIC_HOST }}"
+            export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
+            bash server/deploy/install-api-proxy.sh

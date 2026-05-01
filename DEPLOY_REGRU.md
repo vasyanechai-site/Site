@@ -7,10 +7,16 @@
 - `VPS_SSH_KEY` - private SSH key for deploy user
 - `VPS_PORT` - optional, default `22`
 - `VPS_APP_PATH` - project path on server (example: `/var/www/site`)
-- `VITE_API_BASE_URL` - frontend API base (example: `https://your-domain.ru/api`)
+- `API_PUBLIC_HOST` *(optional)* — subdomain that points **by DNS A-record** to this VPS (example: `api.coffeenechai.ru`). If set, each VPS deploy runs `server/deploy/install-api-proxy.sh`: nginx reverse proxy to `127.0.0.1:8787`, optional Let's Encrypt.
+- `CERTBOT_EMAIL` *(optional)* — email for Let's Encrypt; required **on first** HTTPS issuance for `API_PUBLIC_HOST` (after DNS already resolves to the VPS).
+
+**DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
+
+**Sudo:** the deploy SSH user must be able to run `nginx`, `systemctl reload nginx` / `service nginx reload`, `certbot`, and `apt-get install` via `sudo` **without an interactive password** (configure `sudoers` for that user), or run `bash server/deploy/install-api-proxy.sh` once manually as root and then only use Actions for app restarts.
 
 For FTP deploy workflow (`deploy-reg-ftp.yml`) add:
 
+- `VITE_API_BASE_URL` — at build time, e.g. `https://api.coffeenechai.ru/api` (must match the public API URL the browser will call).
 - `FTP_HOST`
 - `FTP_USERNAME`
 - `FTP_PASSWORD`
@@ -33,6 +39,7 @@ Minimum production keys for payments/shipping:
 - `TOCHKA_TERMINAL_ID`
 - `TOCHKA_CLIENT_ID`
 - `FRONTEND_BASE_URL` (example: `https://your-domain.ru`)
+- `ALLOWED_ORIGINS` — when the API is on `https://api.your-domain.ru`, set e.g. `https://your-domain.ru,https://www.your-domain.ru` so the browser on the main site can call the API (CORS).
 
 ## 3) PostgreSQL (recommended)
 
@@ -78,6 +85,8 @@ Push to `main` branch. Workflow:
 If you use only FTP deploy, GitHub Action uploads `dist/` to hosting.
 
 Important:
+
 - FTP hosting deploys frontend only.
 - CDEK/Tochka/order APIs still require backend runtime (VPS or external API).
 - If backend is not available, set `VITE_API_BASE_URL` to your currently working API before build.
+
