@@ -94,16 +94,32 @@ export function registerDebugRoutes(app) {
     }
 
     const hints = [];
+    const proxyOn = Boolean((process.env.TELEGRAM_HTTPS_PROXY || process.env.HTTPS_PROXY || "").trim());
+    const getMeTimeout =
+      getMe &&
+      !getMe.ok &&
+      (getMe.codes?.includes("ETIMEDOUT") ||
+        String(getMe.errorSummary || "").includes("ETIMEDOUT"));
+
     if (!token || !chatId) {
       hints.push(
         "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env.",
       );
     } else {
       hints.push(`TELEGRAM_CHAT_ID: ${chatIdHint(chatId)}`);
-      if (getMe && !getMe.ok) {
-        hints.push("getMe не прошёл — токен неверный или сеть до api.telegram.org недоступна.");
+      if (getMeTimeout) {
+        hints.push(
+          "Сеть: ETIMEDOUT до api.telegram.org — с этого VPS, скорее всего, блокируют исходящий доступ к Telegram (это не «неверный токен»). Варианты: открыть у хостинга api.telegram.org:443; задать TELEGRAM_HTTPS_PROXY; вынести отправку на другой сервер.",
+        );
+      } else if (getMe && !getMe.ok) {
+        hints.push("getMe не прошёл — проверьте TELEGRAM_BOT_TOKEN или текст ошибки в поле error.");
       } else if (getMe?.ok) {
         hints.push(`Бот @${getMe.username || "?"} — добавьте его в канал админом с правом «Публиковать сообщения».`);
+      }
+      if (getMeTimeout && !proxyOn) {
+        hints.push(
+          "Прокси: в .env задайте TELEGRAM_HTTPS_PROXY (или HTTPS_PROXY), например http://user:pass@proxy.example:8080 — npm-пакет https-proxy-agent уже в зависимостях.",
+        );
       }
     }
 
@@ -116,6 +132,7 @@ export function registerDebugRoutes(app) {
       chatIdPreview: chatId ? maskMiddle(chatId, 4) : null,
       nodeEnv: process.env.NODE_ENV || "",
       debugSecretConfigured: Boolean((process.env.DEBUG_SECRET || "").trim()),
+      outboundProxyConfigured: proxyOn,
       getMe,
       hints,
     });

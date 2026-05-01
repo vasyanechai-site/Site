@@ -17,6 +17,7 @@ type TelegramStatus = {
   chatIdPreview: string | null;
   nodeEnv: string;
   debugSecretConfigured: boolean;
+  outboundProxyConfigured?: boolean;
   getMe?: {
     ok?: boolean;
     http?: number;
@@ -195,6 +196,10 @@ export function DebugPage() {
                   <li>tokenPreview: {status.tokenPreview ?? "—"}</li>
                   <li>chatIdPreview: {status.chatIdPreview ?? "—"}</li>
                   <li>DEBUG_SECRET на сервере: {status.debugSecretConfigured ? "задан" : "нет"}</li>
+                  <li>
+                    Прокси к Telegram:{" "}
+                    {status.outboundProxyConfigured ? "да (TELEGRAM_HTTPS_PROXY или HTTPS_PROXY)" : "нет"}
+                  </li>
                   <li>NODE_ENV: {status.nodeEnv || "—"}</li>
                   {status.getMe != null && (
                     <li className="pt-2 border-t border-border/60 mt-2">

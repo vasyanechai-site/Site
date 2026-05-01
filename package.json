@@ -53,6 +53,7 @@
     "embla-carousel-react": "8.6.0",
     "express": "^5.2.1",
     "hono": "^4.12.15",
+    "https-proxy-agent": "^7.0.6",
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",
