@@ -50,15 +50,17 @@ export function SEOHelmet({ title, description, keywords, canonical, rawTitle, o
     linkCanonical.setAttribute('href', fullCanonical);
 
     // Open Graph
-    const ogImg = ogImage || 'https://coffeenechai.ru/og-image.jpg';
+    const ogImg = ogImage || 'https://coffeenechai.ru/og-image.png';
     updateMetaTag('og:title', finalTitle);
     updateMetaTag('og:description', description || 'Кофе Нечай — свежеобжаренный specialty кофе в зернах. Обжарка в Санкт-Петербурге. Доставка по всей России.');
     updateMetaTag('og:url', fullCanonical);
     updateMetaTag('og:type', ogType || 'website');
     updateMetaTag('og:site_name', 'Кофе Нечай');
     updateMetaTag('og:image', ogImg);
-    updateMetaTag('og:image:width', '1200');
-    updateMetaTag('og:image:height', '630');
+    if (!ogImage) {
+      updateMetaTag('og:image:width', '1000');
+      updateMetaTag('og:image:height', '1000');
+    }
     updateMetaTag('og:image:alt', 'Кофе Нечай — specialty кофе');
     updateMetaTag('og:locale', 'ru_RU');
 
@@ -97,7 +99,7 @@ function ensureIndexable() {
   });
 
   setOrCreate('meta', 'name', 'robots', 'content', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
-  setOrCreate('meta', 'name', 'googlebot', 'content', 'index, follow, max-image-preview:large, max-snippet:-1');
+  setOrCreate('meta', 'name', 'googlebot', 'content', 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1');
   setOrCreate('meta', 'name', 'yandex', 'content', 'index, follow');
 
   if (foundNoindex) {
@@ -194,5 +196,23 @@ export const SEOConfig = {
     title: 'Оплата прошла — Кофе Нечай',
     description: 'Ваш платеж успешно обработан. Заказ принят в работу.',
     keywords: 'оплата успешна кофе нечай',
+  },
+  locations: {
+    title: 'Где купить кофе Нечай в Санкт-Петербурге — Кофе Нечай',
+    description: 'Точки продаж и кофейни-партнёры, где можно купить свежеобжаренный кофе Нечай в Санкт-Петербурге. Карта и адреса.',
+    keywords: 'где купить кофе нечай, кофе нечай спб, точки продаж нечай, кофейни партнеры нечай, нечай кофе петербург',
+    rawTitle: true,
+  },
+  harvest: {
+    title: 'Календарь урожая кофе — Кофе Нечай',
+    description: 'Сезоны сбора и экспорта кофе по странам-производителям. Календарь урожая для specialty кофе от Кофе Нечай.',
+    keywords: 'календарь урожая кофе, сезон кофе, кофе нечай календарь, урожай арабики, нечай кофе',
+    rawTitle: true,
+  },
+  contacts: {
+    title: 'Контакты и реквизиты — Кофе Нечай',
+    description: 'Контакты обжарки Кофе Нечай в Санкт-Петербурге, email, реквизиты для юридических лиц и оптовых клиентов.',
+    keywords: 'контакты кофе нечай, реквизиты нечай кофе, кофе нечай связь, support coffeenechai',
+    rawTitle: true,
   },
 };

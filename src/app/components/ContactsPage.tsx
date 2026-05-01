@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router';
 import { useEffect, useState } from 'react';
 import { Button } from './ui/button';
 import { Footer } from './Footer';
+import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { ArrowLeft, X, Download, Loader2 } from 'lucide-react';
 
 const REQUISITES_PDF_DOWNLOAD =
@@ -35,6 +36,7 @@ export function ContactsPage() {
 
   return (
     <div className="min-h-screen bg-[#FFF4E5] flex flex-col">
+      <SEOHelmet {...SEOConfig.contacts} />
       <div className="container mx-auto px-4 py-8 flex-1 max-w-2xl">
         <div className="flex items-center mb-8">
           <Button

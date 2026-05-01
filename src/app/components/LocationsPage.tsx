@@ -9,6 +9,7 @@ import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import poodleIcon from 'figma:asset/e4d7062dd1d8524f8eb71d94f631a3edd99664b0.png';
 import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { AddCafeModal } from './AddCafeModal';
+import { SEOHelmet, SEOConfig } from './SEOHelmet';
 
 interface Location {
   id: number;
@@ -584,6 +585,7 @@ export function LocationsPage() {
 
   return (
     <div className="h-screen bg-[#FFF4E5] flex flex-col font-sans overflow-hidden">
+      <SEOHelmet {...SEOConfig.locations} />
       <RetailHeader 
         className="flex-none"
         currentUser={currentUser}

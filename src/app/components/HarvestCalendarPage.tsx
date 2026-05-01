@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ChevronDown, Mountain, Droplets } from 'lucide-react';
 import { RetailHeader } from './RetailHeader';
 import { RetailMobileTabBar } from './RetailMobileTabBar';
+import { SEOHelmet, SEOConfig } from './SEOHelmet';
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
@@ -319,6 +320,7 @@ export function HarvestCalendarPage() {
 
   return (
     <div className="min-h-screen bg-[#FFF4E5] pb-24">
+      <SEOHelmet {...SEOConfig.harvest} />
       <RetailHeader
         cartItemsCount={0}
         onNavigateToLogin={() => navigate('/login')}

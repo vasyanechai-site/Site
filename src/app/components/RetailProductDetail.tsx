@@ -325,6 +325,7 @@ export function RetailProductDetail({
         title={`${product.name} - Кофе Нечай`}
         description={`${product.description || product.name} - Свежеобжаренный кофе в зернах от Кофе Нечай. ${product.cardText ? product.cardText.substring(0, 150) : 'Specialty coffee с доставкой по России.'}`}
         keywords={`${product.name}, кофе ${product.country || ''}, ${product.category || 'кофе в зернах'}, specialty coffee, свежая обжарка, кофе нечай`}
+        ogImage={product.imageUrl?.startsWith('http') ? product.imageUrl : product.imageUrl ? `https://coffeenechai.ru${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}` : undefined}
       />
       
       {/* Product Schema.org JSON-LD */}
