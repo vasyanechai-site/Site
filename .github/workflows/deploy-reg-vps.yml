@@ -1,4 +1,5 @@
 name: Deploy to Reg VPS
+# При push сюда: деплой backend; TELEGRAM_* из GitHub Secrets пишутся в .env на VPS (если заданы).
 
 on:
   push:
