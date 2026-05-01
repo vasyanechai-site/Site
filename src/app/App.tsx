@@ -19,6 +19,7 @@ import { RetailOrderFailed } from "./components/RetailOrderFailed";
 import { RetailPaymentSuccess } from "./components/RetailPaymentSuccess";
 import { RetailPaymentFail } from "./components/RetailPaymentFail";
 import { TochkaDiagnostics } from "./components/TochkaDiagnostics";
+import { DebugPage } from "./components/DebugPage";
 
 import { LoginForm } from "./components/auth/LoginForm";
 import { SignupForm } from "./components/auth/SignupForm";
@@ -291,7 +292,11 @@ function App() {
 
             {/* Календарь урожая */}
             <Route path="/harvest" element={<HarvestCalendarPage />} />
-            
+
+            {/* Отладка интеграций (до /:productSlug) */}
+            <Route path="/debug" element={<DebugPage />} />
+            <Route path="/debag" element={<Navigate to="/debug" replace />} />
+
             {/* Детальная страница товара */}
             <Route path="/:productSlug" element={<ProductRoute />} />
             

@@ -17,6 +17,7 @@
 - `TOCHKA_JWT_TOKEN` — JWT для API Точки (оптовые счета `bills`, эквайринг и т.д.)
 - `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
+- `DEBUG_SECRET` — защита POST `/api/debug/telegram/*` (страница `/debug`, тесты в Telegram)
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 

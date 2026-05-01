@@ -52,6 +52,7 @@ import {
 } from "./store.js";
 import {
   notifyTelegram,
+  sendTelegramHtml,
   formatWholesaleOrderMessage,
   formatRetailOrderMessage,
   formatWholesaleAccessRequest,
@@ -59,6 +60,7 @@ import {
   formatLocationRequest,
   formatPaymentReceived,
 } from "./telegram.js";
+import { registerDebugRoutes } from "./debugRoutes.js";
 
 dotenv.config();
 
@@ -324,25 +326,33 @@ app.post("/api/wholesale/request-access", async (req, res) => {
 });
 
 app.post("/api/orders", async (req, res) => {
-  const body = req.body || {};
-  const order = {
-    orderId: body.orderId || `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    date: body.date || new Date().toISOString(),
-    orderType: "wholesale",
-    ...body,
-  };
-  let saved = await addOrder(order);
-  const bill = await createWholesaleTochkaBill(saved);
-  if (bill) {
-    saved =
-      (await updateOrderById(saved.orderId, {
-        invoiceId: bill.invoiceId,
-        invoiceCreatedAt: new Date().toISOString(),
-        invoiceUrl: bill.invoiceUrl,
-      })) || saved;
+  try {
+    const body = req.body || {};
+    const order = {
+      orderId: body.orderId || `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      date: body.date || new Date().toISOString(),
+      orderType: "wholesale",
+      ...body,
+    };
+    let saved = await addOrder(order);
+    const bill = await createWholesaleTochkaBill(saved);
+    if (bill) {
+      saved =
+        (await updateOrderById(saved.orderId, {
+          invoiceId: bill.invoiceId,
+          invoiceCreatedAt: new Date().toISOString(),
+          invoiceUrl: bill.invoiceUrl,
+        })) || saved;
+    }
+    const tg = await sendTelegramHtml(formatWholesaleOrderMessage(saved));
+    if (!tg.ok) {
+      console.error("[orders] telegram wholesale notify failed", JSON.stringify(tg).slice(0, 500));
+    }
+    res.json(saved);
+  } catch (e) {
+    console.error("[orders] POST /api/orders", e?.message || e);
+    res.status(500).json({ error: e?.message || "Failed to create order" });
   }
-  void notifyTelegram(formatWholesaleOrderMessage(saved));
-  res.json(saved);
 });
 
 app.get("/api/orders", async (_req, res) => {
@@ -1084,6 +1094,8 @@ app.use((error, _req, res, next) => {
   }
   return next(error);
 });
+
+registerDebugRoutes(app);
 
 app.use("/api", (_req, res) => {
   res.status(404).json({

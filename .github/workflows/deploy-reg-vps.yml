@@ -38,6 +38,9 @@ jobs:
             if [ -n "${{ secrets.TELEGRAM_CHAT_ID }}" ]; then
               python3 server/deploy/patch_dotenv.py TELEGRAM_CHAT_ID "${{ secrets.TELEGRAM_CHAT_ID }}"
             fi
+            if [ -n "${{ secrets.DEBUG_SECRET }}" ]; then
+              python3 server/deploy/patch_dotenv.py DEBUG_SECRET "${{ secrets.DEBUG_SECRET }}"
+            fi
             if [ -n "${{ secrets.CDEK_ACCOUNT }}" ]; then
               python3 server/deploy/patch_dotenv.py CDEK_ACCOUNT "${{ secrets.CDEK_ACCOUNT }}"
             fi

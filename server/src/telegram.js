@@ -12,11 +12,11 @@ function escapeHtml(s) {
 }
 
 export async function sendTelegramHtml(text) {
-  const token = process.env.TELEGRAM_BOT_TOKEN;
-  const chatId = process.env.TELEGRAM_CHAT_ID;
+  const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(process.env.TELEGRAM_CHAT_ID || "").trim();
   if (!token || !chatId) {
     console.log("[telegram] пропуск: нет TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID");
-    return { ok: false, skipped: true };
+    return { ok: false, skipped: true, reason: "missing_env" };
   }
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   try {
@@ -33,7 +33,7 @@ export async function sendTelegramHtml(text) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error("[telegram] sendMessage HTTP", res.status, data);
-      return { ok: false, data };
+      return { ok: false, httpStatus: res.status, data };
     }
     return { ok: true, data };
   } catch (e) {
@@ -121,7 +121,7 @@ export function formatRetailOrderMessage(order) {
     deliveryText = `🚚 Доставка: ${escapeHtml(order.delivery_address || "—")}`;
   }
 
-  const inv = invoiceUrl || order.tochka_payment_url || order.paymentLink;
+  const inv = order.invoiceUrl || order.tochka_payment_url || order.paymentLink;
   const invLine = inv ? `\n🧾 <b>Счёт:</b> ${escapeHtml(inv)}` : "";
 
   return `
