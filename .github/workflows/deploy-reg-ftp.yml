@@ -1,5 +1,5 @@
 name: Deploy Frontend to Reg.ru FTP
-# trigger: 2026-05-01 full deploy
+# trigger: 2026-05-02 debug page
 
 on:
   push:

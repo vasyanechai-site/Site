@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import dns from "node:dns";
+import { fileURLToPath } from "node:url";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -52,7 +53,6 @@ import {
   setWholesaleAccessRequests,
 } from "./store.js";
 import {
-  notifyTelegram,
   sendTelegramHtml,
   formatWholesaleOrderMessage,
   formatRetailOrderMessage,
@@ -63,7 +63,18 @@ import {
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
 
+const __apiDir = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__apiDir, "../../.env") });
 dotenv.config();
+
+/** Единая точка: отправка в Telegram + лог при сбое (канал / чат из TELEGRAM_CHAT_ID). */
+async function telegramNotify(context, html) {
+  const r = await sendTelegramHtml(html);
+  if (!r.ok) {
+    console.error(`[telegram] ${context}`, JSON.stringify(r).slice(0, 800));
+  }
+  return r;
+}
 
 // Исходящие запросы (Telegram и др.): на части VPS IPv6 «чёрная дыра» → fetch failed без деталей.
 if (typeof dns.setDefaultResultOrder === "function") {
@@ -327,7 +338,7 @@ app.post("/api/wholesale/request-access", async (req, res) => {
     ...(req.body || {}),
   };
   await setWholesaleAccessRequests([item, ...requests]);
-  void notifyTelegram(formatWholesaleAccessRequest(item));
+  await telegramNotify("wholesale_access", formatWholesaleAccessRequest(item));
   res.status(201).json({ success: true, request: item });
 });
 
@@ -350,10 +361,7 @@ app.post("/api/orders", async (req, res) => {
           invoiceUrl: bill.invoiceUrl,
         })) || saved;
     }
-    const tg = await sendTelegramHtml(formatWholesaleOrderMessage(saved));
-    if (!tg.ok) {
-      console.error("[orders] telegram wholesale notify failed", JSON.stringify(tg).slice(0, 500));
-    }
+    await telegramNotify("wholesale_order", formatWholesaleOrderMessage(saved));
     res.json(saved);
   } catch (e) {
     console.error("[orders] POST /api/orders", e?.message || e);
@@ -400,7 +408,7 @@ app.post("/api/retail/orders", async (req, res) => {
     ...body,
   };
   const saved = await addRetailOrder(order);
-  void notifyTelegram(formatRetailOrderMessage(saved));
+  await telegramNotify("retail_order", formatRetailOrderMessage(saved));
   res.json(saved);
 });
 
@@ -485,7 +493,7 @@ app.post("/api/retail-locations/submit-request", async (req, res) => {
     submittedAt: new Date().toISOString(),
   };
   await setRetailLocationRequests([item, ...requests]);
-  void notifyTelegram(formatLocationRequest(item));
+  await telegramNotify("location_request", formatLocationRequest(item));
   res.json(item);
 });
 
@@ -925,7 +933,7 @@ app.post("/api/tochka/webhook", async (req, res) => {
       if (statusMapped === "paid" && before && !prevPaid) {
         const after =
           (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
-        if (after) void notifyTelegram(formatPaymentReceived(after));
+        if (after) void telegramNotify("payment_received", formatPaymentReceived(after));
       }
     }
 
@@ -1020,7 +1028,7 @@ app.post("/api/business-registration", async (req, res) => {
   const items = await getBusinessRegistrations();
   const item = { id: `biz-${Date.now()}-${Math.floor(Math.random() * 1000)}`, createdAt: new Date().toISOString(), ...body };
   await setBusinessRegistrations([item, ...items]);
-  void notifyTelegram(formatBusinessRegistration(item));
+  await telegramNotify("business_registration", formatBusinessRegistration(item));
   res.status(201).json({ success: true, registration: item });
 });
 

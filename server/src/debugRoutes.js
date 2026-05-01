@@ -8,6 +8,15 @@ import {
   serializeFetchError,
 } from "./telegram.js";
 
+function chatIdHint(chatId) {
+  const s = String(chatId || "").trim();
+  if (!s) return "chat_id пустой";
+  if (s.startsWith("-100")) return "похоже на канал / супергруппу (часто то, что нужно для общей ленты заявок)";
+  if (s.startsWith("-")) return "отрицательный id (группа или старый формат)";
+  if (/^\d+$/.test(s) && s.length < 12) return "похоже на личный user id — в канал так не доставится; нужен id канала вида -100…";
+  return "проверьте, что бот админ канала с правом публиковать";
+}
+
 function maskMiddle(s, keep = 4) {
   if (!s || typeof s !== "string") return "";
   const t = s.trim();
@@ -61,9 +70,45 @@ function sampleWholesaleOrder() {
 
 /** @param {import("express").Express} app */
 export function registerDebugRoutes(app) {
-  app.get("/api/debug/telegram/status", (_req, res) => {
+  app.get("/api/debug/telegram/status", async (_req, res) => {
     const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
     const chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
+
+    let getMe = null;
+    if (token) {
+      try {
+        const url = `https://api.telegram.org/bot${token}/getMe`;
+        const ac = new AbortController();
+        const timer = setTimeout(() => ac.abort(), 12000);
+        const gr = await fetch(url, { signal: ac.signal });
+        clearTimeout(timer);
+        const gj = await gr.json().catch(() => ({}));
+        getMe = {
+          http: gr.status,
+          ok: gj.ok === true,
+          username: gj.result?.username,
+          botId: gj.result?.id,
+          error: gj.ok ? undefined : gj.description || gj,
+        };
+      } catch (e) {
+        getMe = { ok: false, ...serializeFetchError(e) };
+      }
+    }
+
+    const hints = [];
+    if (!token || !chatId) {
+      hints.push(
+        "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env.",
+      );
+    } else {
+      hints.push(`TELEGRAM_CHAT_ID: ${chatIdHint(chatId)}`);
+      if (getMe && !getMe.ok) {
+        hints.push("getMe не прошёл — токен неверный или сеть до api.telegram.org недоступна.");
+      } else if (getMe?.ok) {
+        hints.push(`Бот @${getMe.username || "?"} — добавьте его в канал админом с правом «Публиковать сообщения».`);
+      }
+    }
+
     res.json({
       hasToken: Boolean(token),
       hasChatId: Boolean(chatId),
@@ -73,11 +118,8 @@ export function registerDebugRoutes(app) {
       chatIdPreview: chatId ? maskMiddle(chatId, 4) : null,
       nodeEnv: process.env.NODE_ENV || "",
       debugSecretConfigured: Boolean((process.env.DEBUG_SECRET || "").trim()),
-      hints: [
-        !token || !chatId
-          ? "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере, затем pm2 restart site-api --update-env."
-          : "Переменные заданы. Ошибка fetch failed: часто блок исходящего HTTPS или IPv6 — на API включён приоритет IPv4; проверьте firewall до api.telegram.org:443. Для канала chat_id вида -100…; бот — админ канала.",
-      ],
+      getMe,
+      hints,
     });
   });
 

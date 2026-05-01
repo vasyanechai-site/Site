@@ -17,6 +17,14 @@ type TelegramStatus = {
   chatIdPreview: string | null;
   nodeEnv: string;
   debugSecretConfigured: boolean;
+  getMe?: {
+    ok?: boolean;
+    http?: number;
+    username?: string;
+    botId?: number;
+    error?: unknown;
+    errorSummary?: string;
+  } | null;
   hints: string[];
 };
 
@@ -97,8 +105,18 @@ export function DebugPage() {
         },
         body: path === "ping" ? JSON.stringify({}) : JSON.stringify({}),
       });
-      const data = await res.json().catch(() => ({}));
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
       appendLog(`HTTP ${res.status}: ${formatJson(data)}`);
+      if (res.ok && data && typeof data === "object") {
+        const rootOk = data.ok === true;
+        const inner = data.result as { ok?: boolean } | undefined;
+        const innerOk = inner && inner.ok === true;
+        if (path === "network-probe" && rootOk) {
+          appendLog("✅ До api.telegram.org достучались. Дальше — ping / оптовый тест.");
+        } else if ((path === "ping" || path === "wholesale-sample") && rootOk && innerOk) {
+          appendLog("✅ Сообщение ушло в Telegram. Проверьте канал.");
+        }
+      }
     } catch (e) {
       appendLog(`Сеть: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -147,7 +165,7 @@ export function DebugPage() {
         {section === "telegram" && (
           <div className="space-y-4">
             <Card className="p-5 space-y-4">
-              <h2 className="text-lg font-medium">Telegram (оптовые заказы и тесты)</h2>
+              <h2 className="text-lg font-medium">Telegram (заявки, заказы, тесты)</h2>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Уведомления идут через <code className="text-xs">TELEGRAM_BOT_TOKEN</code> и{" "}
                 <code className="text-xs">TELEGRAM_CHAT_ID</code> на API-сервере. Ниже — только
@@ -178,6 +196,14 @@ export function DebugPage() {
                   <li>chatIdPreview: {status.chatIdPreview ?? "—"}</li>
                   <li>DEBUG_SECRET на сервере: {status.debugSecretConfigured ? "задан" : "нет"}</li>
                   <li>NODE_ENV: {status.nodeEnv || "—"}</li>
+                  {status.getMe != null && (
+                    <li className="pt-2 border-t border-border/60 mt-2">
+                      getMe:{" "}
+                      {status.getMe.ok
+                        ? `@${status.getMe.username ?? "?"} (id ${String(status.getMe.botId ?? "—")}, HTTP ${String(status.getMe.http ?? "—")})`
+                        : `ошибка — ${formatJson(status.getMe)}`}
+                    </li>
+                  )}
                 </ul>
               )}
 
