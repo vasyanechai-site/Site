@@ -54,7 +54,22 @@ dotenv.config();
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
-const allowedOrigin = process.env.ALLOWED_ORIGIN || "*";
+const allowedOriginsRaw =
+  process.env.ALLOWED_ORIGINS ||
+  process.env.ALLOWED_ORIGIN ||
+  "*";
+const allowedOrigins = String(allowedOriginsRaw)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const corsOriginOption =
+  allowedOrigins.length === 1 && allowedOrigins[0] === "*"
+    ? true
+    : (origin, cb) => {
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) return cb(null, true);
+        return cb(null, false);
+      };
 const uploadDir = path.resolve(process.cwd(), "server", "data", "uploads");
 
 if (!fs.existsSync(uploadDir)) {
@@ -80,7 +95,7 @@ const upload = multer({
   },
 });
 
-app.use(cors({ origin: allowedOrigin }));
+app.use(cors({ origin: corsOriginOption }));
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/uploads", express.static(uploadDir));
 
