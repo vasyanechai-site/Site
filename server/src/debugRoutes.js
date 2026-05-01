@@ -5,6 +5,7 @@
 import {
   sendTelegramHtml,
   formatWholesaleOrderMessage,
+  serializeFetchError,
 } from "./telegram.js";
 
 function maskMiddle(s, keep = 4) {
@@ -75,9 +76,28 @@ export function registerDebugRoutes(app) {
       hints: [
         !token || !chatId
           ? "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере, затем pm2 restart site-api --update-env."
-          : "Переменные заданы. Если сообщений нет: бот должен быть добавлен в чат/канал; для канала — админ с правом постить; chat_id обычно вида -100…",
+          : "Переменные заданы. Ошибка fetch failed: часто блок исходящего HTTPS или IPv6 — на API включён приоритет IPv4; проверьте firewall до api.telegram.org:443. Для канала chat_id вида -100…; бот — админ канала.",
       ],
     });
+  });
+
+  /** Проверка TCP/TLS до api.telegram.org (без токена в URL). */
+  app.post("/api/debug/telegram/network-probe", requireDebugSecret, async (_req, res) => {
+    const url = "https://api.telegram.org/";
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 12000);
+    try {
+      const r = await fetch(url, { method: "GET", signal: ac.signal, redirect: "manual" });
+      clearTimeout(timer);
+      res.json({
+        ok: true,
+        telegramHttpStatus: r.status,
+        note: "Соединение с api.telegram.org установлено. Если ping всё ещё падает — смотрите errorSummary в ответе ping.",
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      res.json({ ok: false, url, ...serializeFetchError(e) });
+    }
   });
 
   app.post("/api/debug/telegram/ping", requireDebugSecret, async (req, res) => {

@@ -80,7 +80,7 @@ export function DebugPage() {
     void loadTelegramStatus();
   }, [loadTelegramStatus]);
 
-  const postTelegramTest = async (path: "ping" | "wholesale-sample") => {
+  const postTelegramTest = async (path: "ping" | "wholesale-sample" | "network-probe") => {
     const secret = debugSecret.trim();
     if (!secret) {
       appendLog("Введите DEBUG_SECRET (тот же, что в .env на сервере).");
@@ -200,6 +200,19 @@ export function DebugPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void postTelegramTest("network-probe")}
+                  disabled={!!actionLoading}
+                  className="gap-2"
+                >
+                  {actionLoading === "network-probe" ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : null}
+                  Сеть → api.telegram.org
+                </Button>
                 <Button
                   type="button"
                   size="sm"

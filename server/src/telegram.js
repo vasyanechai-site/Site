@@ -3,6 +3,32 @@
  * Переменные окружения: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (числовой id чата или @channelusername).
  */
 
+/** Разбор цепочки cause у TypeError fetch failed (Node / undici). */
+export function serializeFetchError(e) {
+  const parts = [];
+  const codes = [];
+  let cur = e;
+  let depth = 0;
+  while (cur != null && depth < 8) {
+    if (typeof cur === "object") {
+      if (cur.message) parts.push(String(cur.message));
+      if (cur.code) codes.push(String(cur.code));
+      if (cur.errno != null) parts.push(`errno=${cur.errno}`);
+      if (cur.syscall) parts.push(`syscall=${cur.syscall}`);
+      if (cur.hostname) parts.push(`host=${cur.hostname}`);
+    } else {
+      parts.push(String(cur));
+    }
+    cur = cur && typeof cur === "object" ? cur.cause : null;
+    depth++;
+  }
+  const deduped = [...new Set(parts.filter(Boolean))];
+  return {
+    errorSummary: deduped.join(" | ") || String(e),
+    codes: [...new Set(codes)],
+  };
+}
+
 function escapeHtml(s) {
   if (s == null || s === undefined) return "";
   return String(s)
@@ -37,8 +63,9 @@ export async function sendTelegramHtml(text) {
     }
     return { ok: true, data };
   } catch (e) {
-    console.error("[telegram] sendMessage error", e?.message || e);
-    return { ok: false, error: String(e?.message || e) };
+    const detail = serializeFetchError(e);
+    console.error("[telegram] sendMessage error", detail.errorSummary, detail.codes);
+    return { ok: false, ...detail };
   }
 }
 

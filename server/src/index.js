@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import dns from "node:dns";
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
@@ -63,6 +64,11 @@ import {
 import { registerDebugRoutes } from "./debugRoutes.js";
 
 dotenv.config();
+
+// Исходящие запросы (Telegram и др.): на части VPS IPv6 «чёрная дыра» → fetch failed без деталей.
+if (typeof dns.setDefaultResultOrder === "function") {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
