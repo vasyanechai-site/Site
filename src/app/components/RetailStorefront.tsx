@@ -1084,7 +1084,7 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
   }
 
   return (
-    <div className="min-h-screen bg-[#FFF4E5]">
+    <div className="min-h-screen bg-[#FFF4E5] relative isolate">
       {/* SEO Meta Tags */}
       <SEOHelmet {...SEOConfig.home} />
 

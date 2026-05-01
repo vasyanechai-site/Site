@@ -76,10 +76,11 @@ export function RetailHeader({
   return (
     <header
       className={cn(
-        'border-b border-border sticky top-0 bg-[#FFF4E5] z-50',
-        // Мобайл: анимированный translate, десктоп — всегда виден
-        'transition-transform duration-300 ease-in-out',
-        !visible ? 'md:translate-y-0 -translate-y-full' : 'translate-y-0',
+        'sticky top-0 z-50 w-full border-b border-border bg-[#FFF4E5]',
+        // Нельзя вешать transform на sticky-элемент: ломается прилипание и сверху просвечивает контент.
+        // Скрытие только на мобайле; в видимом состоянии transform не задаём.
+        'max-md:transition-transform max-md:duration-300 max-md:ease-in-out',
+        !visible && 'max-md:pointer-events-none max-md:-translate-y-full',
         className
       )}
     >
