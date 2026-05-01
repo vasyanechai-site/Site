@@ -53,29 +53,58 @@ function writeDb(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
+async function pgCoreTablesExist() {
+  const required = ["app_settings", "orders", "retail_orders"];
+  const { rows } = await pgPool.query(
+    `SELECT table_name FROM information_schema.tables
+     WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+    [required],
+  );
+  return rows.length >= required.length;
+}
+
 async function ensurePgSchema() {
   if (!pgPool || pgReady) return;
-  await pgPool.query(`
-    CREATE TABLE IF NOT EXISTS orders (
-      order_id TEXT PRIMARY KEY,
-      payload JSONB NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-  await pgPool.query(`
-    CREATE TABLE IF NOT EXISTS retail_orders (
-      order_id TEXT PRIMARY KEY,
-      payload JSONB NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
-  await pgPool.query(`
-    CREATE TABLE IF NOT EXISTS app_settings (
-      key TEXT PRIMARY KEY,
-      payload JSONB NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `);
+  try {
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        order_id TEXT PRIMARY KEY,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS retail_orders (
+        order_id TEXT PRIMARY KEY,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+    await pgPool.query(`
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        payload JSONB NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `);
+  } catch (e) {
+    if (e && e.code === "42501") {
+      const ok = await pgCoreTablesExist();
+      if (!ok) {
+        throw new Error(
+          "PostgreSQL: permission denied for schema public — the DB role cannot CREATE TABLE and required tables are missing. " +
+            "As a superuser (or DB owner), run: GRANT CREATE ON SCHEMA public TO your_app_role; " +
+            "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_app_role; " +
+            "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO your_app_role; " +
+            "then restart — or create orders, retail_orders, app_settings manually.",
+        );
+      }
+      console.warn(
+        "[store] Skipping DDL (no CREATE on schema public); using existing orders / retail_orders / app_settings.",
+      );
+    } else throw e;
+  }
+
   await pgPool.query(`
     INSERT INTO app_settings (key, payload)
     VALUES ('exchangeRate', '{"usd_to_rub":95,"updated_at":null}'::jsonb)

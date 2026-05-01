@@ -52,7 +52,12 @@ Example local DB bootstrap:
 sudo -u postgres psql -c "CREATE DATABASE site_db;"
 sudo -u postgres psql -c "CREATE USER site_user WITH PASSWORD 'strong_password';"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE site_db TO site_user;"
+sudo -u postgres psql site_db -c "GRANT CREATE ON SCHEMA public TO site_user;"
+sudo -u postgres psql site_db -c "GRANT ALL PRIVILEGES ON SCHEMA public TO site_user;"
+sudo -u postgres psql site_db -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO site_user;"
 ```
+
+PostgreSQL **15+** и часть hosted-решений дают ошибку **`permission denied for schema public`** роли приложения без `CREATE` на `public`; команды выше это снимают. Если таблицы уже созданы администратором, а приложению нужны только DML-права, достаточно `GRANT … ON ALL TABLES IN SCHEMA public` (или полный текст из сообщения при старте/импорте).
 
 `DATABASE_URL` example:
 
