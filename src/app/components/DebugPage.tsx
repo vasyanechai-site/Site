@@ -70,6 +70,17 @@ export function DebugPage() {
     void loadTelegramStatus();
   }, [loadTelegramStatus]);
 
+  const loadTelegramDns = useCallback(async () => {
+    appendLog("GET /api/debug/telegram/dns …");
+    try {
+      const res = await fetch(`${API_BASE_URL}/debug/telegram/dns`);
+      const data = await res.json().catch(() => ({}));
+      appendLog(`HTTP ${res.status}: ${formatJson(data)}`);
+    } catch (e) {
+      appendLog(`Сеть: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [appendLog]);
+
   const postTelegramTest = async (path: "ping" | "wholesale-sample" | "network-probe") => {
     setActionLoading(path);
     appendLog(`POST /api/debug/telegram/${path} …`);
@@ -192,6 +203,15 @@ export function DebugPage() {
                 <Button
                   type="button"
                   size="sm"
+                  variant="outline"
+                  onClick={() => void loadTelegramDns()}
+                  disabled={!!actionLoading}
+                >
+                  DNS (A) api.telegram.org
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
                   variant="secondary"
                   onClick={() => void postTelegramTest("network-probe")}
                   disabled={!!actionLoading}
@@ -200,7 +220,7 @@ export function DebugPage() {
                   {actionLoading === "network-probe" ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : null}
-                  Сеть → api.telegram.org
+                  HTTPS → api.telegram.org
                 </Button>
                 <Button
                   type="button"

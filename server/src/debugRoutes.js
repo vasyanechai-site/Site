@@ -2,6 +2,7 @@
  * Диагностические маршруты (/api/debug/*). POST-тесты Telegram без секрета — ограничьте доступ к API (сеть / файрвол), если нужно.
  */
 
+import { resolve4 } from "node:dns/promises";
 import {
   sendTelegramHtml,
   formatWholesaleOrderMessage,
@@ -56,6 +57,27 @@ function sampleWholesaleOrder() {
 
 /** @param {import("express").Express} app */
 export function registerDebugRoutes(app) {
+  /** Только DNS (без TCP к Telegram): видно, резолвится ли api.telegram.org с VPS. */
+  app.get("/api/debug/telegram/dns", async (_req, res) => {
+    const host = "api.telegram.org";
+    try {
+      const v4 = await resolve4(host);
+      res.json({
+        ok: true,
+        host,
+        aRecordsV4: v4,
+        note: "Если адреса есть, а network-probe даёт ETIMEDOUT — до Telegram блокируют TCP 443 (фаервол), а не DNS.",
+      });
+    } catch (e) {
+      res.json({
+        ok: false,
+        host,
+        error: String(e?.message || e),
+        code: e?.code,
+      });
+    }
+  });
+
   app.get("/api/debug/telegram/status", async (_req, res) => {
     const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
     const chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
@@ -90,21 +112,26 @@ export function registerDebugRoutes(app) {
       hints.push(
         "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env.",
       );
+    } else if (getMeTimeout) {
+      hints.push(
+        "Сеть: ETIMEDOUT до api.telegram.org — с VPS не устанавливается HTTPS к Telegram (это не «неверный токен»). Обычно блокировка исходящего 443 у хостинга.",
+      );
+      if (!proxyOn) {
+        hints.push(
+          "Решение: открыть у Reg.ru исходящий доступ к api.telegram.org:443 или задать TELEGRAM_HTTPS_PROXY / HTTPS_PROXY (HTTP-прокси с выходом в интернет), затем pm2 restart site-api --update-env.",
+        );
+      } else {
+        hints.push(
+          "Прокси в .env уже задан, но таймаут — проверьте URL, логин/пароль и что с VPS до хоста прокси открыт нужный порт.",
+        );
+      }
+      hints.push(`Когда сеть к Telegram заработает: TELEGRAM_CHAT_ID — ${chatIdHint(chatId)}`);
     } else {
       hints.push(`TELEGRAM_CHAT_ID: ${chatIdHint(chatId)}`);
-      if (getMeTimeout) {
-        hints.push(
-          "Сеть: ETIMEDOUT до api.telegram.org — с этого VPS, скорее всего, блокируют исходящий доступ к Telegram (это не «неверный токен»). Варианты: открыть у хостинга api.telegram.org:443; задать TELEGRAM_HTTPS_PROXY; вынести отправку на другой сервер.",
-        );
-      } else if (getMe && !getMe.ok) {
+      if (getMe && !getMe.ok) {
         hints.push("getMe не прошёл — проверьте TELEGRAM_BOT_TOKEN или текст ошибки в поле error.");
       } else if (getMe?.ok) {
         hints.push(`Бот @${getMe.username || "?"} — добавьте его в канал админом с правом «Публиковать сообщения».`);
-      }
-      if (getMeTimeout && !proxyOn) {
-        hints.push(
-          "Прокси: в .env задайте TELEGRAM_HTTPS_PROXY (или HTTPS_PROXY), например http://user:pass@proxy.example:8080 — npm-пакет https-proxy-agent уже в зависимостях.",
-        );
       }
     }
 
