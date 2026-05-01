@@ -42,9 +42,46 @@ fi
 CONF_NAME="site-api-${API_PUBLIC_HOST}.conf"
 CONF_PATH="/etc/nginx/sites-available/${CONF_NAME}"
 ENABLED="/etc/nginx/sites-enabled/${CONF_NAME}"
+CERT_PATH="/etc/letsencrypt/live/${API_PUBLIC_HOST}/fullchain.pem"
+KEY_PATH="/etc/letsencrypt/live/${API_PUBLIC_HOST}/privkey.pem"
 
-echo "[install-api-proxy] Writing ${CONF_PATH}"
-"${SUDO[@]}" tee "${CONF_PATH}" >/dev/null <<EOF
+write_https_vhost() {
+  echo "[install-api-proxy] Writing ${CONF_PATH} (HTTP→HTTPS + TLS proxy)"
+  "${SUDO[@]}" tee "${CONF_PATH}" >/dev/null <<EOF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${API_PUBLIC_HOST};
+    return 301 https://\$host\$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name ${API_PUBLIC_HOST};
+
+    ssl_certificate ${CERT_PATH};
+    ssl_certificate_key ${KEY_PATH};
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    client_max_body_size 12m;
+
+    location / {
+        proxy_pass http://${UPSTREAM_HOST}:${UPSTREAM_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+}
+
+write_http_only_vhost() {
+  echo "[install-api-proxy] Writing ${CONF_PATH} (HTTP only; certbot will add HTTPS after)"
+  "${SUDO[@]}" tee "${CONF_PATH}" >/dev/null <<EOF
 server {
     listen 80;
     listen [::]:80;
@@ -62,18 +99,26 @@ server {
     }
 }
 EOF
+}
+
+# If cert already exists, always rewrite full HTTPS vhost (idempotent, fixes deploys that
+# previously replaced the file with HTTP-only).
+if [ -f "${CERT_PATH}" ]; then
+  write_https_vhost
+  "${SUDO[@]}" ln -sf "${CONF_PATH}" "${ENABLED}"
+  "${SUDO[@]}" nginx -t
+  "${SUDO[@]}" systemctl reload nginx || "${SUDO[@]}" service nginx reload
+  echo "[install-api-proxy] HTTPS vhost installed for ${API_PUBLIC_HOST}"
+  exit 0
+fi
+
+write_http_only_vhost
 
 "${SUDO[@]}" ln -sf "${CONF_PATH}" "${ENABLED}"
 echo "[install-api-proxy] Enabling site: ${ENABLED}"
 
 "${SUDO[@]}" nginx -t
 "${SUDO[@]}" systemctl reload nginx || "${SUDO[@]}" service nginx reload
-
-CERT_PATH="/etc/letsencrypt/live/${API_PUBLIC_HOST}/fullchain.pem"
-if [ -f "${CERT_PATH}" ]; then
-  echo "[install-api-proxy] TLS cert already present: ${CERT_PATH}"
-  exit 0
-fi
 
 if [ -z "${CERTBOT_EMAIL}" ]; then
   echo "[install-api-proxy] No TLS cert yet. Set GitHub secret CERTBOT_EMAIL to obtain Let's Encrypt on next deploy (DNS A for ${API_PUBLIC_HOST} must point to this VPS)."
