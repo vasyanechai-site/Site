@@ -1,0 +1,90 @@
+# Деплой фронта + serverless api/telegram-relay.js на Vercel из GitHub Actions.
+#
+# Не могу за вас зайти в Vercel/GitHub в браузере — нужен один раз руками:
+#  1) Vercel → New Project → импорт этого репозитория (Root Directory не менять).
+#  2) Project → Settings → General → скопировать Project ID.
+#     Team ID (ORG): в URL дашборда команды или после `vercel link` в .vercel/project.json.
+#  3) Vercel → Account Settings → Tokens → создать токен.
+#  4) GitHub → Settings → Secrets and variables → Actions → Repository secrets:
+#       VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+#     (те же, что для VPS:) TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
+#     TELEGRAM_RELAY_SECRET — один раз: openssl rand -hex 32 (тот же потом на VPS).
+#  5) Repository variables → New: VERCEL_DEPLOY_ENABLED = 1  (чтобы job запускался при push).
+#  6) После зелёного деплоя: Vercel → Domains → production URL → на VPS:
+#       TELEGRAM_RELAY_URL=https://<домен>/api/telegram-relay
+#       TELEGRAM_RELAY_SECRET=<тот же>
+#
+# Первый прогон: Actions → Deploy Vercel → Run workflow (workflow_dispatch), даже без переменной.
+
+name: Deploy Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "src/**"
+      - "public/**"
+      - "index.html"
+      - "vite.config.ts"
+      - "vite.config.js"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - "scripts/vercel-write-project-json.mjs"
+      - "scripts/vercel-sync-env-to-production.sh"
+      - ".github/workflows/deploy-vercel.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy-vercel:
+    if: vars.VERCEL_DEPLOY_ENABLED == '1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Write .vercel/project.json
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: node scripts/vercel-write-project-json.mjs
+
+      - name: Install Vercel CLI (env sync)
+        run: npm i -g vercel@37.14.0
+
+      - name: Sync Telegram env to Vercel (production)
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_RELAY_SECRET: ${{ secrets.TELEGRAM_RELAY_SECRET }}
+        run: bash scripts/vercel-sync-env-to-production.sh
+
+      - name: Build and deploy to Vercel
+        uses: amondnet/vercel-action@v42.3.0
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-version: 37.14.0
+          vercel-build: true
+          vercel-args: "--prod"
+          github-comment: false
+
+      - name: Подсказка для VPS
+        run: |
+          {
+            echo "## Telegram relay"
+            echo "В Vercel → Project → **Domains** возьмите production-URL (например \`https://имя.vercel.app\`)."
+            echo "На VPS в \`.env\` или в GitHub Secrets для Reg.ru:"
+            echo ""
+            echo "\`TELEGRAM_RELAY_URL=https://<домен>/api/telegram-relay\`"
+            echo "\`TELEGRAM_RELAY_SECRET=\` тот же, что в секрете **TELEGRAM_RELAY_SECRET** здесь."
+            echo ""
+            echo "Затем \`pm2 restart site-api --update-env\`."
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -20,6 +20,17 @@
 - `TELEGRAM_HTTPS_PROXY` / `HTTPS_PROXY` — если хостинг блокирует прямой доступ к `api.telegram.org` (ETIMEDOUT)
 - `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через Vercel (`api/telegram-relay.js`): URL вида `https://<project>.vercel.app/api/telegram-relay` и тот же секрет, что в env проекта на Vercel; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
 
+### Vercel (автодеплой relay + фронт из GitHub)
+
+Создать проект в браузере и добавить секреты в GitHub может только владелец репозитория; в коде уже есть workflow [`.github/workflows/deploy-vercel.yml`](.github/workflows/deploy-vercel.yml): он синхронизирует в Vercel (production) переменные `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_RELAY_SECRET` из **тех же** GitHub Secrets, что вы используете для VPS, и выполняет `vercel build` + прод-деплой.
+
+1. [Vercel](https://vercel.com) → **Add New…** → **Project** → импорт этого репозитория (Root Directory не менять). Дождитесь первого деплоя или пропустите — дальше важнее связка с Actions.
+2. **Project** → **Settings** → **General** → скопируйте **Project ID** → GitHub Secret `VERCEL_PROJECT_ID`. **Team** (личный аккаунт или команда) → Settings → **Team ID** в интерфейсе или значение `orgId` из локального `vercel link` → Secret `VERCEL_ORG_ID`.
+3. [Tokens](https://vercel.com/account/tokens) → создать токен → Secret `VERCEL_TOKEN`.
+4. В **Actions → Secrets** добавьте (если ещё нет): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. Отдельно сгенерируйте relay-секрет (`openssl rand -hex 32`) и сохраните как **`TELEGRAM_RELAY_SECRET`** (тот же потом на VPS и в Vercel подтянется workflow’ом).
+5. **Actions → Variables** → `VERCEL_DEPLOY_ENABLED` = `1` — иначе workflow на push не запускается (чтобы чужие форки не падали без секретов). Первый раз можно **Actions → Deploy Vercel → Run workflow** вручную без переменной.
+6. После успешного прогона: Vercel → **Domains** → production URL → в Secrets для Reg.ru (или в `.env` на VPS): `TELEGRAM_RELAY_URL=https://<домен>/api/telegram-relay`, `TELEGRAM_RELAY_SECRET` = тот же hex. Затем `pm2 restart site-api --update-env`.
+
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 
 **Sudo:** the deploy SSH user must be able to run `nginx`, `systemctl reload nginx` / `service nginx reload`, `certbot`, and `apt-get install` via `sudo` **without an interactive password** (configure `sudoers` for that user), or run `bash server/deploy/install-api-proxy.sh` once manually as root and then only use Actions for app restarts.
