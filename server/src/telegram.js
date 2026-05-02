@@ -1,6 +1,7 @@
 /**
  * Telegram уведомления (Node API).
  * Переменные окружения: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (числовой id чата или @channelusername).
+ * Обход блокировки api.telegram.org: TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET → см. api/telegram-relay.js (Vercel).
  */
 
 import { ipv4HttpsRequest } from "./ipv4Https.js";
@@ -39,7 +40,46 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
+/** Исходящий HTTPS к Vercel (relay); на заблокированном VPS до api.telegram.org не ходим. */
+async function sendTelegramViaRelay(html) {
+  const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
+  const relaySecret = (process.env.TELEGRAM_RELAY_SECRET || "").trim();
+  if (!relayUrl || !relaySecret) {
+    return { ok: false, skipped: true, reason: "relay_misconfigured" };
+  }
+  try {
+    const res = await fetch(relayUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${relaySecret}`,
+      },
+      body: JSON.stringify({ text: String(html).slice(0, 4090) }),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error("[telegram] relay HTTP", res.status, data);
+      return { ok: false, httpStatus: res.status, data };
+    }
+    if (!data.ok) {
+      console.error("[telegram] relay ответ", data);
+      return { ok: false, data };
+    }
+    return { ok: true, data: data.result };
+  } catch (e) {
+    const detail = serializeFetchError(e);
+    console.error("[telegram] relay error", detail.errorSummary, detail.codes);
+    return { ok: false, ...detail };
+  }
+}
+
 export async function sendTelegramHtml(text) {
+  const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
+  if (relayUrl) {
+    return sendTelegramViaRelay(text);
+  }
+
   const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
   const chatId = String(process.env.TELEGRAM_CHAT_ID || "").trim();
   if (!token || !chatId) {

@@ -81,6 +81,9 @@ export function registerDebugRoutes(app) {
   app.get("/api/debug/telegram/status", async (_req, res) => {
     const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
     const chatId = (process.env.TELEGRAM_CHAT_ID || "").trim();
+    const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
+    const relaySecret = (process.env.TELEGRAM_RELAY_SECRET || "").trim();
+    const relayConfigured = Boolean(relayUrl && relaySecret);
 
     let getMe = null;
     if (token) {
@@ -108,19 +111,27 @@ export function registerDebugRoutes(app) {
       (getMe.codes?.includes("ETIMEDOUT") ||
         String(getMe.errorSummary || "").includes("ETIMEDOUT"));
 
-    if (!token || !chatId) {
+    if (relayConfigured) {
       hints.push(
-        "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env.",
+        "Настроен TELEGRAM_RELAY_URL: реальная отправка идёт через relay (например Vercel), не напрямую с VPS. Поле getMe ниже проверяет только прямой доступ с VPS к api.telegram.org — при работающем relay оно может оставаться с ошибкой.",
       );
+    }
+
+    if (!token || !chatId) {
+      if (!relayConfigured) {
+        hints.push(
+          "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env. Либо только TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET для отправки через Vercel.",
+        );
+      }
     } else if (getMeTimeout) {
       hints.push(
         "Сеть: ETIMEDOUT до api.telegram.org — с VPS не устанавливается HTTPS к Telegram (это не «неверный токен»). Обычно блокировка исходящего 443 у хостинга.",
       );
-      if (!proxyOn) {
+      if (!proxyOn && !relayConfigured) {
         hints.push(
-          "Решение: открыть у Reg.ru исходящий доступ к api.telegram.org:443 или задать TELEGRAM_HTTPS_PROXY / HTTPS_PROXY (HTTP-прокси с выходом в интернет), затем pm2 restart site-api --update-env.",
+          "Решение: открыть у Reg.ru исходящий доступ к api.telegram.org:443; или TELEGRAM_HTTPS_PROXY / HTTPS_PROXY; или TELEGRAM_RELAY_URL на Vercel (api/telegram-relay.js) + TELEGRAM_RELAY_SECRET; затем pm2 restart site-api --update-env.",
         );
-      } else {
+      } else if (proxyOn) {
         hints.push(
           "Прокси в .env уже задан, но таймаут — проверьте URL, логин/пароль и что с VPS до хоста прокси открыт нужный порт.",
         );
@@ -135,6 +146,15 @@ export function registerDebugRoutes(app) {
       }
     }
 
+    let relayHostPreview = null;
+    if (relayUrl) {
+      try {
+        relayHostPreview = maskMiddle(new URL(relayUrl).host, 6);
+      } catch {
+        relayHostPreview = "invalid_url";
+      }
+    }
+
     res.json({
       hasToken: Boolean(token),
       hasChatId: Boolean(chatId),
@@ -142,6 +162,9 @@ export function registerDebugRoutes(app) {
       chatIdLength: chatId.length,
       tokenPreview: token ? maskMiddle(token, 6) : null,
       chatIdPreview: chatId ? maskMiddle(chatId, 4) : null,
+      relayConfigured,
+      relayUrlHostPreview: relayHostPreview,
+      hasRelaySecret: Boolean(relaySecret),
       nodeEnv: process.env.NODE_ENV || "",
       outboundProxyConfigured: proxyOn,
       getMe,

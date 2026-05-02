@@ -18,6 +18,7 @@
 - `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
 - `TELEGRAM_HTTPS_PROXY` / `HTTPS_PROXY` — если хостинг блокирует прямой доступ к `api.telegram.org` (ETIMEDOUT)
+- `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через Vercel (`api/telegram-relay.js`): URL вида `https://<project>.vercel.app/api/telegram-relay` и тот же секрет, что в env проекта на Vercel; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 
