@@ -368,6 +368,63 @@ export function registerDebugRoutes(app) {
   });
 
   /**
+   * Минимальная реальная оплата 10 ₽: самовывоз (без СДЭК), заказ в БД, ссылка Точка. Только /debug.
+   * Тело (опционально): customerName, customerPhone, customerEmail — иначе разумные дефолты.
+   */
+  app.post("/api/debug/retail/tochka-pay-10rub", async (req, res) => {
+    try {
+      const b = req.body && typeof req.body === "object" ? req.body : {};
+      const customerName =
+        typeof b.customerName === "string" && b.customerName.trim()
+          ? b.customerName.trim()
+          : "Тест оплаты 10 ₽ (/debug)";
+      const customerPhone =
+        typeof b.customerPhone === "string" && b.customerPhone.trim()
+          ? b.customerPhone.trim()
+          : "+79991234567";
+      const customerEmail =
+        typeof b.customerEmail === "string" && b.customerEmail.trim()
+          ? b.customerEmail.trim()
+          : "debug@coffeenechai.ru";
+      const orderId = `DEBUG-10RUB-${Date.now()}`;
+      const saved = await createRetailOrderFromCheckout({
+        orderId,
+        customerName,
+        customerPhone,
+        customerEmail,
+        items: [
+          {
+            product: {
+              id: "debug-pay-10rub",
+              name: "Тестовая оплата 10 ₽ (страница /debug)",
+              category: "Зерно",
+              price: 10,
+              packageWeight: 200,
+              packageLength: 15,
+              packageWidth: 10,
+              packageHeight: 8,
+              imageUrl: "",
+            },
+            quantity: 1,
+          },
+        ],
+      });
+      const payUrl = saved.tochkaPaymentUrl || saved.tochka_payment_url;
+      const payErr = saved.tochkaPaymentError || saved.tochka_payment_error;
+      const note = payUrl
+        ? "Самовывоз, доставка 0 ₽, сумма 10 ₽. Уведомление в Telegram не отправлялось."
+        : `Самовывоз 10 ₽. ${typeof payErr === "string" && payErr.trim() ? payErr.trim() : "Ссылка Точка не создана — см. TOCHKA_* в .env и логи API."}`;
+      res.json({
+        ...saved,
+        note,
+      });
+    } catch (e) {
+      const code = e?.statusCode === 400 ? 400 : 500;
+      res.status(code).json({ error: e?.message || String(e) });
+    }
+  });
+
+  /**
    * Как POST /api/retail/orders с полным чекаутом, но без Telegram (только /debug).
    * Тело — как у витрины: customerName, customerPhone, customerEmail?, items[].product, deliveryInfo (pvzCode, city, cost, …).
    */

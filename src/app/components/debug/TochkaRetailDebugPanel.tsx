@@ -69,6 +69,9 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutResult, setCheckoutResult] = useState<Record<string, unknown> | null>(null);
 
+  const [pay10Loading, setPay10Loading] = useState(false);
+  const [pay10Result, setPay10Result] = useState<Record<string, unknown> | null>(null);
+
   const loadTochkaEnv = useCallback(async () => {
     setTochkaLoading(true);
     appendLog('GET /api/tochka/acquiring/test-token …');
@@ -197,6 +200,44 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
       appendLog(`calc: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setCalcLoading(false);
+    }
+  };
+
+  const runPay10Rub = async () => {
+    setPay10Loading(true);
+    setPay10Result(null);
+    appendLog('POST /api/debug/retail/tochka-pay-10rub (самовывоз, 10 ₽) …');
+    try {
+      const res = await fetch(`${API_BASE_URL}/debug/retail/tochka-pay-10rub`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customerName.trim(),
+          customerPhone: customerPhone.trim(),
+          customerEmail: customerEmail.trim(),
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+      if (!res.ok) {
+        appendLog(`10 ₽ HTTP ${res.status}: ${formatJson(data)}`);
+        return;
+      }
+      setPay10Result(data);
+      appendLog(formatJson(data));
+      const pay =
+        (typeof data.tochkaPaymentUrl === 'string' && data.tochkaPaymentUrl) ||
+        (typeof data.tochka_payment_url === 'string' && data.tochka_payment_url) ||
+        '';
+      if (pay) {
+        appendLog('✅ Ссылка на оплату 10 ₽ — открываю в новой вкладке…');
+        window.open(pay, '_blank', 'noopener,noreferrer');
+      } else {
+        appendLog('⚠️ Ссылка Точка не пришла — см. ответ и логи API.');
+      }
+    } catch (e) {
+      appendLog(`10 ₽: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPay10Loading(false);
     }
   };
 
@@ -455,6 +496,33 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
             <label className="text-xs text-muted-foreground block mb-1">Кол-во</label>
             <Input type="number" min={1} value={productQty} onChange={(e) => setProductQty(Math.max(1, Number(e.target.value) || 1))} />
           </div>
+        </div>
+        <div className="rounded-lg border border-dashed border-primary/35 bg-primary/5 p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            <strong>Быстрый тест 10 ₽</strong> — самовывоз, без СДЭК. Используются имя / телефон / email выше (для чека Точке нужен РФ-телефон, например +79991234567).
+          </p>
+          <Button
+            type="button"
+            variant="default"
+            className="gap-2"
+            onClick={() => void runPay10Rub()}
+            disabled={!tochkaReady || pay10Loading}
+          >
+            {pay10Loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            Создать заказ и оплатить 10 ₽
+          </Button>
+          {pay10Result ? (
+            <div className="space-y-2">
+              <pre className="text-xs bg-muted/50 p-3 rounded-md overflow-x-auto max-h-40 overflow-y-auto">{formatJson(pay10Result)}</pre>
+              {typeof pay10Result.tochkaPaymentUrl === 'string' && pay10Result.tochkaPaymentUrl ? (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={pay10Result.tochkaPaymentUrl as string} target="_blank" rel="noopener noreferrer">
+                    Открыть оплату 10 ₽ ещё раз
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button
