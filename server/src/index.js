@@ -1005,14 +1005,26 @@ app.get("/api/retail-users", async (_req, res) => {
 app.post("/api/retail-users", async (req, res) => {
   const body = req.body || {};
   const users = await getRetailUsers();
+  const email = String(body.email || "").trim().toLowerCase();
+  if (!email) {
+    return res.status(400).json({ error: "Укажите email" });
+  }
+  if (users.some((x) => String(x.email || "").toLowerCase() === email)) {
+    return res.status(409).json({ error: "Пользователь с таким email уже есть" });
+  }
+  const createdAt = body.createdAt || body.created_at || new Date().toISOString();
   const user = {
-    id: body.id || `retail-user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    role: body.role || "user",
-    createdAt: body.createdAt || new Date().toISOString(),
     ...body,
+    id: body.id || `retail-user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    email: String(body.email).trim(),
+    role: String(body.role || "user"),
+    createdAt,
   };
   await setRetailUsers([user, ...users.filter((x) => x.id !== user.id)]);
-  res.status(201).json({ user: sanitizeUser(user) });
+  const safe = sanitizeUser(user);
+  res.status(201).json({
+    user: { ...safe, created_at: user.createdAt || user.created_at || createdAt },
+  });
 });
 
 app.delete("/api/retail-users/:id", async (req, res) => {

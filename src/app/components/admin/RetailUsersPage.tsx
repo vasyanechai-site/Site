@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../lib/supabaseClient';
-import { projectId } from '../../utils/supabase/info';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
 import { Button } from '../ui/button';
@@ -30,7 +28,9 @@ export function RetailUsersPage() {
   const [users, setUsers] = useState<RetailUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [isAddingUser, setIsAddingUser] = useState(false);
+  /** Открыта ли модалка «Добавить пользователя» (отдельно от процесса сохранения). */
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addSubmitting, setAddSubmitting] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState('user');
 
@@ -107,43 +107,49 @@ export function RetailUsersPage() {
   };
 
   const handleAddUser = async () => {
-    if (!newUserEmail) {
+    if (!newUserEmail.trim()) {
       toast.error('Введите email нового пользователя');
       return;
     }
 
-    setIsAddingUser(true);
+    setAddSubmitting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-
+      const { publicAnonKey } = await import('../../utils/supabase/info');
       const response = await fetch(`${API_BASE_URL}/retail-users`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${publicAnonKey}`,
+          'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: newUserEmail,
-          role: newUserRole
-        })
+          email: newUserEmail.trim(),
+          role: newUserRole,
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add user');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Ошибка ${response.status}`);
       }
 
       const data = await response.json();
-      toast.success(`Пользователь ${newUserEmail} добавлен`);
-      setUsers([...users, data.user]);
+      const raw = data.user || {};
+      const row: RetailUser = {
+        id: raw.id,
+        email: raw.email,
+        role: raw.role || 'user',
+        created_at: raw.created_at || raw.createdAt || new Date().toISOString(),
+      };
+      toast.success(`Пользователь ${row.email} добавлен`);
+      setUsers((prev) => [row, ...prev]);
+      setNewUserEmail('');
+      setNewUserRole('user');
+      setAddDialogOpen(false);
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || 'Ошибка при добавлении пользователя');
     } finally {
-      setIsAddingUser(false);
-      setNewUserEmail('');
-      setNewUserRole('user');
+      setAddSubmitting(false);
     }
   };
 
@@ -175,7 +181,7 @@ export function RetailUsersPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsAddingUser(true)}
+                onClick={() => setAddDialogOpen(true)}
               >
                 <Plus className="w-4 h-4" />
                 Добавить пользователя
@@ -215,7 +221,7 @@ export function RetailUsersPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-gray-600">
-                      {new Date(user.created_at).toLocaleDateString('ru-RU', {
+                      {new Date((user as { createdAt?: string }).createdAt || user.created_at).toLocaleDateString('ru-RU', {
                         day: 'numeric',
                         month: 'long',
                         year: 'numeric'
@@ -258,7 +264,7 @@ export function RetailUsersPage() {
         </>
       )}
 
-      <Dialog open={isAddingUser} onOpenChange={setIsAddingUser}>
+      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Добавить нового пользователя</DialogTitle>
@@ -294,7 +300,8 @@ export function RetailUsersPage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setIsAddingUser(false)}
+              onClick={() => setAddDialogOpen(false)}
+              disabled={addSubmitting}
             >
               Отмена
             </Button>
@@ -302,9 +309,9 @@ export function RetailUsersPage() {
               type="button"
               size="sm"
               onClick={handleAddUser}
-              disabled={isAddingUser}
+              disabled={addSubmitting}
             >
-              {isAddingUser ? (
+              {addSubmitting ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Plus className="w-4 h-4" />
