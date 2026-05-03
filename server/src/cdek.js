@@ -10,26 +10,41 @@ export async function getCdekToken() {
     return cachedToken;
   }
 
-  const account = process.env.CDEK_ACCOUNT;
-  const secret = process.env.CDEK_SECRET;
+  const account = (process.env.CDEK_ACCOUNT || "").trim();
+  const secret = (process.env.CDEK_SECRET || "").trim();
 
   if (!account || !secret) {
     throw new Error("CDEK_ACCOUNT or CDEK_SECRET is missing");
   }
 
-  const params = new URLSearchParams({
+  const body = new URLSearchParams({
     grant_type: "client_credentials",
     client_id: account,
     client_secret: secret,
-  });
+  }).toString();
 
-  const response = await fetch(`${CDEK_API_URL}/oauth/token?${params.toString()}`, {
+  const response = await fetch(`${CDEK_API_URL}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body,
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to get CDEK token: ${response.status}`);
+    const errBody = await response.text().catch(() => "");
+    const raw = errBody.trim().slice(0, 500);
+    let hint = raw;
+    try {
+      const j = JSON.parse(errBody);
+      if (j && typeof j === "object") {
+        const parts = [j.error, j.error_description, j.message].filter(Boolean);
+        if (parts.length) hint = parts.join(" — ");
+      }
+    } catch {
+      /* оставить raw */
+    }
+    throw new Error(
+      hint ? `Failed to get CDEK token: ${response.status} — ${hint}` : `Failed to get CDEK token: ${response.status}`,
+    );
   }
 
   const data = await response.json();

@@ -233,7 +233,7 @@ export function registerDebugRoutes(app) {
       const msg = e instanceof Error ? e.message : String(e);
       if (String(msg).includes("401")) {
         hints.push(
-          "401 = СДЭК отклонил пару client_id/client_secret. Убедитесь, что ключ создан для боевого API https://api.cdek.ru/v2 и в .env нет пробелов/кавычек.",
+          "401: пара Account / Secure password не принята СДЭК. В lk.cdek.ru → Интеграция → API возьмите «Идентификатор» (Account) и «Секретный ключ» (Secure password), не логин/пароль входа в ЛК. В .env без кавычек, без пробела в конце строки; не перепутайте CDEK_ACCOUNT и CDEK_SECRET. После правки: pm2 restart site-api --update-env.",
         );
       }
       return res.json({ ok: false, oauth: "error", error: msg, hints, ...base });

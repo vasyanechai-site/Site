@@ -336,9 +336,9 @@ export function CdekDebugPanel({ appendLog }: { appendLog: (line: string) => voi
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          Ошибка <strong>401</strong> при вводе города в корзине значит: на API-сервере в <code className="text-xs bg-muted px-1 rounded">.env</code> неверные{' '}
-          <code className="text-xs">CDEK_ACCOUNT</code> / <code className="text-xs">CDEK_SECRET</code> (не те, что в личном кабинете для API 2.0). После исправления —{' '}
-          <code className="text-xs">pm2 restart site-api --update-env</code>.
+          <strong>401</strong> — СДЭК не принял пару ключей. Нужны именно <strong>Account</strong> и <strong>Secure password</strong> из раздела интеграции API в lk.cdek.ru (не логин/пароль входа в ЛК). В <code className="text-xs bg-muted px-1 rounded">.env</code> без кавычек и без пробела в конце строки; не перепутайте{' '}
+          <code className="text-xs">CDEK_ACCOUNT</code> и <code className="text-xs">CDEK_SECRET</code>. После правки —{' '}
+          <code className="text-xs">pm2 restart site-api --update-env</code>. В логе ниже после обновления API будет текст ошибки от СДЭК (например «No such account secure»).
         </p>
         {status && (
           <ul className="text-sm font-mono bg-muted/50 rounded-lg p-3 list-none space-y-1">
