@@ -6,6 +6,8 @@ import { resolve4 } from "node:dns/promises";
 import {
   sendTelegramHtml,
   formatWholesaleOrderMessage,
+  formatRetailOrderMessage,
+  telegramNotify,
   serializeFetchError,
 } from "./telegram.js";
 import { ipv4HttpsRequest } from "./ipv4Https.js";
@@ -412,8 +414,9 @@ export function registerDebugRoutes(app) {
       const payUrl = saved.tochkaPaymentUrl || saved.tochka_payment_url;
       const payErr = saved.tochkaPaymentError || saved.tochka_payment_error;
       const note = payUrl
-        ? "Самовывоз, доставка 0 ₽, сумма 10 ₽. Уведомление в Telegram не отправлялось."
+        ? "Самовывоз, доставка 0 ₽, сумма 10 ₽. В Telegram — уведомление о заказе; «оплата получена» — когда в ЛК Точки настроен вебхук на POST …/api/tochka/webhook и оплата прошла."
         : `Самовывоз 10 ₽. ${typeof payErr === "string" && payErr.trim() ? payErr.trim() : "Ссылка Точка не создана — см. TOCHKA_* в .env и логи API."}`;
+      await telegramNotify("retail_order", formatRetailOrderMessage(saved));
       res.json({
         ...saved,
         note,
@@ -425,7 +428,7 @@ export function registerDebugRoutes(app) {
   });
 
   /**
-   * Как POST /api/retail/orders с полным чекаутом, но без Telegram (только /debug).
+   * Как POST /api/retail/orders с полным чекаутом (только /debug). Telegram — как на витрине (новый заказ).
    * Тело — как у витрины: customerName, customerPhone, customerEmail?, items[].product, deliveryInfo (pvzCode, city, cost, …).
    */
   app.post("/api/debug/retail/tochka-checkout", async (req, res) => {
@@ -435,7 +438,7 @@ export function registerDebugRoutes(app) {
       const payErr = saved.tochkaPaymentError || saved.tochka_payment_error;
       const hasTerminalEnv = Boolean((process.env.TOCHKA_TERMINAL_ID || "").trim());
       const baseNote =
-        "Заказ сохранён в БД; при наличии ссылок откройте оплату Точка. Уведомление в Telegram не отправлялось.";
+        "Заказ сохранён в БД; при наличии ссылок откройте оплату Точка. В Telegram уйдёт уведомление о заказе; об оплате — после вебхука Точки.";
       let note = baseNote;
       if (!payUrl) {
         if (typeof payErr === "string" && payErr.trim()) {
@@ -444,6 +447,7 @@ export function registerDebugRoutes(app) {
           note = `${baseNote} Ссылка не создаётся: в .env на API нет TOCHKA_TERMINAL_ID. На /debug → раздел Точка → кнопка «Get Retailers (terminalId)», скопируйте terminalId для вашего merchantId, затем pm2 restart site-api --update-env.`;
         }
       }
+      await telegramNotify("retail_order", formatRetailOrderMessage(saved));
       res.json({
         ...saved,
         note,

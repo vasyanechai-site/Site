@@ -63,7 +63,7 @@ import {
   setWholesaleAccessRequests,
 } from "./store.js";
 import {
-  sendTelegramHtml,
+  telegramNotify,
   formatWholesaleOrderMessage,
   formatRetailOrderMessage,
   formatWholesaleAccessRequest,
@@ -107,15 +107,6 @@ function runWeeklyEmailBackupScript() {
       else reject(new Error(stderr.trim() || stdout.trim() || `Скрипт завершился с кодом ${code}`));
     });
   });
-}
-
-/** Единая точка: отправка в Telegram + лог при сбое (канал / чат из TELEGRAM_CHAT_ID). */
-async function telegramNotify(context, html) {
-  const r = await sendTelegramHtml(html);
-  if (!r.ok) {
-    console.error(`[telegram] ${context}`, JSON.stringify(r).slice(0, 800));
-  }
-  return r;
 }
 
 // Исходящие запросы (Telegram и др.): на части VPS IPv6 «чёрная дыра» → fetch failed без деталей.
@@ -1068,18 +1059,38 @@ app.post(
     }
 
     try {
-      const webhookType = String(payload.webhookType || "").toLowerCase();
+      const data = payload && typeof payload.Data === "object" && payload.Data != null ? payload.Data : {};
+      const webhookType = String(payload.webhookType || data.webhookType || "").toLowerCase();
       const requestId =
-        payload.requestId || payload.operationId || payload?.Data?.requestId || payload?.Data?.operationId;
-      const paymentLinkId = payload.paymentLinkId != null ? String(payload.paymentLinkId) : "";
+        payload.requestId ||
+        payload.operationId ||
+        data.requestId ||
+        data.operationId ||
+        data.RequestId ||
+        data.OperationId;
+      const paymentLinkIdRaw =
+        payload.paymentLinkId ??
+        payload.paymentLinkID ??
+        data.paymentLinkId ??
+        data.paymentLinkID ??
+        data.PaymentLinkId;
+      const paymentLinkId = paymentLinkIdRaw != null && String(paymentLinkIdRaw).trim() !== "" ? String(paymentLinkIdRaw) : "";
       const externalOrderId =
         paymentLinkId ||
         payload.orderId ||
-        payload?.Data?.orderId ||
-        payload?.Data?.metadata?.orderId ||
+        data.orderId ||
+        data.OrderId ||
+        data.metadata?.orderId ||
         "";
 
-      const statusUpper = String(payload.status || payload?.Data?.status || payload.paymentStatus || "").toUpperCase();
+      const statusUpper = String(
+        payload.status ||
+          data.status ||
+          data.Status ||
+          payload.paymentStatus ||
+          data.paymentStatus ||
+          "",
+      ).toUpperCase();
       const statusLower = statusUpper.toLowerCase();
 
       let statusMapped = "pending";
@@ -1096,6 +1107,14 @@ app.post(
       let orderId = externalOrderId ? String(externalOrderId).trim() : "";
       if (!orderId && requestId && String(requestId).startsWith("PAY-")) {
         orderId = String(requestId).slice(4);
+      }
+
+      if (!orderId) {
+        console.warn("[tochka webhook] orderId not resolved", {
+          webhookType,
+          payloadKeys: Object.keys(payload || {}),
+          dataKeys: Object.keys(data || {}),
+        });
       }
 
       if (orderId) {

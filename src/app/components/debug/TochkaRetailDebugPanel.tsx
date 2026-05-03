@@ -361,11 +361,12 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
         </div>
         <p className="text-sm text-muted-foreground">
           Сценарий как на сайте: <strong>СДЭК</strong> (город → ПВЗ → расчёт) → заказ в БД + запрос{' '}
-          <code className="text-xs bg-muted px-1 rounded">payments_with_receipt</code>. Уведомление в Telegram{' '}
-          <strong>не</strong> отправляется. Нужны <code className="text-xs">TOCHKA_JWT_TOKEN</code>,{' '}
-          <code className="text-xs">TOCHKA_CUSTOMER_CODE</code>, <code className="text-xs">TOCHKA_MERCHANT_ID</code>,{' '}
-          <code className="text-xs">TOCHKA_TERMINAL_ID</code> на API. Кнопка <strong>Get Retailers</strong> — вызов API Точки{' '}
-          <code className="text-xs bg-muted px-1 rounded">GET …/acquiring/v1.0/retailers</code> (в логе — полный JSON и строки с{' '}
+          <code className="text-xs bg-muted px-1 rounded">payments_with_receipt</code>. В Telegram уходит{' '}
+          <strong>уведомление о новом заказе</strong>; отдельное «оплата получена» — после успешной оплаты, когда Точка дергает вебхук{' '}
+          <code className="text-xs bg-muted px-1 rounded">POST /api/tochka/webhook</code> (его URL нужно указать в ЛК Точки). Нужны{' '}
+          <code className="text-xs">TOCHKA_JWT_TOKEN</code>, <code className="text-xs">TOCHKA_CUSTOMER_CODE</code>,{' '}
+          <code className="text-xs">TOCHKA_MERCHANT_ID</code>, <code className="text-xs">TOCHKA_TERMINAL_ID</code> на API. Кнопка{' '}
+          <strong>Get Retailers</strong> — <code className="text-xs bg-muted px-1 rounded">GET …/acquiring/v1.0/retailers</code> (в логе —{' '}
           <code className="text-xs">terminalId</code>).
         </p>
         {tochkaEnv ? (

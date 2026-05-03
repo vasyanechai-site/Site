@@ -111,6 +111,15 @@ export async function sendTelegramHtml(text) {
   }
 }
 
+/** Отправка в Telegram + лог при сбое (relay или TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). */
+export async function telegramNotify(context, html) {
+  const r = await sendTelegramHtml(html);
+  if (!r.ok) {
+    console.error(`[telegram] ${context}`, JSON.stringify(r).slice(0, 800));
+  }
+  return r;
+}
+
 export function formatWholesaleOrderMessage(order) {
   const items = Array.isArray(order.items) ? order.items : [];
   const itemsList = items
