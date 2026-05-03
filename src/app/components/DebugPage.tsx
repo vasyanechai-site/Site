@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { API_BASE_URL } from "../lib/backendConfig";
 import { CdekDebugPanel } from "./debug/CdekDebugPanel";
 import { TochkaRetailDebugPanel } from "./debug/TochkaRetailDebugPanel";
+import { getTochkaDebugRetailers, logLinesForRetailersResponse } from "../lib/tochkaDebugGetRetailers";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Loader2, ArrowLeft, Send, ClipboardList } from "lucide-react";
@@ -41,6 +42,7 @@ export function DebugPage() {
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [tochkaRetailersLoading, setTochkaRetailersLoading] = useState(false);
 
   const appendLog = useCallback((line: string) => {
     const ts = new Date().toLocaleTimeString("ru-RU", { hour12: false });
@@ -126,9 +128,10 @@ export function DebugPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Отладка</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Сервисные проверки интеграций. Разделы будут пополняться. Алиас:{" "}
-            <code className="text-xs bg-muted px-1 rounded">/debag</code> →{" "}
-            <code className="text-xs bg-muted px-1 rounded">/debug</code>
+            Сервисные проверки интеграций. Вкладка <strong>Точка</strong> — розничный чекаут и кнопка Get Retailers (terminalId).
+            Алиас: <code className="text-xs bg-muted px-1 rounded">/debag</code> →{" "}
+            <code className="text-xs bg-muted px-1 rounded">/debug</code>; отдельно:{" "}
+            <code className="text-xs bg-muted px-1 rounded">/tochka-diagnostics</code>.
           </p>
         </div>
 
@@ -155,9 +158,49 @@ export function DebugPage() {
             size="sm"
             onClick={() => setSection("tochka_retail")}
           >
-            Точка розница
+            Точка
           </Button>
         </div>
+
+        {section === "tochka_retail" ? (
+          <Card className="p-4 border-primary/40 bg-primary/5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm">
+                <p className="font-medium">Get Retailers — узнать terminalId для .env</p>
+                <p className="text-muted-foreground mt-1">
+                  Запрос к API Точки через бэкенд. Результат пишется в <strong>лог внизу страницы</strong> (и дублируется кнопкой в
+                  карточке ниже).
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="default"
+                size="default"
+                className="shrink-0 gap-2"
+                disabled={tochkaRetailersLoading}
+                onClick={() => {
+                  void (async () => {
+                    setTochkaRetailersLoading(true);
+                    appendLog("GET /api/debug/tochka/retailers …");
+                    try {
+                      const { httpStatus, data } = await getTochkaDebugRetailers();
+                      for (const line of logLinesForRetailersResponse(httpStatus, data)) {
+                        appendLog(line);
+                      }
+                    } catch (e) {
+                      appendLog(`Get Retailers: ${e instanceof Error ? e.message : String(e)}`);
+                    } finally {
+                      setTochkaRetailersLoading(false);
+                    }
+                  })();
+                }}
+              >
+                {tochkaRetailersLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Get Retailers → terminalId в лог
+              </Button>
+            </div>
+          </Card>
+        ) : null}
 
         {section === "telegram" && (
           <div className="space-y-4">

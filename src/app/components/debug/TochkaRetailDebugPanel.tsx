@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { API_BASE_URL } from '../../lib/backendConfig';
+import { getTochkaDebugRetailers, logLinesForRetailersResponse, formatTochkaRetailersJson } from '../../lib/tochkaDebugGetRetailers';
 import { Button } from '../ui/button';
 import { Card } from '../ui/card';
 import { Input } from '../ui/input';
@@ -28,19 +29,17 @@ type TochkaEnv = {
   hasMerchant: boolean;
   hasTerminal: boolean;
   hasClientId: boolean;
+  acquiringReady?: boolean;
 };
 
 function formatJson(obj: unknown) {
-  try {
-    return JSON.stringify(obj, null, 2);
-  } catch {
-    return String(obj);
-  }
+  return formatTochkaRetailersJson(obj);
 }
 
 export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string) => void }) {
   const [tochkaEnv, setTochkaEnv] = useState<TochkaEnv | null>(null);
   const [tochkaLoading, setTochkaLoading] = useState(false);
+  const [retailersLoading, setRetailersLoading] = useState(false);
 
   const [cityInput, setCityInput] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -89,6 +88,21 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
   useEffect(() => {
     void loadTochkaEnv();
   }, [loadTochkaEnv]);
+
+  const runGetRetailers = useCallback(async () => {
+    setRetailersLoading(true);
+    appendLog('GET /api/debug/tochka/retailers …');
+    try {
+      const { httpStatus, data } = await getTochkaDebugRetailers();
+      for (const line of logLinesForRetailersResponse(httpStatus, data)) {
+        appendLog(line);
+      }
+    } catch (e) {
+      appendLog(`Get Retailers: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setRetailersLoading(false);
+    }
+  }, [appendLog]);
 
   useEffect(() => {
     if (cityInput.length < 2 || cityInput === selectedCity) {
@@ -248,7 +262,17 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
         appendLog('✅ Ссылка на оплату получена. Открываю в новой вкладке…');
         window.open(pay, '_blank', 'noopener,noreferrer');
       } else {
-        appendLog('⚠️ Ссылка Точка не пришла — проверьте TOCHKA_* в .env и логи API.');
+        const err =
+          typeof data.tochkaPaymentError === 'string'
+            ? data.tochkaPaymentError
+            : typeof (data as { tochka_payment_error?: string }).tochka_payment_error === 'string'
+              ? (data as { tochka_payment_error: string }).tochka_payment_error
+              : '';
+        appendLog(
+          err
+            ? `⚠️ Точка: ${err}`
+            : '⚠️ Ссылка Точка не пришла — проверьте TOCHKA_TERMINAL_ID и логи API.',
+        );
       }
     } catch (e) {
       appendLog(`checkout: ${e instanceof Error ? e.message : String(e)}`);
@@ -260,40 +284,77 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
 
   const tochkaReady =
     tochkaEnv &&
-    tochkaEnv.hasToken &&
-    tochkaEnv.hasCustomer &&
-    tochkaEnv.hasMerchant &&
-    tochkaEnv.hasTerminal;
+    (tochkaEnv.acquiringReady ??
+      (tochkaEnv.hasToken && tochkaEnv.hasCustomer && tochkaEnv.hasMerchant && tochkaEnv.hasTerminal));
+
+  const checkoutTochkaError =
+    checkoutResult &&
+    (typeof checkoutResult.tochkaPaymentError === 'string'
+      ? checkoutResult.tochkaPaymentError.trim()
+      : typeof checkoutResult.tochka_payment_error === 'string'
+        ? checkoutResult.tochka_payment_error.trim()
+        : '');
 
   return (
     <div className="space-y-4">
       <Card className="p-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-lg font-medium">Точка — тест оплаты розницы (после ПВЗ)</h2>
-          <Button type="button" size="sm" variant="secondary" onClick={() => void loadTochkaEnv()} disabled={tochkaLoading}>
-            {tochkaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            Проверить переменные Точки
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="secondary" onClick={() => void loadTochkaEnv()} disabled={tochkaLoading}>
+              {tochkaLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Проверить переменные Точки
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void runGetRetailers()}
+              disabled={retailersLoading}
+              title="Get Retailers — в логе появятся merchantId и terminalId для .env"
+            >
+              {retailersLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Get Retailers (terminalId)
+            </Button>
+          </div>
         </div>
         <p className="text-sm text-muted-foreground">
           Сценарий как на сайте: <strong>СДЭК</strong> (город → ПВЗ → расчёт) → заказ в БД + запрос{' '}
           <code className="text-xs bg-muted px-1 rounded">payments_with_receipt</code>. Уведомление в Telegram{' '}
           <strong>не</strong> отправляется. Нужны <code className="text-xs">TOCHKA_JWT_TOKEN</code>,{' '}
           <code className="text-xs">TOCHKA_CUSTOMER_CODE</code>, <code className="text-xs">TOCHKA_MERCHANT_ID</code>,{' '}
-          <code className="text-xs">TOCHKA_TERMINAL_ID</code> на API.
+          <code className="text-xs">TOCHKA_TERMINAL_ID</code> на API. Кнопка <strong>Get Retailers</strong> — вызов API Точки{' '}
+          <code className="text-xs bg-muted px-1 rounded">GET …/acquiring/v1.0/retailers</code> (в логе — полный JSON и строки с{' '}
+          <code className="text-xs">terminalId</code>).
         </p>
         {tochkaEnv ? (
           <ul className="text-sm font-mono bg-muted/50 rounded-lg p-3 list-none space-y-1">
             <li>JWT: {tochkaEnv.hasToken ? 'да' : 'нет'}</li>
             <li>CUSTOMER: {tochkaEnv.hasCustomer ? 'да' : 'нет'}</li>
             <li>MERCHANT: {tochkaEnv.hasMerchant ? 'да' : 'нет'}</li>
-            <li>TERMINAL: {tochkaEnv.hasTerminal ? 'да' : 'нет'}</li>
-            <li>CLIENT_ID: {tochkaEnv.hasClientId ? 'да' : 'нет'} (часто нужен для эквайринга)</li>
+            <li>
+              TERMINAL (TOCHKA_TERMINAL_ID): {tochkaEnv.hasTerminal ? 'да' : 'нет'}{' '}
+              {!tochkaEnv.hasTerminal ? '— без этого ссылка на оплату не создаётся' : ''}
+            </li>
+            <li>CLIENT_ID: {tochkaEnv.hasClientId ? 'да' : 'нет'}</li>
+            {tochkaEnv.acquiringReady != null ? (
+              <li className="pt-1 border-t border-border/60">
+                Эквайринг готов: {tochkaEnv.acquiringReady ? 'да' : 'нет'}
+              </li>
+            ) : null}
           </ul>
         ) : null}
         {!tochkaReady ? (
           <p className="text-sm text-amber-900 dark:text-amber-100 bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3">
-            Заполните секреты Точки на сервере и перезапустите API — иначе ссылка на оплату не создастся.
+            {tochkaEnv && !tochkaEnv.hasTerminal ? (
+              <>
+                В ответе выше <strong>TERMINAL: нет</strong> — добавьте в Secrets/GitHub и в <code className="text-xs">.env</code> на VPS переменную{' '}
+                <code className="text-xs">TOCHKA_TERMINAL_ID</code> (идентификатор терминала эквайринга в Точке), затем{' '}
+                <code className="text-xs">pm2 restart site-api --update-env</code> и снова деплой из Secrets при необходимости.
+              </>
+            ) : (
+              <>Заполните секреты Точки на сервере (JWT, CUSTOMER, MERCHANT, TERMINAL) и перезапустите API.</>
+            )}
           </p>
         ) : null}
       </Card>
@@ -409,6 +470,11 @@ export function TochkaRetailDebugPanel({ appendLog }: { appendLog: (line: string
         </div>
         {checkoutResult ? (
           <div className="space-y-2">
+            {checkoutTochkaError ? (
+              <p className="text-sm text-amber-900 dark:text-amber-100 bg-amber-50 dark:bg-amber-950/40 rounded-lg p-3">
+                Ошибка оплаты Точка: {checkoutTochkaError}
+              </p>
+            ) : null}
             <pre className="text-xs bg-muted/50 p-3 rounded-md overflow-x-auto max-h-64 overflow-y-auto">{formatJson(checkoutResult)}</pre>
             {typeof checkoutResult.tochkaPaymentUrl === 'string' && checkoutResult.tochkaPaymentUrl ? (
               <Button variant="outline" size="sm" asChild>

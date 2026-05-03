@@ -2,12 +2,8 @@ import { useState } from 'react';
 import { Button } from './ui/button';
 import { Card } from './ui/card';
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from 'lucide-react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
-const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
-  ? { Authorization: `Bearer ${publicAnonKey}` }
-  : {};
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
+import { getTochkaDebugRetailers, logLinesForRetailersResponse } from '../lib/tochkaDebugGetRetailers';
 
 interface DiagnosticResult {
   success: boolean;
@@ -49,6 +45,8 @@ interface DiagnosticResult {
 export function TochkaDiagnostics() {
   const [result, setResult] = useState<DiagnosticResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [retailersLog, setRetailersLog] = useState<string | null>(null);
+  const [retailersLoading, setRetailersLoading] = useState(false);
 
   const runDiagnostics = async () => {
     setIsLoading(true);
@@ -76,6 +74,19 @@ export function TochkaDiagnostics() {
     }
   };
 
+  const loadRetailers = async () => {
+    setRetailersLoading(true);
+    setRetailersLog(null);
+    try {
+      const { httpStatus, data } = await getTochkaDebugRetailers();
+      setRetailersLog(logLinesForRetailersResponse(httpStatus, data).join('\n'));
+    } catch (error) {
+      setRetailersLog(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setRetailersLoading(false);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-8">
       <h1 className="text-3xl mb-6">🔍 Диагностика интеграции Точка Банк</h1>
@@ -100,6 +111,26 @@ export function TochkaDiagnostics() {
             'Запустить диагностику'
           )}
         </Button>
+      </Card>
+
+      <Card className="p-6 mb-6 border-primary/30 bg-primary/5">
+        <h2 className="text-xl mb-2">Get Retailers (terminalId)</h2>
+        <p className="text-muted-foreground mb-4 text-sm">
+          Метод Точки <code className="text-xs bg-muted px-1 rounded">GET …/acquiring/v1.0/retailers</code> через ваш API{' '}
+          <code className="text-xs bg-muted px-1 rounded">/api/debug/tochka/retailers</code>. В ответе — пары{' '}
+          <code className="text-xs">merchantId</code> и <code className="text-xs">terminalId</code> для переменных{' '}
+          <code className="text-xs">TOCHKA_MERCHANT_ID</code> и <code className="text-xs">TOCHKA_TERMINAL_ID</code>. Тот же сценарий,
+          что кнопка на <code className="text-xs">/debug</code> → вкладка «Точка».
+        </p>
+        <Button type="button" onClick={() => void loadRetailers()} disabled={retailersLoading} className="w-full sm:w-auto gap-2">
+          {retailersLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          Запросить Get Retailers
+        </Button>
+        {retailersLog ? (
+          <pre className="mt-4 text-xs font-mono whitespace-pre-wrap break-words max-h-[480px] overflow-y-auto bg-muted/50 rounded-lg p-4 border">
+            {retailersLog}
+          </pre>
+        ) : null}
       </Card>
 
       {result && (

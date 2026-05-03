@@ -29,6 +29,44 @@ function maskMiddle(s, keep = 4) {
   return `${t.slice(0, keep)}…${t.slice(-keep)}`;
 }
 
+/** Из ответа Get Retailers вытаскиваем объекты с парой merchantId + terminalId (разные вложения Data). */
+function summarizeTochkaRetailersResponse(data) {
+  const seen = new Set();
+  const rows = [];
+
+  function visit(node, depth) {
+    if (depth > 14 || node == null) return;
+    if (Array.isArray(node)) {
+      for (const x of node) visit(x, depth + 1);
+      return;
+    }
+    if (typeof node !== "object") return;
+
+    const mid = node.merchantId ?? node.MerchantId;
+    const tid = node.terminalId ?? node.TerminalId;
+    if (mid && tid) {
+      const key = `${String(mid)}|${String(tid)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        rows.push({
+          name: String(node.name ?? node.Name ?? ""),
+          merchantId: String(mid),
+          terminalId: String(tid),
+          status: String(node.status ?? node.Status ?? ""),
+          isActive: node.isActive ?? node.IsActive,
+          url: String(node.url ?? node.Url ?? ""),
+        });
+      }
+    }
+    for (const v of Object.values(node)) {
+      if (v && typeof v === "object") visit(v, depth + 1);
+    }
+  }
+
+  visit(data, 0);
+  return rows;
+}
+
 function sampleWholesaleOrder() {
   return {
     orderId: `DEBUG-ORD-${Date.now()}`,
@@ -209,6 +247,50 @@ export function registerDebugRoutes(app) {
     res.json({ ok: result.ok, result, htmlChars: html.length });
   });
 
+  /**
+   * Точка: Get Retailers (интернет-эквайринг) — в ответе у каждой точки есть merchantId и terminalId.
+   * GET https://enter.tochka.com/uapi/acquiring/v1.0/retailers
+   */
+  app.get("/api/debug/tochka/retailers", async (_req, res) => {
+    const jwtToken = (process.env.TOCHKA_JWT_TOKEN || "").trim();
+    const customerCode = (process.env.TOCHKA_CUSTOMER_CODE || "").trim();
+    if (!jwtToken) {
+      return res.status(400).json({
+        ok: false,
+        error: "Нет TOCHKA_JWT_TOKEN в .env на API.",
+      });
+    }
+    const url = new URL("https://enter.tochka.com/uapi/acquiring/v1.0/retailers");
+    if (customerCode) {
+      url.searchParams.set("customerCode", customerCode);
+    }
+    try {
+      const response = await fetch(url.toString(), {
+        method: "GET",
+        headers: { Authorization: `Bearer ${jwtToken}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      const summary = response.ok ? summarizeTochkaRetailersResponse(data) : [];
+      return res.status(response.ok ? 200 : response.status).json({
+        ok: response.ok,
+        http: response.status,
+        requestUrl: url.origin + url.pathname + (url.search || ""),
+        hasCustomerCodeQuery: Boolean(customerCode),
+        summary,
+        hint:
+          summary.length > 0
+            ? "Скопируйте terminalId для выбранного merchantId в TOCHKA_TERMINAL_ID (и merchant в TOCHKA_MERCHANT_ID)."
+            : response.ok
+              ? "Пар merchantId/terminalId в ответе не найдены — смотрите поле raw (структура могла измениться)."
+              : undefined,
+        raw: data,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ ok: false, error: msg });
+    }
+  });
+
   /** СДЭК: проверка OAuth (без утечки секрета). */
   app.get("/api/debug/cdek/status", async (_req, res) => {
     const account = (process.env.CDEK_ACCOUNT || "").trim();
@@ -292,9 +374,22 @@ export function registerDebugRoutes(app) {
   app.post("/api/debug/retail/tochka-checkout", async (req, res) => {
     try {
       const saved = await createRetailOrderFromCheckout(req.body || {});
+      const payUrl = saved.tochkaPaymentUrl || saved.tochka_payment_url;
+      const payErr = saved.tochkaPaymentError || saved.tochka_payment_error;
+      const hasTerminalEnv = Boolean((process.env.TOCHKA_TERMINAL_ID || "").trim());
+      const baseNote =
+        "Заказ сохранён в БД; при наличии ссылок откройте оплату Точка. Уведомление в Telegram не отправлялось.";
+      let note = baseNote;
+      if (!payUrl) {
+        if (typeof payErr === "string" && payErr.trim()) {
+          note = `${baseNote} Ошибка/пропуск Точки: ${payErr.trim()}`;
+        } else if (!hasTerminalEnv) {
+          note = `${baseNote} Ссылка не создаётся: в .env на API нет TOCHKA_TERMINAL_ID. На /debug → раздел Точка → кнопка «Get Retailers (terminalId)», скопируйте terminalId для вашего merchantId, затем pm2 restart site-api --update-env.`;
+        }
+      }
       res.json({
         ...saved,
-        note: "Заказ сохранён в БД; при наличии ссылок откройте оплату Точка. Уведомление в Telegram не отправлялось.",
+        note,
       });
     } catch (e) {
       const code = e?.statusCode === 400 ? 400 : 500;
