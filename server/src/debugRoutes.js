@@ -113,14 +113,14 @@ export function registerDebugRoutes(app) {
 
     if (relayConfigured) {
       hints.push(
-        "Настроен TELEGRAM_RELAY_URL: реальная отправка идёт через relay (например Vercel), не напрямую с VPS. Поле getMe ниже проверяет только прямой доступ с VPS к api.telegram.org — при работающем relay оно может оставаться с ошибкой.",
+        "Настроен TELEGRAM_RELAY_URL: реальная отправка идёт через relay (например Supabase Edge), не напрямую с VPS. Поле getMe ниже проверяет только прямой доступ с VPS к api.telegram.org — при работающем relay оно может оставаться с ошибкой.",
       );
     }
 
     if (!token || !chatId) {
       if (!relayConfigured) {
         hints.push(
-          "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env. Либо только TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET для отправки через Vercel.",
+          "Задайте TELEGRAM_BOT_TOKEN и TELEGRAM_CHAT_ID на сервере (файл .env в корне проекта рядом с package.json), затем pm2 restart site-api --update-env. Либо только TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET для отправки через relay (Supabase Edge).",
         );
       }
     } else if (getMeTimeout) {
@@ -129,7 +129,7 @@ export function registerDebugRoutes(app) {
       );
       if (!proxyOn && !relayConfigured) {
         hints.push(
-          "Решение: открыть у Reg.ru исходящий доступ к api.telegram.org:443; или TELEGRAM_HTTPS_PROXY / HTTPS_PROXY; или TELEGRAM_RELAY_URL на Vercel (api/telegram-relay.js) + TELEGRAM_RELAY_SECRET; затем pm2 restart site-api --update-env.",
+          "Решение: открыть у Reg.ru исходящий доступ к api.telegram.org:443; или TELEGRAM_HTTPS_PROXY / HTTPS_PROXY; или TELEGRAM_RELAY_URL (Supabase Edge `telegram-relay`) + TELEGRAM_RELAY_SECRET; затем pm2 restart site-api --update-env.",
         );
       } else if (proxyOn) {
         hints.push(

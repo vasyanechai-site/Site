@@ -1,0 +1,70 @@
+# Деплой Edge Function `telegram-relay` в Supabase (обход блокировки api.telegram.org с VPS).
+#
+# Один раз вручную:
+#   1) Supabase Dashboard → Project Settings → General → Project ref
+#   2) Account → Access Tokens → создать токен
+#   3) GitHub → Secrets: SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF
+#      (опционально для автосинка в Supabase Secrets): TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_RELAY_SECRET
+#   4) Variables: SUPABASE_RELAY_DEPLOY_ENABLED = 1 — чтобы job шёл при push
+#   5) URL для VPS: https://<ref>.supabase.co/functions/v1/telegram-relay
+#
+# Первый прогон: Actions → Deploy Supabase telegram-relay → Run workflow
+
+name: Deploy Supabase telegram-relay
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/telegram-relay/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-supabase-telegram-relay.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy-supabase-telegram-relay:
+    if: vars.SUPABASE_RELAY_DEPLOY_ENABLED == '1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.20.3
+
+      - name: Sync Telegram secrets to Supabase (если заданы в GitHub)
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          TBT: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TCID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TRS: ${{ secrets.TELEGRAM_RELAY_SECRET }}
+        run: |
+          set -e
+          if [ -z "$REF" ]; then echo "Нужен Secret SUPABASE_PROJECT_REF"; exit 1; fi
+          if [ -n "$TBT" ] && [ -n "$TCID" ] && [ -n "$TRS" ]; then
+            supabase secrets set TELEGRAM_BOT_TOKEN="$TBT" TELEGRAM_CHAT_ID="$TCID" TELEGRAM_RELAY_SECRET="$TRS" --project-ref "$REF"
+            echo "Secrets synced to Supabase."
+          else
+            echo "Пропуск sync (задайте TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_RELAY_SECRET в GitHub или вручную в Supabase → Edge Functions → Secrets)."
+          fi
+
+      - name: Deploy function
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy telegram-relay --project-ref "$REF"
+
+      - name: URL для TELEGRAM_RELAY_URL на VPS
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          {
+            echo "## Relay URL"
+            echo "В \`.env\` на VPS или в GitHub Secrets для Reg.ru:"
+            echo ""
+            echo "\`TELEGRAM_RELAY_URL=https://${REF}.supabase.co/functions/v1/telegram-relay\`"
+            echo "\`TELEGRAM_RELAY_SECRET=\` тот же, что в Supabase Secrets / GitHub **TELEGRAM_RELAY_SECRET**."
+            echo ""
+            echo "Затем \`pm2 restart site-api --update-env\`."
+          } >> "$GITHUB_STEP_SUMMARY"

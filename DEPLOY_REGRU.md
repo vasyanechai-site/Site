@@ -18,18 +18,22 @@
 - `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
 - `TELEGRAM_HTTPS_PROXY` / `HTTPS_PROXY` — если хостинг блокирует прямой доступ к `api.telegram.org` (ETIMEDOUT)
-- `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через Vercel (`api/telegram-relay.js`): URL вида `https://<project>.vercel.app/api/telegram-relay` и тот же секрет, что в env проекта на Vercel; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
+- `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через **Supabase Edge Function** `telegram-relay`: URL вида `https://<project-ref>.supabase.co/functions/v1/telegram-relay` и тот же секрет, что в Secrets функции в Supabase; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
 
-### Vercel (автодеплой relay + фронт из GitHub)
+### Supabase (Edge Function `telegram-relay`)
 
-Создать проект в браузере и добавить секреты в GitHub может только владелец репозитория; в коде уже есть workflow [`.github/workflows/deploy-vercel.yml`](.github/workflows/deploy-vercel.yml): он синхронизирует в Vercel (production) переменные `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_RELAY_SECRET` из **тех же** GitHub Secrets, что вы используете для VPS, и выполняет `vercel build` + прод-деплой.
+Инфраструктура Telegram — на стороне Supabase (исходящий HTTPS к `api.telegram.org` с их сети, не с вашего VPS). В репозитории: [`supabase/functions/telegram-relay/index.ts`](supabase/functions/telegram-relay/index.ts), [`supabase/config.toml`](supabase/config.toml) (`verify_jwt = false` для вызова с VPS по своему `Bearer`).
 
-1. [Vercel](https://vercel.com) → **Add New…** → **Project** → импорт этого репозитория (Root Directory не менять). Дождитесь первого деплоя или пропустите — дальше важнее связка с Actions.
-2. **Project** → **Settings** → **General** → скопируйте **Project ID** → GitHub Secret `VERCEL_PROJECT_ID`. **Team** (личный аккаунт или команда) → Settings → **Team ID** в интерфейсе или значение `orgId` из локального `vercel link` → Secret `VERCEL_ORG_ID`.
-3. [Tokens](https://vercel.com/account/tokens) → создать токен → Secret `VERCEL_TOKEN`.
-4. В **Actions → Secrets** добавьте (если ещё нет): `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`. Отдельно сгенерируйте relay-секрет (`openssl rand -hex 32`) и сохраните как **`TELEGRAM_RELAY_SECRET`** (тот же потом на VPS и в Vercel подтянется workflow’ом).
-5. **Actions → Variables** → `VERCEL_DEPLOY_ENABLED` = `1` — иначе workflow на push не запускается (чтобы чужие форки не падали без секретов). Первый раз можно **Actions → Deploy Vercel → Run workflow** вручную без переменной.
-6. После успешного прогона: Vercel → **Domains** → production URL → в Secrets для Reg.ru (или в `.env` на VPS): `TELEGRAM_RELAY_URL=https://<домен>/api/telegram-relay`, `TELEGRAM_RELAY_SECRET` = тот же hex. Затем `pm2 restart site-api --update-env`.
+**Локально или в CI:** [Supabase CLI](https://supabase.com/docs/guides/cli) — `supabase login`, `supabase link --project-ref <ref>`, затем:
+
+```bash
+supabase secrets set TELEGRAM_BOT_TOKEN="..." TELEGRAM_CHAT_ID="..." TELEGRAM_RELAY_SECRET="..."
+supabase functions deploy telegram-relay
+```
+
+**Автодеплой из GitHub:** workflow [`.github/workflows/deploy-supabase-telegram-relay.yml`](.github/workflows/deploy-supabase-telegram-relay.yml). Нужны Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`; опционально те же `TELEGRAM_*` для шага синхронизации секретов в Supabase. Variable `SUPABASE_RELAY_DEPLOY_ENABLED` = `1` — чтобы job запускался при push (иначе только **Run workflow** вручную).
+
+**На VPS:** `TELEGRAM_RELAY_URL=https://<ref>.supabase.co/functions/v1/telegram-relay`, `TELEGRAM_RELAY_SECRET` = значение `TELEGRAM_RELAY_SECRET` из Supabase Secrets, затем `pm2 restart site-api --update-env`.
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 

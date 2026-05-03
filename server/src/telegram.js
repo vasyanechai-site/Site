@@ -1,7 +1,7 @@
 /**
  * Telegram уведомления (Node API).
  * Переменные окружения: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (числовой id чата или @channelusername).
- * Обход блокировки api.telegram.org: TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET → см. api/telegram-relay.js (Vercel).
+ * Обход блокировки api.telegram.org: TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET → Supabase Edge `telegram-relay`.
  */
 
 import { ipv4HttpsRequest } from "./ipv4Https.js";
@@ -40,7 +40,7 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
-/** Исходящий HTTPS к Vercel (relay); на заблокированном VPS до api.telegram.org не ходим. */
+/** Исходящий HTTPS к relay (Supabase Edge и т.п.); на заблокированном VPS до api.telegram.org не ходим. */
 async function sendTelegramViaRelay(html) {
   const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
   const relaySecret = (process.env.TELEGRAM_RELAY_SECRET || "").trim();

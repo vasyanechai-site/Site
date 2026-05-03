@@ -1,6 +1,6 @@
 name: Deploy to Reg VPS
 # При push: деплой backend; выбранные Secrets пишутся в .env на VPS (patch_dotenv), если заданы.
-# trigger: 2026-05-02 telegram vercel relay
+# trigger: 2026-05-02 telegram supabase relay
 
 on:
   push:
