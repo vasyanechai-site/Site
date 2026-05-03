@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { API_BASE_URL } from "../lib/backendConfig";
+import { CdekDebugPanel } from "./debug/CdekDebugPanel";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Loader2, ArrowLeft, Send, ClipboardList } from "lucide-react";
@@ -34,7 +35,7 @@ function formatJson(obj: unknown) {
 }
 
 export function DebugPage() {
-  const [section, setSection] = useState<"telegram">("telegram");
+  const [section, setSection] = useState<"telegram" | "cdek">("telegram");
   const [logs, setLogs] = useState<string[]>([]);
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -111,7 +112,7 @@ export function DebugPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
+      <div className="max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" asChild>
             <Link to="/" className="gap-2 inline-flex items-center">
@@ -139,8 +140,13 @@ export function DebugPage() {
           >
             Telegram
           </Button>
-          <Button type="button" variant="ghost" size="sm" disabled className="text-muted-foreground">
-            СДЭК — скоро
+          <Button
+            type="button"
+            variant={section === "cdek" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSection("cdek")}
+          >
+            СДЭК
           </Button>
           <Button type="button" variant="ghost" size="sm" disabled className="text-muted-foreground">
             Точка — скоро
@@ -249,20 +255,22 @@ export function DebugPage() {
                 </Button>
               </div>
             </Card>
-
-            <Card className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium">Лог</h3>
-                <Button type="button" variant="ghost" size="sm" onClick={() => setLogs([])}>
-                  Очистить
-                </Button>
-              </div>
-              <pre className="text-xs font-mono whitespace-pre-wrap break-words max-h-[420px] overflow-y-auto bg-muted/40 rounded-md p-3 min-h-[120px]">
-                {logs.length ? logs.join("\n") : "Пока пусто."}
-              </pre>
-            </Card>
           </div>
         )}
+
+        {section === "cdek" && <CdekDebugPanel appendLog={appendLog} />}
+
+        <Card className="p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Лог</h3>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setLogs([])}>
+              Очистить
+            </Button>
+          </div>
+          <pre className="text-xs font-mono whitespace-pre-wrap break-words max-h-[420px] overflow-y-auto bg-muted/40 rounded-md p-3 min-h-[120px]">
+            {logs.length ? logs.join("\n") : "Пока пусто."}
+          </pre>
+        </Card>
       </div>
     </div>
   );

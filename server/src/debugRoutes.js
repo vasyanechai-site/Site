@@ -9,6 +9,8 @@ import {
   serializeFetchError,
 } from "./telegram.js";
 import { ipv4HttpsRequest } from "./ipv4Https.js";
+import { getCdekToken } from "./cdek.js";
+import { createCdekOrder } from "./cdekOrderCreate.js";
 
 function chatIdHint(chatId) {
   const s = String(chatId || "").trim();
@@ -204,5 +206,74 @@ export function registerDebugRoutes(app) {
     const html = formatWholesaleOrderMessage(sampleWholesaleOrder());
     const result = await sendTelegramHtml(html);
     res.json({ ok: result.ok, result, htmlChars: html.length });
+  });
+
+  /** СДЭК: проверка OAuth (без утечки секрета). */
+  app.get("/api/debug/cdek/status", async (_req, res) => {
+    const account = (process.env.CDEK_ACCOUNT || "").trim();
+    const secret = (process.env.CDEK_SECRET || "").trim();
+    const hints = [];
+    const base = {
+      hasAccount: Boolean(account),
+      hasSecret: Boolean(secret),
+      accountLength: account.length,
+      secretLength: secret.length,
+      accountPrefix: account.length >= 4 ? `${account.slice(0, 4)}…` : account ? "••••" : "",
+    };
+    if (!account || !secret) {
+      hints.push(
+        "В .env на API (VPS) задайте CDEK_ACCOUNT и CDEK_SECRET — «Идентификатор» и «Пароль» интеграции API 2.0 в lk.cdek.ru (не логин договора). После правки: pm2 restart site-api --update-env.",
+      );
+      return res.json({ ok: false, oauth: "missing_env", hints, ...base });
+    }
+    try {
+      await getCdekToken();
+      return res.json({ ok: true, oauth: "ok", hints, ...base });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (String(msg).includes("401")) {
+        hints.push(
+          "401 = СДЭК отклонил пару client_id/client_secret. Убедитесь, что ключ создан для боевого API https://api.cdek.ru/v2 и в .env нет пробелов/кавычек.",
+        );
+      }
+      return res.json({ ok: false, oauth: "error", error: msg, hints, ...base });
+    }
+  });
+
+  /**
+   * Реально создаёт заказ в ЛК СДЭК (номер DEBUG-…). Только для ручной проверки с /debug.
+   */
+  app.post("/api/debug/cdek/test-order", async (req, res) => {
+    const body = req.body || {};
+    const pvzCode = String(body.pvzCode || "").trim();
+    const tariffCode = body.tariffCode != null ? Number(body.tariffCode) : undefined;
+    if (!pvzCode) {
+      return res.status(400).json({ error: "Нужен pvzCode (код ПВЗ из списка или карты)" });
+    }
+    const orderId = `DEBUG-${Date.now()}`;
+    const items = [
+      {
+        id: "debug-item",
+        name: "Тест /debug СДЭК",
+        price: 100,
+        quantity: 1,
+        weight: 500,
+        length: 20,
+        width: 15,
+        height: 10,
+      },
+    ];
+    const r = await createCdekOrder(
+      orderId,
+      "Тест Отладки",
+      "+79991234567",
+      { pvzCode, tariffCode: Number.isFinite(tariffCode) ? tariffCode : undefined },
+      items,
+    );
+    res.json({
+      orderId,
+      ...r,
+      note: "Проверьте заказ в https://lk.cdek.ru/ (через 1–2 минуты). Не забудьте отменить тестовый, если политика СДЭК требует.",
+    });
   });
 }
