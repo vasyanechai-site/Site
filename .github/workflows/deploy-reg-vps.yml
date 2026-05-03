@@ -107,13 +107,14 @@ jobs:
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start ecosystem.config.cjs --only site-api
             pm2 save
-            for i in 1 2 3 4 5 6 7 8 9 10; do
+            sleep 3
+            for i in $(seq 1 20); do
               if curl -fsS http://127.0.0.1:8787/api/health; then
                 break
               fi
               sleep 2
-              if [ "$i" -eq 10 ]; then
-                pm2 logs site-api --lines 80 --nostream
+              if [ "$i" -eq 20 ]; then
+                pm2 logs site-api --lines 120 --nostream
                 exit 1
               fi
             done
