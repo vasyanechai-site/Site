@@ -1,5 +1,5 @@
 name: Deploy Frontend to Reg.ru FTP
-# trigger: 2026-05-02 DebugPage DNS кнопка
+# trigger: 2026-05-03 manual — rebuild dist + FTP
 
 on:
   push:
