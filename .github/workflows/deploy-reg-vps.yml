@@ -104,8 +104,11 @@ jobs:
             if [ -n "${{ secrets.PUBLIC_API_BASE_URL }}" ]; then
               python3 server/deploy/patch_dotenv.py PUBLIC_API_BASE_URL "${{ secrets.PUBLIC_API_BASE_URL }}"
             fi
+            rm -rf node_modules
             npm ci --omit=dev
-            pm2 restart site-api --update-env || pm2 start ecosystem.config.cjs --only site-api
+            node --input-type=module -e "import 'cors'; import 'jose'; console.log('runtime deps ok')"
+            pm2 delete site-api 2>/dev/null || true
+            pm2 start ecosystem.config.cjs --only site-api
             pm2 save
             sleep 3
             for i in $(seq 1 20); do
