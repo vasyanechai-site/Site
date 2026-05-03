@@ -82,6 +82,7 @@ if (typeof dns.setDefaultResultOrder === "function") {
 }
 
 const app = express();
+app.set("trust proxy", 1);
 const port = Number(process.env.PORT || 8787);
 const allowedOriginsRaw =
   process.env.ALLOWED_ORIGINS ||
@@ -127,6 +128,24 @@ const upload = multer({
 app.use(cors({ origin: corsOriginOption }));
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/uploads", express.static(uploadDir));
+
+/** Публичный origin API для ссылок на `/api/uploads/…` (тот же хост, что у запроса за nginx; не сайт из FRONTEND_BASE_URL). */
+function publicApiOrigin(req) {
+  const fromEnv = String(process.env.PUBLIC_API_BASE_URL || process.env.API_UPLOAD_BASE_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (fromEnv) return fromEnv;
+  const xfHost = String(req.headers["x-forwarded-host"] || "")
+    .split(",")[0]
+    .trim();
+  const host = xfHost || String(req.headers.host || "").trim();
+  if (!host) return "";
+  const xfProto = String(req.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim();
+  const proto = xfProto || (req.secure ? "https" : "http");
+  return `${proto}://${host}`;
+}
 
 const DEFAULT_CATEGORY_ORDER = ["Фильтр", "Эспрессо", "Дрип", "Оборудование", "Аксессуары"];
 
@@ -687,12 +706,13 @@ app.post("/api/retail/init-test-data", async (_req, res) => {
 app.post("/api/retail/upload-image", upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "file is required" });
 
-  const apiBase =
-    process.env.FRONTEND_BASE_URL ||
-    process.env.ALLOWED_ORIGIN ||
-    `http://localhost:${port}`;
-  const cleanBase = String(apiBase).replace(/\/+$/, "");
-  const url = `${cleanBase}/api/uploads/${req.file.filename}`;
+  let origin = publicApiOrigin(req);
+  if (!origin) {
+    origin = String(
+      process.env.FRONTEND_BASE_URL || process.env.ALLOWED_ORIGIN || `http://127.0.0.1:${port}`,
+    ).replace(/\/+$/, "");
+  }
+  const url = `${origin}/api/uploads/${req.file.filename}`;
 
   res.status(201).json({
     success: true,

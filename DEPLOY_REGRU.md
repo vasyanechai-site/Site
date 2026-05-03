@@ -10,6 +10,7 @@
 - `API_PUBLIC_HOST` *(optional)* — subdomain that points **by DNS A-record** to this VPS (example: `api.coffeenechai.ru`). If set, each VPS deploy runs `server/deploy/install-api-proxy.sh`: nginx reverse proxy to `127.0.0.1:8787`, optional Let's Encrypt.
 - `CERTBOT_EMAIL` *(optional)* — email for Let's Encrypt; required **on first** HTTPS issuance for `API_PUBLIC_HOST` (after DNS already resolves to the VPS).
 - `ALLOWED_ORIGINS` *(optional)* — e.g. `https://coffeenechai.ru,https://www.coffeenechai.ru`. If set, each deploy writes this line into `${VPS_APP_PATH}/.env` (via `server/deploy/patch_dotenv.py`) so you do not need to edit `.env` over SSH for CORS.
+- `PUBLIC_API_BASE_URL` *(optional)* — если API на `https://api.…`, а `FRONTEND_BASE_URL` — основной сайт: явно `https://api.…` для корректных URL загрузок `/api/uploads/` (иначе сервер берёт `Host` из запроса — обычно тоже верно за nginx).
 
 **Optional — same `patch_dotenv` on each VPS deploy** (Repository secrets; if empty, строка в `.env` не трогается):
 

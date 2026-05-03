@@ -92,6 +92,9 @@ jobs:
             if [ -n "${{ secrets.BACKUP_SMTP_SECURE }}" ]; then
               python3 server/deploy/patch_dotenv.py BACKUP_SMTP_SECURE "${{ secrets.BACKUP_SMTP_SECURE }}"
             fi
+            if [ -n "${{ secrets.PUBLIC_API_BASE_URL }}" ]; then
+              python3 server/deploy/patch_dotenv.py PUBLIC_API_BASE_URL "${{ secrets.PUBLIC_API_BASE_URL }}"
+            fi
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start ecosystem.config.cjs --only site-api
             pm2 save
