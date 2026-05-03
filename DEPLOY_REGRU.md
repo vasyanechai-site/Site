@@ -19,6 +19,13 @@
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
 - `TELEGRAM_HTTPS_PROXY` / `HTTPS_PROXY` — если хостинг блокирует прямой доступ к `api.telegram.org` (ETIMEDOUT)
 - `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через **Supabase Edge Function** `telegram-relay`: URL вида `https://<project-ref>.supabase.co/functions/v1/telegram-relay` и тот же секрет, что в Secrets функции в Supabase; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
+- **Бэкап БД на почту (опционально):** `BACKUP_EMAIL_TO`, `BACKUP_SMTP_HOST`, `BACKUP_SMTP_PORT`, `BACKUP_SMTP_USER`, `BACKUP_SMTP_PASS`, `BACKUP_SMTP_SECURE` — для [еженедельного workflow](.github/workflows/weekly-database-email-backup.yml); получатель по умолчанию в коде `dakolosovs@mail.ru`, если `BACKUP_EMAIL_TO` не задан
+
+### Еженедельный бэкап БД на почту
+
+Workflow [`.github/workflows/weekly-database-email-backup.yml`](.github/workflows/weekly-database-email-backup.yml): по понедельникам **06:35 UTC** по SSH обновляет код на VPS, `npm ci`, запускает `node server/scripts/weekly-email-backup.mjs` — в письме **gzip JSON**: таблицы `orders` (опт), `retail_orders` (розница), `app_settings` (товары, пользователи, лояльность `loyalty:*`, промокоды, избранное, локации, заявки и т.д.). Без `DATABASE_URL` прикладывается `server/data/db.json`.
+
+Включение: GitHub → **Variables** → `WEEKLY_EMAIL_BACKUP_ENABLED` = `1`. Ручная проверка: Actions → **Weekly database email backup** → Run workflow. На VPS в `.env` нужны `DATABASE_URL` (если используете Postgres) и рабочий SMTP (для Mail.ru — пароль приложения, порт 465).
 
 ### Supabase (Edge Function `telegram-relay`)
 

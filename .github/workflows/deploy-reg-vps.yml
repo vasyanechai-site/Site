@@ -74,6 +74,24 @@ jobs:
             if [ -n "${{ secrets.TOCHKA_CLIENT_ID }}" ]; then
               python3 server/deploy/patch_dotenv.py TOCHKA_CLIENT_ID "${{ secrets.TOCHKA_CLIENT_ID }}"
             fi
+            if [ -n "${{ secrets.BACKUP_EMAIL_TO }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_EMAIL_TO "${{ secrets.BACKUP_EMAIL_TO }}"
+            fi
+            if [ -n "${{ secrets.BACKUP_SMTP_HOST }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_SMTP_HOST "${{ secrets.BACKUP_SMTP_HOST }}"
+            fi
+            if [ -n "${{ secrets.BACKUP_SMTP_PORT }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_SMTP_PORT "${{ secrets.BACKUP_SMTP_PORT }}"
+            fi
+            if [ -n "${{ secrets.BACKUP_SMTP_USER }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_SMTP_USER "${{ secrets.BACKUP_SMTP_USER }}"
+            fi
+            if [ -n "${{ secrets.BACKUP_SMTP_PASS }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_SMTP_PASS "${{ secrets.BACKUP_SMTP_PASS }}"
+            fi
+            if [ -n "${{ secrets.BACKUP_SMTP_SECURE }}" ]; then
+              python3 server/deploy/patch_dotenv.py BACKUP_SMTP_SECURE "${{ secrets.BACKUP_SMTP_SECURE }}"
+            fi
             npm ci --omit=dev
             pm2 restart site-api --update-env || pm2 start ecosystem.config.cjs --only site-api
             pm2 save
