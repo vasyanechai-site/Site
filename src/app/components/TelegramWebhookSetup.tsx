@@ -4,34 +4,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Alert, AlertDescription } from './ui/alert';
 import { CheckCircle, AlertCircle, Loader2, Link as LinkIcon, Trash2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { TELEGRAM_EDGE_BASE_URL, telegramEdgeHeaders } from '../lib/telegramEdgeConfig';
 
 export function TelegramWebhookSetup() {
   const [isLoading, setIsLoading] = useState(false);
   const [webhookInfo, setWebhookInfo] = useState<any>(null);
 
-  const webhookUrl = `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram-webhook`;
+  const base = TELEGRAM_EDGE_BASE_URL;
+  const webhookUrl = base ? `${base}/telegram-webhook` : '';
+
+  const ensureBase = () => {
+    if (!base) {
+      toast.error('Задайте VITE_TELEGRAM_EDGE_BASE_URL (база Edge с маршрутами telegram/*).');
+      return false;
+    }
+    return true;
+  };
 
   const setupWebhook = async () => {
+    if (!ensureBase()) return;
     try {
       setIsLoading(true);
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/setup`,
-        { 
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+
+      const response = await fetch(`${base}/telegram/webhook/setup`, {
+        method: 'POST',
+        headers: telegramEdgeHeaders(true),
+      });
 
       const data = await response.json();
 
       if (data.success) {
         toast.success('✅ Webhook успешно настроен!');
-        getWebhookInfo(); // Обновляем информацию
+        getWebhookInfo();
       } else {
         toast.error(`Ошибка: ${data.error || 'Неизвестная ошибка'}`);
       }
@@ -44,17 +48,13 @@ export function TelegramWebhookSetup() {
   };
 
   const getWebhookInfo = async () => {
+    if (!ensureBase()) return;
     try {
       setIsLoading(true);
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/info`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+
+      const response = await fetch(`${base}/telegram/webhook/info`, {
+        headers: telegramEdgeHeaders(false),
+      });
 
       const data = await response.json();
 
@@ -72,18 +72,14 @@ export function TelegramWebhookSetup() {
   };
 
   const deleteWebhook = async () => {
+    if (!ensureBase()) return;
     try {
       setIsLoading(true);
-      
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/delete`,
-        { 
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+
+      const response = await fetch(`${base}/telegram/webhook/delete`, {
+        method: 'DELETE',
+        headers: telegramEdgeHeaders(false),
+      });
 
       const data = await response.json();
 
@@ -104,116 +100,53 @@ export function TelegramWebhookSetup() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Настройка Telegram Webhook</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <LinkIcon className="w-5 h-5" />
+          Настройка Telegram Webhook
+        </CardTitle>
         <CardDescription>
-          Автоматическая настройка получения сообщений от бота
+          Только если админка Telegram на отдельном Edge: задайте{' '}
+          <code className="text-xs">VITE_TELEGRAM_EDGE_BASE_URL</code> и при необходимости{' '}
+          <code className="text-xs">VITE_TELEGRAM_EDGE_ANON_KEY</code>.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Webhook URL */}
-        <div className="space-y-2">
-          <div className="text-sm font-semibold">Webhook URL:</div>
-          <div className="p-3 bg-muted rounded-lg text-xs font-mono break-all">
-            {webhookUrl}
-          </div>
-        </div>
-
-        {/* Кнопки управления */}
-        <div className="flex gap-2">
-          <Button
-            onClick={setupWebhook}
-            disabled={isLoading}
-            className="flex-1"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Настройка...
-              </>
-            ) : (
-              <>
-                <LinkIcon className="w-4 h-4 mr-2" />
-                Настроить webhook
-              </>
-            )}
-          </Button>
-
-          <Button
-            onClick={getWebhookInfo}
-            disabled={isLoading}
-            variant="outline"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Проверить
-          </Button>
-
-          <Button
-            onClick={deleteWebhook}
-            disabled={isLoading}
-            variant="destructive"
-          >
-            <Trash2 className="w-4 h-4 mr-2" />
-            Удалить
-          </Button>
-        </div>
-
-        {/* Информация о webhook */}
-        {webhookInfo && (
-          <Alert variant={webhookInfo.url === webhookUrl ? 'default' : 'destructive'}>
-            {webhookInfo.url === webhookUrl ? (
-              <CheckCircle className="h-4 w-4" />
-            ) : (
-              <AlertCircle className="h-4 w-4" />
-            )}
+        {!base && (
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              <div className="space-y-2 text-sm">
-                <div>
-                  <strong>Статус:</strong>{' '}
-                  {webhookInfo.url === webhookUrl ? (
-                    <span className="text-green-600 dark:text-green-400">✅ Настроен правильно</span>
-                  ) : webhookInfo.url ? (
-                    <span className="text-yellow-600 dark:text-yellow-400">⚠️ Неправильный URL</span>
-                  ) : (
-                    <span className="text-red-600 dark:text-red-400">❌ Не настроен</span>
-                  )}
-                </div>
-                {webhookInfo.url && webhookInfo.url !== webhookUrl && (
-                  <div className="text-xs">
-                    <strong>Текущий URL:</strong>
-                    <div className="font-mono bg-muted p-2 rounded mt-1 break-all">
-                      {webhookInfo.url}
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <strong>Получено обновлений:</strong> {webhookInfo.pending_update_count || 0}
-                </div>
-                {webhookInfo.last_error_date && (
-                  <div className="text-xs text-destructive">
-                    <strong>Последняя ошибка:</strong> {webhookInfo.last_error_message}
-                  </div>
-                )}
-              </div>
+              Переменная <code>VITE_TELEGRAM_EDGE_BASE_URL</code> не задана — настройка webhook из этой панели
+              недоступна.
             </AlertDescription>
           </Alert>
         )}
 
-        {/* Инструкция */}
-        <Alert>
-          <CheckCircle className="h-4 w-4" />
-          <AlertDescription className="text-xs space-y-2">
-            <div>
-              <strong>📋 Инструкция:</strong>
-            </div>
-            <ol className="list-decimal list-inside space-y-1 ml-2">
-              <li>Нажмите кнопку "Настроить webhook"</li>
-              <li>Дождитесь подтверждения</li>
-              <li>Нажмите "Проверить" для проверки статуса</li>
-              <li>Напишите боту любое сообщение или команду /start</li>
-              <li>Пользователь автоматически появится в списке подписчиков</li>
-            </ol>
-          </AlertDescription>
-        </Alert>
+        {webhookUrl && (
+          <div className="p-3 bg-muted rounded-lg text-sm break-all">
+            <strong>URL webhook:</strong> {webhookUrl}
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={setupWebhook} disabled={isLoading || !base}>
+            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+            Настроить
+          </Button>
+          <Button variant="outline" onClick={getWebhookInfo} disabled={isLoading || !base}>
+            <RefreshCw className="w-4 h-4 mr-1" />
+            Обновить инфо
+          </Button>
+          <Button variant="destructive" onClick={deleteWebhook} disabled={isLoading || !base}>
+            <Trash2 className="w-4 h-4 mr-1" />
+            Удалить
+          </Button>
+        </div>
+
+        {webhookInfo && (
+          <pre className="text-xs bg-muted p-3 rounded-lg overflow-auto max-h-60">
+            {JSON.stringify(webhookInfo, null, 2)}
+          </pre>
+        )}
       </CardContent>
     </Card>
   );

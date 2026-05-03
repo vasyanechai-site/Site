@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
 import { API_BASE_URL } from '../../lib/backendConfig';
+import { loginRetail } from '../../lib/retailAuth';
 
 export function LoginForm() {
   const navigate = useNavigate();
@@ -64,17 +63,11 @@ export function LoginForm() {
       // Сначала проверяем, не пытается ли оптовый пользователь войти
       // Если введен не email (нет @), проверяем в оптовой базе
       if (!email.includes('@')) {
-        const response = await fetch(
-          `${API_BASE_URL}/users/login`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ phone: email, password })
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/users/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: email, password }),
+        });
 
         if (response.ok) {
           // Это оптовый пользователь - показываем ошибку
@@ -84,28 +77,9 @@ export function LoginForm() {
         }
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) {
-        if (error.message.includes('Email not confirmed')) {
-          toast.error('Пожалуйста, подтвердите email перед входом');
-        } else if (error.message.includes('Invalid login credentials')) {
-          toast.error('Неверный email или пароль');
-        } else if (error.message.includes('Email')) {
-          toast.error('Некорректный email адрес');
-        } else {
-          toast.error('Ошибка входа. Проверьте введенные данные');
-        }
-        return;
-      }
-
-      if (data.user) {
-        toast.success('Успешный вход');
-        navigate('/dashboard');
-      }
+      await loginRetail(email, password);
+      toast.success('Успешный вход');
+      navigate('/dashboard');
     } catch (err) {
       toast.error('Произошла ошибка при входе');
       console.error(err);

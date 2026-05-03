@@ -4,8 +4,8 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ArrowLeft, Loader2, Eye, EyeOff } from 'lucide-react';
 import { Link, useNavigate } from 'react-router';
-import { supabase } from '../lib/supabaseClient';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
+import { loginRetail } from '../lib/retailAuth';
 
 interface UnifiedLoginProps {
   onAdminLogin: () => void;
@@ -64,19 +64,17 @@ export function UnifiedLogin({ onAdminLogin, onUserLogin, onRetailLogin, onBack 
     setIsLoading(true);
 
     try {
-      // Пытаемся войти через Supabase (розничные пользователи)
-      const { data: supabaseData, error: supabaseError } = await supabase.auth.signInWithPassword({
-        email: login,
-        password: password,
-      });
-
-      if (supabaseData?.user && !supabaseError) {
-        // Успешный вход через Supabase - розничный пользователь
-        onRetailLogin();
-        return;
+      if (login.includes('@')) {
+        try {
+          await loginRetail(login, password);
+          onRetailLogin();
+          return;
+        } catch {
+          /* не розница — пробуем опт */
+        }
       }
 
-      // Если не вошли через Supabase - пытаемся войти как оптовый пользователь
+      // Оптовый пользователь (телефон / логин без email)
       const { loginUser } = await import('../lib/api');
       const user = await loginUser(login, password);
       

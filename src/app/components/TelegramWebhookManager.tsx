@@ -5,8 +5,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { TELEGRAM_EDGE_BASE_URL, telegramEdgeHeaders } from '../lib/telegramEdgeConfig';
 import { CheckCircle, XCircle, RefreshCw, Trash2, Send, AlertCircle, TestTube } from 'lucide-react';
+
+function telegramAdminBase(): string | null {
+  const b = TELEGRAM_EDGE_BASE_URL.trim();
+  return b ? b : null;
+}
 
 interface WebhookInfo {
   url?: string;
@@ -34,17 +39,18 @@ export function TelegramWebhookManager() {
   const loadWebhookInfo = async () => {
     setLoading(true);
     setError(null);
-    
+
+    const base = telegramAdminBase();
+    if (!base) {
+      setError('Задайте VITE_TELEGRAM_EDGE_BASE_URL — база Edge (например …/functions/v1/make-server-aa167a09) для вызовов /telegram/webhook/…');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/info`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await fetch(`${base}/telegram/webhook/info`, {
+        headers: telegramEdgeHeaders(true),
+      });
 
       const data = await response.json();
       
@@ -66,17 +72,18 @@ export function TelegramWebhookManager() {
     setError(null);
     setSuccess(null);
 
+    const base = telegramAdminBase();
+    if (!base) {
+      setError('Задайте VITE_TELEGRAM_EDGE_BASE_URL');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/setup`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await fetch(`${base}/telegram/webhook/setup`, {
+        method: 'POST',
+        headers: telegramEdgeHeaders(true),
+      });
 
       const data = await response.json();
       
@@ -103,17 +110,18 @@ export function TelegramWebhookManager() {
     setError(null);
     setSuccess(null);
 
+    const base = telegramAdminBase();
+    if (!base) {
+      setError('Задайте VITE_TELEGRAM_EDGE_BASE_URL');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/delete`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await fetch(`${base}/telegram/webhook/delete`, {
+        method: 'DELETE',
+        headers: telegramEdgeHeaders(true),
+      });
 
       const data = await response.json();
       
@@ -141,18 +149,19 @@ export function TelegramWebhookManager() {
     setError(null);
     setSuccess(null);
 
+    const base = telegramAdminBase();
+    if (!base) {
+      setError('Задайте VITE_TELEGRAM_EDGE_BASE_URL');
+      setLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram/webhook/test`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ chatId: testChatId })
-        }
-      );
+      const response = await fetch(`${base}/telegram/webhook/test`, {
+        method: 'POST',
+        headers: telegramEdgeHeaders(true),
+        body: JSON.stringify({ chatId: testChatId }),
+      });
 
       const data = await response.json();
       
@@ -182,10 +191,17 @@ export function TelegramWebhookManager() {
     setError(null);
     setSuccess(null);
     
+    const base = telegramAdminBase();
+    if (!base) {
+      setError('Задайте VITE_TELEGRAM_EDGE_BASE_URL');
+      setLoading(false);
+      return;
+    }
+
     const logs: string[] = [];
     logs.push(`🧪 Начало тестирования webhook endpoint`);
-    logs.push(`📍 URL: https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram-webhook`);
-    
+    logs.push(`📍 URL: ${base}/telegram-webhook`);
+
     try {
       // Создаем тестовый update от Telegram
       const testUpdate = {
@@ -208,17 +224,11 @@ export function TelegramWebhookManager() {
       logs.push(`📤 Отправка тестового update...`);
       logs.push(`📋 Update: ${JSON.stringify(testUpdate, null, 2)}`);
 
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/telegram-webhook`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(testUpdate)
-        }
-      );
+      const response = await fetch(`${base}/telegram-webhook`, {
+        method: 'POST',
+        headers: telegramEdgeHeaders(true),
+        body: JSON.stringify(testUpdate),
+      });
 
       logs.push(`📥 Статус ответа: ${response.status} ${response.statusText}`);
       
@@ -245,6 +255,7 @@ export function TelegramWebhookManager() {
   };
 
   const isWebhookActive = webhookInfo?.url && webhookInfo.url.length > 0;
+  const edgeReady = Boolean(telegramAdminBase());
 
   return (
     <div className="space-y-6">
@@ -255,6 +266,14 @@ export function TelegramWebhookManager() {
           Управление webhook для получения сообщений от пользователей Telegram
         </p>
       </div>
+
+      {!edgeReady && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
+          Укажите <code className="bg-amber-100 px-1 rounded">VITE_TELEGRAM_EDGE_BASE_URL</code> и при необходимости{' '}
+          <code className="bg-amber-100 px-1 rounded">VITE_TELEGRAM_EDGE_ANON_KEY</code> в окружении фронтенда — вызовы идут на
+          Edge (Telegram), не на основной Node API.
+        </div>
+      )}
 
       {/* Сообщения об ошибках и успехе */}
       {error && (
@@ -293,7 +312,7 @@ export function TelegramWebhookManager() {
           </h3>
           <button
             onClick={loadWebhookInfo}
-            disabled={loading}
+            disabled={loading || !edgeReady}
             className="p-2 text-gray-600 hover:text-gray-900 disabled:opacity-50"
             title="Обновить информацию"
           >
@@ -363,7 +382,7 @@ export function TelegramWebhookManager() {
           {!isWebhookActive ? (
             <button
               onClick={setupWebhook}
-              disabled={loading}
+              disabled={loading || !edgeReady}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <CheckCircle className="w-4 h-4" />
@@ -373,7 +392,7 @@ export function TelegramWebhookManager() {
             <>
               <button
                 onClick={setupWebhook}
-                disabled={loading}
+                disabled={loading || !edgeReady}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -381,7 +400,7 @@ export function TelegramWebhookManager() {
               </button>
               <button
                 onClick={deleteWebhook}
-                disabled={loading}
+                disabled={loading || !edgeReady}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <Trash2 className="w-4 h-4" />
@@ -413,7 +432,7 @@ export function TelegramWebhookManager() {
           </div>
           <button
             onClick={testBot}
-            disabled={loading || !testChatId.trim()}
+            disabled={loading || !edgeReady || !testChatId.trim()}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <Send className="w-4 h-4" />
@@ -421,7 +440,7 @@ export function TelegramWebhookManager() {
           </button>
           <button
             onClick={testWebhookEndpoint}
-            disabled={loading || !testChatId.trim()}
+            disabled={loading || !edgeReady || !testChatId.trim()}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             <TestTube className="w-4 h-4" />

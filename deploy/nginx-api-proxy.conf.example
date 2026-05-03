@@ -1,0 +1,15 @@
+# Пример: сайт и API на одном домене, фронт отдаёт nginx/static, /api → Node (порт 8787).
+# Скопируйте фрагмент в свой server { … } и замените:
+#   - coffeenechai.ru → ваш домен
+#   - 127.0.0.1:8787 → ваш upstream (pm2/docker)
+
+location /api/ {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 120s;
+    client_max_body_size 12m;
+}

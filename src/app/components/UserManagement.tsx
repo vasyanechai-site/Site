@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
 } from './ui/alert-dialog';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { fetchAgents } from '../lib/agentApi';
 import type { Agent } from '../types/agent';
 
@@ -250,10 +250,10 @@ export function UserManagement() {
     const toastId = toast.loading('🔍 Тестирование подключения...');
     try {
       const testUserId = users.length > 0 ? users[0].id : 'test-id-123';
-      const url = `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/users/${testUserId}`;
+      const url = `${API_BASE_URL}/users/${testUserId}`;
       const response = await fetch(url, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
       });
       const text = await response.text();
       toast.success(`Статус: ${response.status} — ${text}`, { id: toastId });

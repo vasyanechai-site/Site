@@ -4,14 +4,8 @@ import { FadeIn } from './ui/fade-in';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
-import { supabase } from '../lib/supabaseClient';
 import { WooshIcon } from './WooshIcon';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
-const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
-  ? { Authorization: `Bearer ${publicAnonKey}` }
-  : {};
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 
 function getWooshDeclension(number: number) {
   const cases = [2, 0, 1, 1, 1, 2];

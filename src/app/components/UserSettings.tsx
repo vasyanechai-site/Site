@@ -6,7 +6,6 @@ import { ArrowLeft, Loader2, Save } from 'lucide-react';
 import { Logo } from './Logo';
 import { CompanyAutocomplete } from './CompanyAutocomplete';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { API_BASE_URL } from '../lib/backendConfig';
 
 interface UserSettingsProps {
@@ -54,14 +53,7 @@ export function UserSettings({ userId, userCompanyName, onBack, onLogout, onNavi
     try {
       setIsLoading(true);
       console.log('Loading user settings');
-      const response = await fetch(
-        `${API_BASE_URL}/user-settings/${userId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/user-settings/${userId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -167,17 +159,11 @@ export function UserSettings({ userId, userCompanyName, onBack, onLogout, onNavi
 
     try {
       setIsSaving(true);
-      const response = await fetch(
-        `${API_BASE_URL}/user-settings/${userId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ settings: formData })
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/user-settings/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: formData }),
+      });
 
       if (!response.ok) {
         throw new Error('Failed to save settings');

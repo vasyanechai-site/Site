@@ -1,211 +1,35 @@
-# GitHub Actions Keep-Alive - Инструкция по настройке
+# GitHub Actions — актуальные workflow
 
-## Преимущества этого решения
+В репозитории **нет** отдельного `keep-alive.yml` для Supabase: основной бэкенд — **Node на VPS**, фронт — **сборка в `dist/`** и FTP.
 
-✅ **Без сторонних сервисов** - использует только GitHub (где уже лежит ваш код)  
-✅ **Полностью бесплатно** - GitHub Actions дает 2000 минут/месяц бесплатно, keep-alive занимает ~5 секунд  
-✅ **Надёжно** - работает даже если месяц никто не заходит на сайт  
-✅ **Прозрачно** - все логи доступны в GitHub UI  
-✅ **Легко управлять** - можно запустить вручную одной кнопкой
+## 1. Deploy to Reg VPS (`deploy-reg-vps.yml`)
 
----
+**Когда:** push в `main` при изменениях в `server/**`, `package.json`, `package-lock.json`, `ecosystem.config.cjs` или самом workflow; либо **Run workflow** вручную.
 
-## Что уже готово
+**Что делает:** SSH на сервер → `git reset --hard origin/main` в `VPS_APP_PATH` → при наличии секретов — патч строк в `.env` через `server/deploy/patch_dotenv.py` → `npm ci` → перезапуск **PM2** (`site-api`) → проверка **`/api/health`**. При заданных `API_PUBLIC_HOST` и `CERTBOT_EMAIL` может подключаться скрипт nginx / Let’s Encrypt (см. `DEPLOY_REGRU.md`).
 
-В проекте создан файл `.github/workflows/keep-alive.yml` который:
-- Автоматически запускается каждые 5 дней в 10:00 UTC (13:00 по Москве)
-- Отправляет keep-alive запрос к вашей базе данных Supabase
-- Проверяет успешность запроса и выводит понятные логи
-- Можно запустить вручную в любой момент через GitHub UI
+**Секреты:** см. таблицу в **`ПРОДАКШН-100-ПРОЦЕНТОВ.md`** и **`DEPLOY_REGRU.md`** (`VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_PATH`, `ALLOWED_ORIGINS`, интеграции, опционально `JWT_SECRET`, `DATABASE_URL`, …).
 
----
+## 2. Deploy Frontend to Reg.ru FTP (`deploy-reg-ftp.yml`)
 
-## Инструкция по активации
+**Когда:** push в `main` при изменениях во **`src/**`**, **`public/**`**, **`index.html`**, **`vite.config.ts`**, lockfile или workflow.
 
-### Шаг 1: Загрузите код на GitHub
+**Что делает:** `npm ci` → **`npm run build`** с переменными из Secrets (`VITE_API_BASE_URL`, опционально `VITE_YANDEX_MAPS_API_KEY`) → выгрузка **`./dist/`** на FTP в `FTP_TARGET_DIR`.
 
-Если ваш проект ещё не на GitHub:
+Убедитесь, что **`VITE_API_BASE_URL`** указывает на тот же публичный API, что открывается с сайта (часто `https://api.домен/api`).
 
-```bash
-# Инициализация Git репозитория (если еще не сделано)
-git init
+## 3. Weekly database email backup (`weekly-database-email-backup.yml`)
 
-# Добавление всех файлов
-git add .
+**Когда:** по cron **понедельник 06:35 UTC** и вручную (**Run workflow**). Job выполняется, если **`WEEKLY_EMAIL_BACKUP_ENABLED`** = `1` в **GitHub → Settings → Variables** *или* запуск вручную.
 
-# Первый коммит
-git commit -m "Initial commit with keep-alive workflow"
+**Что делает:** SSH на VPS → обновление кода → `npm ci --omit=dev` → `node server/scripts/weekly-email-backup.mjs`. Нужны секреты VPS и SMTP в `.env` на сервере — см. **`DEPLOY_REGRU.md`** и комментарии в начале файла workflow.
 
-# Создайте репозиторий на GitHub.com и добавьте remote
-git remote add origin https://github.com/ваш-username/nechai-coffee.git
+## Проверка
 
-# Загрузите код
-git push -u origin main
-```
-
-Если код уже на GitHub:
-
-```bash
-# Просто загрузите новый файл workflow
-git add .github/workflows/keep-alive.yml
-git commit -m "Add GitHub Actions keep-alive workflow"
-git push
-```
-
-### Шаг 2: Проверка активации workflow
-
-1. Откройте ваш репозиторий на GitHub.com
-2. Перейдите на вкладку **"Actions"** (вверху страницы)
-3. Вы увидите workflow **"Database Keep-Alive"**
-
-### Шаг 3: Первый тестовый запуск
-
-Не ждите 5 дней - запустите вручную прямо сейчас:
-
-1. На вкладке **Actions** кликните на **"Database Keep-Alive"**
-2. Нажмите кнопку **"Run workflow"** (справа)
-3. Выберите ветку (обычно `main`)
-4. Нажмите зелёную кнопку **"Run workflow"**
-
-### Шаг 4: Проверка результатов
-
-1. После запуска workflow (займет ~10-15 секунд) кликните на него
-2. Кликните на job **"keep-alive"**
-3. Раскройте шаг **"Ping Supabase Database"**
-4. Вы увидите лог:
-   ```
-   HTTP Status: 200
-   Response: {"status":"ok","timestamp":"2024-11-17T...","message":"Database is active"}
-   ✅ База данных активна
-   ```
+1. **Actions** → последний зелёный запуск нужного workflow.
+2. Сайт: исходный код главной страницы должен ссылаться на **`/assets/*.js`**, не на **`/src/main.tsx`**.
+3. **`https://<ваш-api-хост>/api/health`** — ответ «ок».
 
 ---
 
-## Как это работает
-
-### Автоматический режим:
-- GitHub Actions автоматически запускает workflow каждые 5 дней
-- Отправляется GET запрос к вашему keep-alive endpoint
-- База данных Supabase остается активной
-- Никаких действий от вас не требуется
-
-### Ручной режим:
-- В любой момент можете зайти на GitHub → Actions → Run workflow
-- Полезно для тестирования или если нужно "разбудить" базу прямо сейчас
-
-### Мониторинг:
-- Все запуски видны на вкладке Actions
-- Если что-то пошло не так - GitHub может отправить email уведомление
-- История всех запусков сохраняется
-
----
-
-## Настройка email уведомлений (опционально)
-
-Если хотите получать уведомления о проблемах:
-
-1. Перейдите в настройки вашего GitHub аккаунта
-2. **Settings** → **Notifications**
-3. Убедитесь, что включены **"Actions"** уведомления
-4. Выберите способ получения: Email или GitHub notifications
-
-Теперь если keep-alive упадёт с ошибкой, вы получите уведомление.
-
----
-
-## Изменение расписания (если нужно)
-
-Откройте файл `.github/workflows/keep-alive.yml` и измените строку:
-
-```yaml
-- cron: '0 10 */5 * *'  # Каждые 5 дней в 10:00 UTC
-```
-
-Примеры других расписаний:
-
-```yaml
-- cron: '0 10 */3 * *'   # Каждые 3 дня в 10:00 UTC
-- cron: '0 10 * * 1'     # Каждый понедельник в 10:00 UTC
-- cron: '0 10 1,15 * *'  # 1-го и 15-го числа каждого месяца в 10:00 UTC
-```
-
-Используйте https://crontab.guru для генерации своего расписания.
-
----
-
-## Приватные репозитории
-
-**GitHub Actions работает и для приватных репозиториев!**
-
-- На бесплатном плане: 2000 минут/месяц (keep-alive занимает 5 секунд = ~12000 запусков)
-- Приватность вашего кода не нарушается
-- Workflow файл все равно работает
-
----
-
-## Проверка работы прямо сейчас
-
-Можете проверить endpoint вручную в терминале:
-
-```bash
-curl -X GET "https://pkhinqiplfezrzvsqgwo.supabase.co/functions/v1/make-server-aa167a09/keep-alive" \
--H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBraGlucWlwbGZlenJ6dnNxZ3dvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAzMTE3NTksImV4cCI6MjA3NTg4Nzc1OX0.Cr24g9iYvoRES7v0qzdq5GWkdgEhGZrHr0fi84AcQJE"
-```
-
-Ожидаемый ответ:
-```json
-{
-  "status": "ok",
-  "timestamp": "2024-11-17T10:30:45.123Z",
-  "message": "Database is active"
-}
-```
-
----
-
-## Комбинированное решение (рекомендуется)
-
-Для максимальной надёжности используйте **оба механизма одновременно**:
-
-1. ✅ **Встроенный keep-alive в приложении** (уже работает)
-   - Срабатывает при каждом посещении сайта
-   - Для 99% случаев этого достаточно
-
-2. ✅ **GitHub Actions** (настройте по этой инструкции)
-   - Страховка на случай длительного простоя
-   - Работает даже если месяц никто не заходит
-
-Два механизма не конфликтуют друг с другом и работают независимо.
-
----
-
-## FAQ
-
-**Q: Нужно ли держать код публичным?**  
-A: Нет, workflow работает и в приватных репозиториях.
-
-**Q: Сколько это стоит?**  
-A: Абсолютно бесплатно. GitHub дает 2000 минут/месяц, keep-alive занимает ~5 секунд за запуск.
-
-**Q: Что если я забуду про это?**  
-A: Ничего страшного. Workflow работает автоматически, без вашего участия.
-
-**Q: Можно ли отключить на время?**  
-A: Да, зайдите в Actions → Database Keep-Alive → справа три точки → Disable workflow.
-
-**Q: У меня нет GitHub аккаунта**  
-A: Регистрация бесплатная на https://github.com/signup - займёт 2 минуты.
-
----
-
-## Итого
-
-После настройки у вас будет:
-
-1. ✅ Автоматический keep-alive при каждом посещении сайта
-2. ✅ GitHub Actions каждые 5 дней для страховки
-3. ✅ Полный контроль и мониторинг
-4. ✅ Ноль дополнительных затрат
-5. ✅ Никаких сторонних сервисов (кроме GitHub, где и так лежит код)
-
-**База данных Supabase никогда не отключится!** 🚀
+_Старые инструкции про workflow `keep-alive.yml` и ping Supabase в этом файле заменены описанием выше._

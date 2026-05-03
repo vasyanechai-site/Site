@@ -1,34 +1,23 @@
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from './backendConfig';
 
 const KEEP_ALIVE_KEY = 'nechai_last_keep_alive';
-const KEEP_ALIVE_INTERVAL = 5 * 24 * 60 * 60 * 1000; // 5 дней в миллисекундах
+const KEEP_ALIVE_INTERVAL = 5 * 24 * 60 * 60 * 1000; // 5 дней
 
 /**
- * Автоматический keep-alive для предотвращения отключения базы данных
- * Вызывается при загрузке приложения
+ * Лёгкий пинг API (свой сервер), чтобы не «засыпал» хостинг при длительном простое.
  */
 export async function autoKeepAlive(): Promise<void> {
   try {
     const lastKeepAlive = localStorage.getItem(KEEP_ALIVE_KEY);
     const now = Date.now();
-    
-    // Проверяем, нужно ли отправлять keep-alive
-    if (!lastKeepAlive || now - parseInt(lastKeepAlive) > KEEP_ALIVE_INTERVAL) {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/keep-alive`,
-        {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-          },
-        }
-      );
-      
+
+    if (!lastKeepAlive || now - parseInt(lastKeepAlive, 10) > KEEP_ALIVE_INTERVAL) {
+      const response = await fetch(`${API_BASE_URL}/keep-alive`, { method: 'GET' });
       if (response.ok) {
         localStorage.setItem(KEEP_ALIVE_KEY, now.toString());
       }
     }
-  } catch (error) {
-    // Тихо игнорируем ошибки keep-alive
+  } catch {
+    /* ignore */
   }
 }

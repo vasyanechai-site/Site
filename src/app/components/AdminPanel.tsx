@@ -8,7 +8,6 @@ import { AdminPromoCodes } from './AdminPromoCodes';
 import { UserManagement } from './UserManagement';
 import { OrdersManagement } from './OrdersManagement';
 import { PriceManagement } from './PriceManagement';
-import { DataExport } from './DataExport';
 import { TickerManagement } from './TickerManagement';
 import { RetailProductsManagement } from './RetailProductsManagement';
 import { RetailOrdersManagement } from './RetailOrdersManagement';
@@ -92,7 +91,10 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
             </Button>
             <Button 
               variant={section === 'retail' ? 'default' : 'outline'}
-              onClick={() => setSection('retail')}
+              onClick={() => {
+                setSection('retail');
+                setActiveTab('dashboard');
+              }}
             >
               Розница
             </Button>
@@ -111,11 +113,6 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
                   <TabsTrigger value="users">Пользователи</TabsTrigger>
                   <TabsTrigger value="promo">Промокоды</TabsTrigger>
                   <TabsTrigger value="ticker">Бегущая строка</TabsTrigger>
-                  <TabsTrigger value="broadcast">Рассылка</TabsTrigger>
-                  <TabsTrigger value="export">Экспорт</TabsTrigger>
-                  <TabsTrigger value="import">Импорт</TabsTrigger>
-                  <TabsTrigger value="health">Здоровье БД</TabsTrigger>
-                  <TabsTrigger value="encoding">Кодировка</TabsTrigger>
                 </TabsList>
               </div>
             </FadeIn>
@@ -150,10 +147,6 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
 
               <TabsContent value="ticker">
                 <TickerManagement />
-              </TabsContent>
-
-              <TabsContent value="export">
-                <DataExport />
               </TabsContent>
             </div>
           </Tabs>

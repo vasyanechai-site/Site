@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { RefreshCw } from 'lucide-react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { eventBus, EVENTS } from '../lib/events';
 import { toast } from 'sonner';
 
@@ -33,18 +33,12 @@ export function RegistrationRequests() {
   const loadRegistrations = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/business-registrations`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/business-registrations`);
 
       if (response.ok) {
         const data = await response.json();
-        setRegistrations(data.registrations || []);
+        const list = Array.isArray(data) ? data : data.registrations || [];
+        setRegistrations(list);
       }
     } catch (error) {
       console.error('Failed to load registrations:', error);
@@ -88,15 +82,9 @@ export function RegistrationRequests() {
     }
 
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/business-registration/${id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/business-registration/${id}`, {
+        method: 'DELETE',
+      });
 
       if (response.ok) {
         await loadRegistrations();

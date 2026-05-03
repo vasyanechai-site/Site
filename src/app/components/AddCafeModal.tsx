@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, MapPin, Loader2, Check, Map, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { API_BASE_URL } from '../lib/backendConfig';
 
 interface DaDataSuggestion {
@@ -146,7 +145,7 @@ export function AddCafeModal({ onClose, onSubmitted }: AddCafeModalProps) {
         `${API_BASE_URL}/retail-locations/submit-request`,
         {
           method: 'POST',
-          headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: name.trim(), address: address.trim(),
             latitude: selectedCoords.lat, longitude: selectedCoords.lon,

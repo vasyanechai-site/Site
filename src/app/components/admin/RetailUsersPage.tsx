@@ -39,15 +39,10 @@ export function RetailUsersPage() {
     
     try {
       // Админ-панель открыта, используем publicAnonKey
-      const { publicAnonKey } = await import('../../utils/supabase/info');
-      
       const url = `${API_BASE_URL}/retail-users`;
-      
+
       const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'Content-Type': 'application/json' },
       });
 
       if (!response.ok) {
@@ -78,18 +73,10 @@ export function RetailUsersPage() {
     setDeletingId(id);
     try {
       // Админ-панель открыта, используем publicAnonKey
-      const { publicAnonKey } = await import('../../utils/supabase/info');
-      
-      const response = await fetch(
-        `${API_BASE_URL}/retail-users/${id}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/retail-users/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -114,13 +101,9 @@ export function RetailUsersPage() {
 
     setAddSubmitting(true);
     try {
-      const { publicAnonKey } = await import('../../utils/supabase/info');
       const response = await fetch(`${API_BASE_URL}/retail-users`, {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: newUserEmail.trim(),
           role: newUserRole,

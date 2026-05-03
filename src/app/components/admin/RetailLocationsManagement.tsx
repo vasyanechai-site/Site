@@ -5,11 +5,24 @@ import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Loader2, Plus, Pencil, Trash2, MapPin, Check, X, Building2, Home, Map, RefreshCw, Clock, CheckCircle2, XCircle, Phone, User } from 'lucide-react';
 import { toast } from 'sonner';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
+function parseCoord(v: unknown): number {
+  if (v == null || v === '') return NaN;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function hasValidRetailCoords(lat: unknown, lon: unknown): boolean {
+  const a = parseCoord(lat);
+  const b = parseCoord(lon);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  if (a === 0 && b === 0) return false;
+  return true;
+}
+
 interface Location {
-  id: number;
+  id: string | number;
   name: string;
   address: string;
   latitude?: number | null;
@@ -19,7 +32,7 @@ interface Location {
 }
 
 interface LocationRequest {
-  id: number;
+  id: string | number;
   name: string;
   address: string;
   latitude?: number | null;
@@ -39,7 +52,8 @@ interface DaDataSuggestion {
 interface YandexOrgSuggestion {
   name: string;
   address: string;
-  coordinates: [number, number];
+  /** null если у подсказки нет center — тогда геокодируем по названию/адресу */
+  coordinates: [number, number] | null;
   type: 'organization';
 }
 
@@ -54,7 +68,7 @@ export function RetailLocationsManagement() {
   const [locationRequests, setLocationRequests] = useState<LocationRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingRequests, setLoadingRequests] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
   const [addingNew, setAddingNew] = useState(false);
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
@@ -63,8 +77,8 @@ export function RetailLocationsManagement() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [initializing, setInitializing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [approvingId, setApprovingId] = useState<number | null>(null);
-  const [rejectingId, setRejectingId] = useState<number | null>(null);
+  const [approvingId, setApprovingId] = useState<string | number | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | number | null>(null);
   const [ymapsLoaded, setYmapsLoaded] = useState(false);
   const [searchMode, setSearchMode] = useState<'address' | 'organization'>('organization');
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -139,7 +153,7 @@ export function RetailLocationsManagement() {
   const loadLocations = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/retail-locations`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations`, { headers: {} });
       if (!res.ok) throw new Error('Failed to load locations');
       setLocations(await res.json());
     } catch (e) {
@@ -151,7 +165,7 @@ export function RetailLocationsManagement() {
   const loadLocationRequests = async () => {
     setLoadingRequests(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/retail-locations/requests`, { headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/requests`, { headers: {} });
       if (!res.ok) throw new Error('Failed to load requests');
       setLocationRequests(await res.json());
     } catch (e) {
@@ -166,7 +180,16 @@ export function RetailLocationsManagement() {
         .then((items: any[]) => resolve(
           items.filter(i => i.type === 'biz' || i.displayName.includes('организация')).map(i => {
             const parts = i.displayName.split(',');
-            return { name: parts[0]?.trim() || '', address: parts.slice(1).join(',').trim() || i.displayName, coordinates: i.center || [0, 0], type: 'organization' as const };
+            const name = parts[0]?.trim() || '';
+            const address = parts.slice(1).join(',').trim() || i.displayName;
+            const cand = i.center ?? i.coords ?? i.coordinates;
+            let coordinates: [number, number] | null = null;
+            if (Array.isArray(cand) && cand.length >= 2) {
+              const a = Number(cand[0]);
+              const b = Number(cand[1]);
+              if (Number.isFinite(a) && Number.isFinite(b) && (a !== 0 || b !== 0)) coordinates = [a, b];
+            }
+            return { name, address, coordinates, type: 'organization' as const };
           })
         )).catch(() => resolve([]));
     });
@@ -203,11 +226,37 @@ export function RetailLocationsManagement() {
     } finally { setLoadingSuggestions(false); }
   };
 
-  const handleSuggestionClick = (s: Suggestion) => {
+  const handleSuggestionClick = async (s: Suggestion) => {
     if ('type' in s && s.type === 'organization') {
-      setName(s.name); setAddress(s.address);
-      setSelectedCoords({ lat: s.coordinates[0], lon: s.coordinates[1] });
-      toast.success('📍 Координаты организации установлены');
+      setName(s.name);
+      setAddress(s.address);
+      let lat: number | undefined;
+      let lon: number | undefined;
+      const c = s.coordinates;
+      if (c && Number.isFinite(c[0]) && Number.isFinite(c[1])) {
+        lat = c[0];
+        lon = c[1];
+      }
+      if ((lat == null || lon == null || (lat === 0 && lon === 0)) && window.ymaps) {
+        try {
+          const q = `Санкт-Петербург, ${[s.name, s.address].filter(Boolean).join(', ')}`.trim();
+          const res = await window.ymaps.geocode(q);
+          const geo = res.geoObjects.get(0);
+          if (geo) {
+            const pt = geo.geometry.getCoordinates();
+            lat = pt[0];
+            lon = pt[1];
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      if (lat != null && lon != null && Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+        setSelectedCoords({ lat, lon });
+        toast.success('📍 Координаты организации установлены');
+      } else {
+        toast.error('Не удалось определить точку. Откройте карту и отметьте место вручную.');
+      }
     } else {
       const d = s as DaDataSuggestion;
       setAddress(d.value);
@@ -226,7 +275,7 @@ export function RetailLocationsManagement() {
     try {
       const res = await fetch(`${API_BASE_URL}/retail-locations`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, address, latitude: selectedCoords.lat, longitude: selectedCoords.lon }),
       });
       if (!res.ok) throw new Error('Failed to add location');
@@ -237,14 +286,14 @@ export function RetailLocationsManagement() {
     finally { setSaving(false); }
   };
 
-  const handleUpdate = async (id: number) => {
+  const handleUpdate = async (id: string | number) => {
     if (!name.trim() || !address.trim()) { toast.error('Заполните название и адрес'); return; }
     if (!selectedCoords) { toast.error('Установите точку на карте или выберите адрес из подсказок'); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API_BASE_URL}/retail-locations/${id}`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${publicAnonKey}`, 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, address, latitude: selectedCoords.lat, longitude: selectedCoords.lon }),
       });
       if (!res.ok) throw new Error('Failed to update location');
@@ -255,23 +304,23 @@ export function RetailLocationsManagement() {
     finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string | number) => {
     if (!confirm('Вы уверены, что хотите удалить эту точку продаж?')) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/retail-locations/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/${id}`, { method: 'DELETE', headers: {} });
       if (!res.ok) throw new Error('Failed to delete location');
       toast.success('Точка продаж удалена');
       await loadLocations();
     } catch (e) { console.error(e); toast.error('Не удалось удалить точку продаж'); }
   };
 
-  const handleApproveRequest = async (id: number) => {
+  const handleApproveRequest = async (id: string | number) => {
     if (!confirm('Одобрить этот запрос и добавить кофейню на карту?')) return;
     setApprovingId(id);
     try {
       const res = await fetch(`${API_BASE_URL}/retail-locations/requests/${id}/approve`, {
         method: 'PUT',
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+        headers: {},
       });
       if (!res.ok) throw new Error('Failed to approve');
       toast.success('✅ Кофейня одобрена и добавлена на карту');
@@ -280,13 +329,13 @@ export function RetailLocationsManagement() {
     finally { setApprovingId(null); }
   };
 
-  const handleRejectRequest = async (id: number) => {
+  const handleRejectRequest = async (id: string | number) => {
     if (!confirm('Отклонить этот запрос?')) return;
     setRejectingId(id);
     try {
       const res = await fetch(`${API_BASE_URL}/retail-locations/requests/${id}`, {
         method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${publicAnonKey}` },
+        headers: {},
       });
       if (!res.ok) throw new Error('Failed to reject');
       toast.success('Запрос отклонён');
@@ -297,7 +346,9 @@ export function RetailLocationsManagement() {
 
   const startEdit = (location: Location) => {
     setEditingId(location.id); setName(location.name); setAddress(location.address); setAddingNew(false);
-    if (location.latitude && location.longitude) setSelectedCoords({ lat: location.latitude, lon: location.longitude });
+    if (hasValidRetailCoords(location.latitude, location.longitude)) {
+      setSelectedCoords({ lat: parseCoord(location.latitude), lon: parseCoord(location.longitude) });
+    }
     else setSelectedCoords(null);
     setShowMap(true);
   };
@@ -310,7 +361,7 @@ export function RetailLocationsManagement() {
     setInitializing(true);
     try {
       toast.info('🌍 Геокодирование адресов... Пожалуйста, подождите');
-      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: {} });
       if (!res.ok) throw new Error('Failed to initialize');
       const data = await res.json();
       toast.success(data.geocoded !== undefined ? `✅ ${data.message}\n📍 Геокодировано: ${data.geocoded} из ${data.count}` : data.message);
@@ -324,9 +375,9 @@ export function RetailLocationsManagement() {
     setInitializing(true);
     try {
       toast.info('🗑️ Очистка старых данных...');
-      await fetch(`${API_BASE_URL}/retail-locations`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      await fetch(`${API_BASE_URL}/retail-locations`, { method: 'DELETE', headers: {} });
       toast.info('🌍 Геокодирование адресов... Пожалуйста, подождите');
-      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: { 'Authorization': `Bearer ${publicAnonKey}` } });
+      const res = await fetch(`${API_BASE_URL}/retail-locations/init`, { method: 'POST', headers: {} });
       if (!res.ok) throw new Error('Failed to initialize');
       const data = await res.json();
       toast.success(data.geocoded !== undefined ? `✅ ${data.message}\n📍 Геокодировано: ${data.geocoded} из ${data.count}` : data.message);
@@ -335,7 +386,7 @@ export function RetailLocationsManagement() {
     finally { setInitializing(false); }
   };
 
-  const renderFormFields = (isEdit: boolean, locationId?: number) => (
+  const renderFormFields = (isEdit: boolean, locationId?: string | number) => (
     <div className="space-y-4">
       <div>
         <Label htmlFor={isEdit ? `edit-name-${locationId}` : 'new-name'}>Название кофейни</Label>
@@ -462,8 +513,10 @@ export function RetailLocationsManagement() {
                           </span>
                         </div>
                         <p className="text-sm text-[#222222]/70 mb-2">{req.address}</p>
-                        {req.latitude && req.longitude && (
-                          <p className="text-xs text-amber-700 mb-2">📍 {req.latitude.toFixed(5)}, {req.longitude.toFixed(5)}</p>
+                        {hasValidRetailCoords(req.latitude, req.longitude) && (
+                          <p className="text-xs text-amber-700 mb-2">
+                            📍 {parseCoord(req.latitude).toFixed(5)}, {parseCoord(req.longitude).toFixed(5)}
+                          </p>
                         )}
                         <div className="flex flex-wrap gap-3 text-xs text-[#222222]/50">
                           {req.contactName && (
@@ -543,7 +596,7 @@ export function RetailLocationsManagement() {
             </div>
           )}
 
-          {locations.length > 0 && locations.some(l => !l.latitude || !l.longitude) && (
+          {locations.length > 0 && locations.some((l) => !hasValidRetailCoords(l.latitude, l.longitude)) && (
             <div className="mb-6 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
               <div className="flex items-start gap-3">
                 <MapPin className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
@@ -567,15 +620,17 @@ export function RetailLocationsManagement() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <h3 className="font-medium text-lg">{location.name}</h3>
-                            {location.latitude && location.longitude ? (
+                            {hasValidRetailCoords(location.latitude, location.longitude) ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full"><MapPin className="w-3 h-3" />GPS</span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full"><X className="w-3 h-3" />Нет координат</span>
                             )}
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">{location.address}</p>
-                          {location.latitude && location.longitude && (
-                            <p className="text-xs text-[#E8A0BF] mt-1.5">📍 {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</p>
+                          {hasValidRetailCoords(location.latitude, location.longitude) && (
+                            <p className="text-xs text-[#E8A0BF] mt-1.5">
+                              📍 {parseCoord(location.latitude).toFixed(6)}, {parseCoord(location.longitude).toFixed(6)}
+                            </p>
                           )}
                         </div>
                         <div className="flex gap-2 flex-shrink-0">

@@ -75,6 +75,7 @@ import {
   formatNewWholesaleUserCreated,
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
+import { registerAgentRoutes } from "./agentsRoutes.js";
 import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
@@ -168,6 +169,7 @@ const upload = multer({
 app.use(cors({ origin: corsOriginOption }));
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/uploads", express.static(uploadDir));
+registerAgentRoutes(app);
 
 /** Публичный origin API для ссылок на `/api/uploads/…` (тот же хост, что у запроса за nginx; не сайт из FRONTEND_BASE_URL). */
 function publicApiOrigin(req) {

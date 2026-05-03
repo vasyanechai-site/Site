@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { eventBus, EVENTS } from '../lib/events';
 
 export function useRegistrationCount() {
@@ -9,18 +9,12 @@ export function useRegistrationCount() {
   const loadCount = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/business-registrations`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/business-registrations`);
 
       if (response.ok) {
         const data = await response.json();
-        const pending = data.registrations?.filter((r: any) => r.status === 'pending').length || 0;
+        const list = Array.isArray(data) ? data : data.registrations || [];
+        const pending = list.filter((r: any) => r.status === 'pending').length || 0;
         setPendingCount(pending);
       }
     } catch (error) {

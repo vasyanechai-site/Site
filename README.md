@@ -1,11 +1,41 @@
+# Кофе Нечай / Нечай ОПТ
 
-  # Нечай ОПТ
+Монорепозиторий: **React (Vite) + TypeScript** — витрина и админка; **Express** — API, заказы, розница, СДЭК, Точка, Telegram, бэкапы.
 
-  This is a code bundle for Нечай ОПТ. The original project is available at https://www.figma.com/design/bUwVfa14KzmDcCNXWvev2a/%D0%9D%D0%B5%D1%87%D0%B0%D0%B9-%D0%9E%D0%9F%D0%A2.
+Исходный дизайн в Figma: [Нечай ОПТ](https://www.figma.com/design/bUwVfa14KzmDcCNXWvev2a/%D0%9D%D0%B5%D1%87%D0%B0%D0%B9-%D0%9E%D0%9F%D0%A2).
 
-  ## Running the code
+## Документация (актуальная)
 
-  Run `npm i` to install the dependencies.
+| Файл | Для кого |
+|------|----------|
+| [`НАЧАЛО-БЕЗ-КОДА.md`](./НАЧАЛО-БЕЗ-КОДА.md) | Запуск локально, архив на хостинг, без «программистского» жаргона |
+| [`ПРОДАКШН-100-ПРОЦЕНТОВ.md`](./ПРОДАКШН-100-ПРОЦЕНТОВ.md) | GitHub Actions, секреты, VPS, FTP, интеграции |
+| [`DEPLOY_REGRU.md`](./DEPLOY_REGRU.md) | VPS, PM2, Postgres, nginx, FTP, секреты (подробно на англ.) |
 
-  Run `npm run dev` to start the development server.
-  
+Много файлов в `src/app/*.md` — **черновики и отчёты по задачам**; у них в начале есть блок «Сводка по проекту» с ссылкой на файлы выше.
+
+## Команды
+
+```bash
+npm install
+npm run go              # локально: API + Vite
+npm run build           # прод-сборка → папка dist/
+npm run zip:dist        # build + zip для ручной загрузки на хостинг
+npm run prod:check      # проверка .env и подсказки по интеграциям
+npm run env:init        # первичный .env из примера
+```
+
+**Продакшен-фронт** на хостинг нужно выкладывать из **`dist/`** (после `npm run build`), а не корневой `index.html` из репозитория: в проде в HTML должны быть `/assets/*.js`, иначе браузер не запустит приложение («белый экран»).
+
+## GitHub Actions (сейчас в репозитории)
+
+- `deploy-reg-vps.yml` — деплой **бэкенда** на VPS (SSH, `pm2`, патч `.env` из Secrets).
+- `deploy-reg-ftp.yml` — **`npm run build`** и выгрузка **`dist/`** по FTP.
+- `weekly-database-email-backup.yml` — еженедельный бэкап БД на почту (по расписанию / вручную, см. workflow и `ПРОДАКШН-100-ПРОЦЕНТОВ.md`).
+
+## Структура
+
+- `src/` — фронтенд (в т.ч. маршрут `/debug` для проверки Telegram и СДЭК).
+- `server/` — Node API, скрипты, SQL bootstrap.
+- `public/` — статика для Vite.
+- `deploy/` — пример nginx и вспомогательные скрипты для VPS.

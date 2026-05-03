@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router';
-import { supabase } from '../../lib/supabaseClient';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
@@ -76,10 +74,7 @@ export function SignupForm() {
       // Используем серверный endpoint для регистрации с автоматическим подтверждением email
       const response = await fetch(`${API_BASE_URL}/retail-signup`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
 

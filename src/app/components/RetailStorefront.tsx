@@ -17,7 +17,7 @@ import { FadeIn } from './ui/fade-in';
 import { toast } from 'sonner';
 import { transliterate } from '../lib/transliterate';
 import { Footer } from './Footer';
-import { supabase } from '../lib/supabaseClient';
+import { getRetailSessionUser } from '../lib/retailAuth';
 import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
@@ -218,24 +218,22 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
   const clearLogs = () => setOrderLogs([]);
   const clearAuthLogs = () => setAuthLogs([]);
 
-  // Check for logged in user
+  // Сессия розницы (свой сервер, localStorage)
   useEffect(() => {
-    const checkUser = async () => {
-      addAuthLog('info', '🔐 Checking for user session...');
-      const { data: { user }, error } = await supabase.auth.getUser();
-      addAuthLog(user ? 'success' : 'warn', '🔐 User check result', { userId: user?.id, email: user?.email, error });
+    const apply = () => {
+      addAuthLog('info', '🔐 Checking retail session...');
+      const user = getRetailSessionUser();
+      addAuthLog(user ? 'success' : 'warn', '🔐 Retail session', { userId: user?.id, email: user?.email });
       setCurrentUser(user);
       setIsCheckingAuth(false);
     };
-    checkUser();
-
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      addAuthLog('info', '🔐 Auth state changed', { event: _event, userId: session?.user?.id });
-      setCurrentUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    apply();
+    window.addEventListener('nechai-retail-auth-changed', apply);
+    window.addEventListener('storage', apply);
+    return () => {
+      window.removeEventListener('nechai-retail-auth-changed', apply);
+      window.removeEventListener('storage', apply);
+    };
   }, []);
   
   // Force light theme for retail storefront

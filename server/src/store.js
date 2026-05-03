@@ -53,6 +53,38 @@ function writeDb(db) {
   fs.writeFileSync(dbFile, JSON.stringify(db, null, 2));
 }
 
+/** Стабильный ключ заказа для опта и розницы (дедуп в списках и upsert в db.json). */
+function orderStableId(o) {
+  if (!o || typeof o !== "object") return null;
+  const id = o.orderId ?? o.order_id;
+  return id != null && String(id).trim() !== "" ? String(id) : null;
+}
+
+/**
+ * Один заказ на orderId: при старых дублях в db.json или повторных INSERT без PK оставляем запись с более новой date.
+ */
+function dedupeOrdersByStableId(orders) {
+  if (!Array.isArray(orders) || orders.length === 0) return orders;
+  const map = new Map();
+  const noId = [];
+  for (const o of orders) {
+    const id = orderStableId(o);
+    if (!id) {
+      noId.push(o);
+      continue;
+    }
+    const prev = map.get(id);
+    if (!prev) {
+      map.set(id, o);
+      continue;
+    }
+    const tNew = new Date(o.date || o.created_at || 0).getTime();
+    const tOld = new Date(prev.date || prev.created_at || 0).getTime();
+    if (tNew >= tOld) map.set(id, o);
+  }
+  return [...map.values(), ...noId];
+}
+
 async function pgCoreTablesExist() {
   const required = ["app_settings", "orders", "retail_orders"];
   const { rows } = await pgPool.query(
@@ -145,12 +177,15 @@ export async function initStorage() {
 }
 
 export async function getOrders() {
+  let list;
   if (pgPool) {
     await ensurePgSchema();
     const { rows } = await pgPool.query("SELECT payload FROM orders ORDER BY created_at DESC");
-    return rows.map((row) => row.payload);
+    list = rows.map((row) => row.payload);
+  } else {
+    list = readDb().orders || [];
   }
-  return readDb().orders || [];
+  return dedupeOrdersByStableId(list);
 }
 
 export async function addOrder(order) {
@@ -165,7 +200,9 @@ export async function addOrder(order) {
     return order;
   }
   const db = readDb();
-  db.orders = [...(db.orders || []), order];
+  const list = db.orders || [];
+  const id = order.orderId;
+  db.orders = id ? [order, ...list.filter((o) => o.orderId !== id)] : [...list, order];
   writeDb(db);
   return order;
 }
@@ -200,12 +237,15 @@ export async function deleteOrderById(orderId) {
 }
 
 export async function getRetailOrders() {
+  let list;
   if (pgPool) {
     await ensurePgSchema();
     const { rows } = await pgPool.query("SELECT payload FROM retail_orders ORDER BY created_at DESC");
-    return rows.map((row) => row.payload);
+    list = rows.map((row) => row.payload);
+  } else {
+    list = readDb().retailOrders || [];
   }
-  return readDb().retailOrders || [];
+  return dedupeOrdersByStableId(list);
 }
 
 export async function addRetailOrder(order) {
@@ -220,7 +260,12 @@ export async function addRetailOrder(order) {
     return order;
   }
   const db = readDb();
-  db.retailOrders = [...(db.retailOrders || []), order];
+  const list = db.retailOrders || [];
+  const id = order.orderId;
+  if (!id) {
+    console.warn("[store] addRetailOrder: missing orderId, appending without upsert");
+  }
+  db.retailOrders = id ? [order, ...list.filter((o) => o.orderId !== id)] : [...list, order];
   writeDb(db);
   return order;
 }
@@ -333,6 +378,22 @@ export async function getRetailLocationRequests() {
 
 export async function setRetailLocationRequests(items) {
   return setJsonSetting("retailLocationRequests", items);
+}
+
+export async function getAgents() {
+  return getJsonSetting("agents", []);
+}
+
+export async function setAgents(items) {
+  return setJsonSetting("agents", items);
+}
+
+export async function getAgentPayouts() {
+  return getJsonSetting("agentPayouts", []);
+}
+
+export async function setAgentPayouts(items) {
+  return setJsonSetting("agentPayouts", items);
 }
 
 export async function getUserSettings(userId) {

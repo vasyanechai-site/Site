@@ -6,7 +6,6 @@ import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { ArrowLeft, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription } from '../ui/alert';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
 export function WholesaleLoginForm() {
@@ -25,14 +24,12 @@ export function WholesaleLoginForm() {
     try {
       // Проверяем, не пытается ли пользователь войти с розничными данными (email)
       if (login.includes('@')) {
-        const { supabase } = await import('../../lib/supabaseClient');
-        const { data: supabaseData, error: supabaseError } = await supabase.auth.signInWithPassword({
-          email: login,
-          password: password,
+        const probe = await fetch(`${API_BASE_URL}/auth/retail/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: login.trim(), password }),
         });
-
-        if (supabaseData?.user && !supabaseError) {
-          // Это розничный пользователь - показываем ошибку
+        if (probe.ok) {
           setRetailUserError(true);
           setLoading(false);
           return;
@@ -44,10 +41,7 @@ export function WholesaleLoginForm() {
         `${API_BASE_URL}/users/login`,
         {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: login, password })
         }
       );

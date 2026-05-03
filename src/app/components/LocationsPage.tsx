@@ -1,24 +1,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import { RetailHeader } from './RetailHeader';
-import { supabase } from '../lib/supabaseClient';
+import { getRetailSessionUser } from '../lib/retailAuth';
 import { Loader2, Plus, Clock } from 'lucide-react';
 import { cn } from './ui/utils';
 import { motion, useAnimation, PanInfo } from 'motion/react';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import poodleIcon from 'figma:asset/e4d7062dd1d8524f8eb71d94f631a3edd99664b0.png';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { AddCafeModal } from './AddCafeModal';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 
 interface Location {
-  id: number;
+  id: string | number;
   name: string;
   address: string;
   fullAddress: string;
   latitude?: number | null;
   longitude?: number | null;
   coordinates?: [number, number];
+}
+
+function parseCoord(v: unknown): number {
+  if (v == null || v === '') return NaN;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Координаты с API могут быть строками; 0,0 из подсказок без center не считаем валидными. */
+function hasValidRetailCoords(lat: unknown, lon: unknown): boolean {
+  const a = parseCoord(lat);
+  const b = parseCoord(lon);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+  if (a === 0 && b === 0) return false;
+  return true;
 }
 
 // Fallback locations if API fails
@@ -57,8 +72,8 @@ export function LocationsPage() {
   const mapRef = useRef<any>(null);
   const mapInstanceRef = useRef<any>(null);
   const clustererRef = useRef<any>(null);
-  const placemarksRef = useRef<Map<number, any>>(new Map());
-  const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
+  const placemarksRef = useRef<Map<string | number, any>>(new Map());
+  const [selectedLocationId, setSelectedLocationId] = useState<string | number | null>(null);
 
   // Mobile Sheet Logic
   const [isMobile, setIsMobile] = useState(false);
@@ -124,8 +139,7 @@ export function LocationsPage() {
   // Auth & Cart State
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setCurrentUser(user);
+      setCurrentUser(getRetailSessionUser());
     };
     checkUser();
 
@@ -145,14 +159,7 @@ export function LocationsPage() {
   useEffect(() => {
     const loadLocations = async () => {
       try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations`,
-          {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`,
-            },
-          }
-        );
+        const response = await fetch(`${API_BASE_URL}/retail-locations`);
 
         if (!response.ok) throw new Error('Failed to load locations');
         
@@ -164,37 +171,26 @@ export function LocationsPage() {
         if (data.length === 0) {
           console.log('No locations found, initializing...');
           try {
-            const initResponse = await fetch(
-              `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations/init`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${publicAnonKey}`,
-                },
-              }
-            );
+            const initResponse = await fetch(`${API_BASE_URL}/retail-locations/init`, {
+              method: 'POST',
+            });
             
             if (initResponse.ok) {
               const initData = await initResponse.json();
               console.log('Locations initialized:', initData);
               // Reload locations after initialization
-              const reloadResponse = await fetch(
-                `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09/retail-locations`,
-                {
-                  headers: {
-                    'Authorization': `Bearer ${publicAnonKey}`,
-                  },
-                }
-              );
+              const reloadResponse = await fetch(`${API_BASE_URL}/retail-locations`);
               const reloadData = await reloadResponse.json();
               const initialLocations = reloadData.map((loc: any) => ({
                 id: loc.id,
                 name: loc.name,
                 address: loc.address,
                 fullAddress: `Санкт-Петербург, ${loc.address}`,
-                latitude: loc.latitude,
-                longitude: loc.longitude,
-                coordinates: loc.latitude && loc.longitude ? [loc.latitude, loc.longitude] : undefined,
+                latitude: parseCoord(loc.latitude),
+                longitude: parseCoord(loc.longitude),
+                coordinates: hasValidRetailCoords(loc.latitude, loc.longitude)
+                  ? [parseCoord(loc.latitude), parseCoord(loc.longitude)]
+                  : undefined,
               }));
               setLocations(initialLocations);
               return;
@@ -209,9 +205,11 @@ export function LocationsPage() {
           name: loc.name,
           address: loc.address,
           fullAddress: `Санкт-Петербург, ${loc.address}`,
-          latitude: loc.latitude,
-          longitude: loc.longitude,
-          coordinates: loc.latitude && loc.longitude ? [loc.latitude, loc.longitude] : undefined,
+          latitude: parseCoord(loc.latitude),
+          longitude: parseCoord(loc.longitude),
+          coordinates: hasValidRetailCoords(loc.latitude, loc.longitude)
+            ? [parseCoord(loc.latitude), parseCoord(loc.longitude)]
+            : undefined,
         }));
         
         setLocations(initialLocations);
@@ -327,15 +325,15 @@ export function LocationsPage() {
           name: loc.name, 
           latitude: loc.latitude, 
           longitude: loc.longitude,
-          hasCoords: !!(loc.latitude && loc.longitude)
+          hasCoords: hasValidRetailCoords(loc.latitude, loc.longitude),
         });
         
         try {
           let coords;
           
           // Используем сохраненные координаты если они есть
-          if (loc.latitude && loc.longitude) {
-            coords = [loc.latitude, loc.longitude];
+          if (hasValidRetailCoords(loc.latitude, loc.longitude)) {
+            coords = [parseCoord(loc.latitude), parseCoord(loc.longitude)];
             console.log(`✅ Using saved coords for ${loc.name}:`, coords);
           } else {
             // Fallback к геокодированию если координат нет
@@ -417,7 +415,11 @@ export function LocationsPage() {
     setSelectedLocationId(loc.id);
     
     // Get coordinates - either from loc or from locations state
-    const coords = loc.coordinates || (loc.latitude && loc.longitude ? [loc.latitude, loc.longitude] : null);
+    const coords =
+      loc.coordinates ||
+      (hasValidRetailCoords(loc.latitude, loc.longitude)
+        ? [parseCoord(loc.latitude), parseCoord(loc.longitude)]
+        : null);
     
     if (!coords) {
       console.warn('⚠️ No coordinates for location', loc.name);

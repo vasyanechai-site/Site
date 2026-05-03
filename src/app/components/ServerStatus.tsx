@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 
 export function ServerStatus() {
   const [status, setStatus] = useState<'checking' | 'online' | 'offline'>('checking');
@@ -44,7 +44,7 @@ export function ServerStatus() {
           <span className="text-sm">Сервер не отвечает</span>
         </div>
         <p className="text-xs mt-1 opacity-80">
-          Проверьте Edge Function в Supabase
+          Проверьте, что API запущен и доступен по VITE_API_BASE_URL
         </p>
       </div>
     );

@@ -8,10 +8,12 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+site-dist-for-upload.zip
 .DS_Store
 __pycache__/
 *.pyc
 supabase/.temp/
+.cursor/
 node_modules/
 dist/
 .env

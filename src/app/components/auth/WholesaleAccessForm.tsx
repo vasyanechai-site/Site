@@ -6,7 +6,6 @@ import { Label } from '../ui/label';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
 export function WholesaleAccessForm() {
@@ -33,7 +32,6 @@ export function WholesaleAccessForm() {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(formData)

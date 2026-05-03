@@ -1,15 +1,9 @@
-import { projectId, publicAnonKey } from "../utils/supabase/info";
-
 /**
- * Единая база API для фронта (розница, СДЭК, оплата, админ).
- * Должна совпадать с дефолтом в RetailStorefront: иначе заказы уходят на Supabase/VPS,
- * а `/cdek/*` оказываются на другом origin (`/api` без прокси).
+ * База HTTP API (пути вида `${API_BASE_URL}/retail/orders`).
+ * В проде задайте VITE_API_BASE_URL (например https://api.example.com/api).
+ * Локально: см. .env.example + прокси Vite на `/api`.
  */
-export const API_BASE_URL = String(
-  import.meta.env.VITE_API_BASE_URL ||
-    `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`,
-).replace(/\/+$/, "");
+export const API_BASE_URL = String(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
-export const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
-  ? { Authorization: `Bearer ${publicAnonKey}` }
-  : {};
+/** Раньше: Bearer anon для Supabase. На своём API не используется. */
+export const API_AUTH_HEADER: Record<string, string> = {};

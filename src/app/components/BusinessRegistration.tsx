@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { MessageCircle, Send } from 'lucide-react';
 import { FadeIn } from './ui/fade-in';
 import { ImageWithFallback } from './figma/ImageWithFallback';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '../lib/backendConfig';
 
@@ -71,7 +70,6 @@ export function BusinessRegistration({ isOpen, onClose }: BusinessRegistrationPr
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
           },
           body: JSON.stringify({
             phone,

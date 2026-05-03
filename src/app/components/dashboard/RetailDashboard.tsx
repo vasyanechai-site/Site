@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router';
-import { supabase } from '../../lib/supabaseClient';
+import { getRetailSessionUser, clearRetailAuth, authHeaderRetail } from '../../lib/retailAuth';
 import { Button } from '../ui/button';
 import { Card, CardContent } from '../ui/card';
 import { toast } from 'sonner';
@@ -27,7 +27,6 @@ import { FadeIn } from '../ui/fade-in';
 import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { transliterate } from '../../lib/transliterate';
-import { projectId } from '../../utils/supabase/info';
 import { API_BASE_URL } from '../../lib/backendConfig';
 
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
@@ -65,39 +64,39 @@ export function RetailDashboard() {
   useEffect(() => {
     const initData = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (!user) {
+        const sessionUser = getRetailSessionUser();
+        if (!sessionUser) {
           navigate('/login');
           return;
         }
-        setUser(user);
+        setUser(sessionUser);
 
         console.log('📥 Loading dashboard');
 
-        // Get session token
-        const { data: { session } } = await supabase.auth.getSession();
-        const accessToken = session?.access_token;
+        const authH = authHeaderRetail();
 
         // Fetch data in parallel
         const [myOrders, userFavorites, allProducts, balanceRes] = await Promise.all([
-          fetchMyRetailOrders(user.id),
-          fetchFavorites(user.id),
+          fetchMyRetailOrders(sessionUser.id),
+          fetchFavorites(sessionUser.id),
           fetchRetailProducts(),
-          accessToken 
-            ? fetch(`${API_BASE_URL}/retail/loyalty/${user.id}`, {
-                headers: {
-                  'Authorization': `Bearer ${accessToken}`
-                }
-              }).then(r => r.json()).catch(() => ({ balance: 0 }))
-            : Promise.resolve({ balance: 0 })
+          Object.keys(authH).length
+            ? fetch(`${API_BASE_URL}/retail/loyalty/${sessionUser.id}`, { headers: { ...authH } })
+                .then((r) => r.json())
+                .catch(() => ({ balance: 0 }))
+            : Promise.resolve({ balance: 0 }),
         ]);
 
         console.log('🔍 User Info loaded');
-        console.log('📦 My orders:', myOrders.length, myOrders.map(o => ({
-          orderId: o.orderId,
-          email: o.email,
-          total: o.total
-        })));
+        console.log(
+          '📦 My orders:',
+          myOrders.length,
+          myOrders.map((o) => ({
+            orderId: o.orderId,
+            email: o.email,
+            total: o.total,
+          })),
+        );
 
         setOrders(myOrders);
         setFavorites(userFavorites);
@@ -135,16 +134,12 @@ export function RetailDashboard() {
         setOrders(myOrders);
         
         // Также обновляем баланс
-        const { data: { session } } = await supabase.auth.getSession();
-        const accessToken = session?.access_token;
-        
-        if (accessToken) {
+        const authH = authHeaderRetail();
+        if (Object.keys(authH).length) {
           const balanceRes = await fetch(`${API_BASE_URL}/retail/loyalty/${user.id}`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`
-            }
-          }).then(r => r.json());
-          
+            headers: { ...authH },
+          }).then((r) => r.json());
+
           if (balanceRes.balance !== undefined) {
             setBalance(balanceRes.balance);
           }
@@ -160,7 +155,7 @@ export function RetailDashboard() {
   }, [user]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    clearRetailAuth();
     navigate('/');
     toast.success('Вы вышли из системы');
   };
@@ -170,25 +165,19 @@ export function RetailDashboard() {
     
     setClaimingBonus(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const authH = authHeaderRetail();
+      if (!Object.keys(authH).length) {
         toast.error('Необходимо авторизоваться');
         return;
       }
 
       console.log('🎯 Claiming bonus');
 
-      const response = await fetch(
-        `${API_BASE_URL}/retail/loyalty/claim-bonus`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ userId: user.id })
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/retail/loyalty/claim-bonus`, {
+        method: 'POST',
+        headers: { ...authH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

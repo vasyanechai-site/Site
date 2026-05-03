@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL } from '../lib/backendConfig';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
-const API_URL = `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
+const viteApiBase = String(import.meta.env.VITE_API_BASE_URL || '').trim();
 
 interface DiagnosticResult {
   test: string;
@@ -17,54 +17,50 @@ export function ServerDiagnostics() {
   const [isRunning, setIsRunning] = useState(false);
 
   const addResult = (result: DiagnosticResult) => {
-    setResults(prev => [...prev, result]);
+    setResults((prev) => [...prev, result]);
   };
 
   const runDiagnostics = async () => {
     setIsRunning(true);
     setResults([]);
 
-    // Test 1: Check environment variables
     addResult({
-      test: 'Environment Variables',
-      status: projectId && publicAnonKey ? 'success' : 'error',
-      message: projectId && publicAnonKey 
-        ? 'projectId and publicAnonKey are present' 
-        : 'Missing environment variables',
-      details: { projectId, hasKey: !!publicAnonKey }
+      test: 'Конфигурация API (клиент)',
+      status: 'success',
+      message: viteApiBase
+        ? `VITE_API_BASE_URL задан: ${viteApiBase}`
+        : 'VITE_API_BASE_URL не задан — используется относительный путь /api (прокси Vite в dev)',
+      details: { API_BASE_URL, viteApiBase: viteApiBase || null },
     });
 
-    // Test 2: Check if server URL is reachable
     try {
-      const healthUrl = `${API_URL}/health`;
-      console.log('Testing:', healthUrl);
-      
+      const healthUrl = `${API_BASE_URL}/health`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-      
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch(healthUrl, {
         method: 'GET',
         mode: 'cors',
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (response.ok) {
         const data = await response.json();
         addResult({
           test: 'Health Check',
           status: 'success',
-          message: `Server is reachable (${response.status})`,
-          details: data
+          message: `Сервер отвечает (${response.status})`,
+          details: data,
         });
       } else {
         addResult({
           test: 'Health Check',
           status: 'error',
-          message: `Server returned error: ${response.status} ${response.statusText}`,
-          details: { status: response.status, statusText: response.statusText }
+          message: `Ошибка: ${response.status} ${response.statusText}`,
+          details: { status: response.status, statusText: response.statusText },
         });
       }
     } catch (error) {
@@ -74,89 +70,82 @@ export function ServerDiagnostics() {
         message: error instanceof Error ? error.message : 'Unknown error',
         details: {
           name: error instanceof Error ? error.name : 'Unknown',
-          message: error instanceof Error ? error.message : String(error)
-        }
+          message: error instanceof Error ? error.message : String(error),
+        },
       });
     }
 
-    // Test 3: Try to fetch orders
     try {
-      const ordersUrl = `${API_URL}/admin/orders`;
-      console.log('Testing:', ordersUrl);
-      
+      const ordersUrl = `${API_BASE_URL}/admin/orders`;
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
+
       const response = await fetch(ordersUrl, {
         method: 'GET',
         mode: 'cors',
-        headers: {
-          'Authorization': `Bearer ${publicAnonKey}`,
-          'Content-Type': 'application/json'
-        },
-        signal: controller.signal
+        headers: { Accept: 'application/json' },
+        signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (response.ok) {
         const data = await response.json();
         addResult({
-          test: 'Fetch Orders',
+          test: 'Fetch Orders (admin)',
           status: 'success',
-          message: `Successfully fetched ${Array.isArray(data) ? data.length : 0} orders`,
-          details: { count: Array.isArray(data) ? data.length : 0 }
+          message: `Получено заказов: ${Array.isArray(data) ? data.length : 0}`,
+          details: { count: Array.isArray(data) ? data.length : 0 },
         });
       } else {
         const errorText = await response.text();
         addResult({
-          test: 'Fetch Orders',
+          test: 'Fetch Orders (admin)',
           status: 'error',
-          message: `Failed: ${response.status} ${response.statusText}`,
-          details: { status: response.status, error: errorText }
+          message: `Не удалось: ${response.status} ${response.statusText}`,
+          details: { status: response.status, error: errorText },
         });
       }
     } catch (error) {
       addResult({
-        test: 'Fetch Orders',
+        test: 'Fetch Orders (admin)',
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error',
         details: {
           name: error instanceof Error ? error.name : 'Unknown',
-          message: error instanceof Error ? error.message : String(error)
-        }
+          message: error instanceof Error ? error.message : String(error),
+        },
       });
     }
 
-    // Test 4: Check CORS headers
     try {
-      const response = await fetch(`${API_URL}/health`, {
+      const response = await fetch(`${API_BASE_URL}/health`, {
         method: 'OPTIONS',
         headers: {
           'Access-Control-Request-Method': 'GET',
           'Access-Control-Request-Headers': 'authorization,content-type',
-          'Origin': window.location.origin
-        }
+          Origin: window.location.origin,
+        },
       });
 
       const corsHeaders = {
         'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
         'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
-        'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+        'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
       };
 
       addResult({
         test: 'CORS Preflight',
         status: response.status === 204 || response.status === 200 ? 'success' : 'error',
-        message: `Preflight response: ${response.status}`,
-        details: corsHeaders
+        message: `OPTIONS ответ: ${response.status}`,
+        details: corsHeaders,
       });
     } catch (error) {
       addResult({
         test: 'CORS Preflight',
         status: 'error',
         message: error instanceof Error ? error.message : 'Unknown error',
-        details: error
+        details: error,
       });
     }
 
@@ -170,26 +159,16 @@ export function ServerDiagnostics() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="p-4 bg-orange-50 border-2 border-orange-300 rounded-lg mb-4">
-          <h3 className="font-bold text-lg mb-2">⚡ Быстрое решение</h3>
+          <h3 className="font-bold text-lg mb-2">⚡ Подсказка</h3>
           <p className="text-sm mb-3">
-            Если видите ошибку "Failed to fetch" - скорее всего Edge Function не развернута.
-          </p>
-          <a 
-            href={`https://supabase.com/dashboard/project/${projectId}/functions/server`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 transition-colors text-center"
-          >
-            🚀 Развернуть Edge Function (Deploy)
-          </a>
-          <p className="text-xs text-gray-600 mt-2">
-            После нажатия Deploy подождите 30-60 секунд и обновите страницу
+            Если видите «Failed to fetch», проверьте, что Node API запущен и что{' '}
+            <code className="bg-orange-100 px-1 rounded">VITE_API_BASE_URL</code> указывает на него в проде.
           </p>
         </div>
 
         <div className="flex gap-4 items-center">
-          <Button 
-            onClick={runDiagnostics} 
+          <Button
+            onClick={runDiagnostics}
             disabled={isRunning}
             className="bg-[#E91E63] hover:bg-[#C2185B] text-white"
           >
@@ -203,18 +182,16 @@ export function ServerDiagnostics() {
         {results.length > 0 && (
           <div className="space-y-3 mt-6">
             {results.map((result, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className={`p-4 rounded-lg border-2 ${
-                  result.status === 'success' 
-                    ? 'bg-green-50 border-green-200' 
+                  result.status === 'success'
+                    ? 'bg-green-50 border-green-200'
                     : 'bg-red-50 border-red-200'
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-2xl">
-                    {result.status === 'success' ? '✅' : '❌'}
-                  </span>
+                  <span className="text-2xl">{result.status === 'success' ? '✅' : '❌'}</span>
                   <div className="flex-1">
                     <h3 className="font-bold text-lg mb-1">{result.test}</h3>
                     <p className="text-sm mb-2">{result.message}</p>
@@ -236,31 +213,28 @@ export function ServerDiagnostics() {
         )}
 
         <div className="mt-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
-          <h3 className="font-bold mb-2">📋 Информация о сервере</h3>
-          <div className="text-sm space-y-1 font-mono">
-            <div><strong>Project ID:</strong> {projectId}</div>
-            <div><strong>API URL:</strong> {API_URL}</div>
-            <div><strong>Has Anon Key:</strong> {publicAnonKey ? 'Да' : 'Нет'}</div>
-          </div>
-          <div className="mt-4">
-            <a 
-              href={`https://supabase.com/dashboard/project/${projectId}/functions/server`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-            >
-              🚀 Открыть Edge Functions в Supabase Dashboard
-            </a>
+          <h3 className="font-bold mb-2">📋 Базовый URL API</h3>
+          <div className="text-sm space-y-1 font-mono break-all">
+            <div>
+              <strong>API_BASE_URL:</strong> {API_BASE_URL}
+            </div>
           </div>
         </div>
 
         <div className="mt-4 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
           <h3 className="font-bold mb-2">💡 Что делать при ошибках:</h3>
           <ul className="text-sm space-y-2 list-disc list-inside">
-            <li><strong>Health Check failed:</strong> Edge Function не развернута или недоступна. Проверьте Supabase Dashboard → Edge Functions.</li>
-            <li><strong>CORS errors:</strong> Сервер не настроен для CORS или использует неправильную конфигурацию.</li>
-            <li><strong>403 Forbidden:</strong> Проблема с авторизацией (но админ-панель теперь открыта, так что это не должно происходить).</li>
-            <li><strong>Timeout:</strong> Сервер слишком долго отвечает. Проверьте логи в Supabase.</li>
+            <li>
+              <strong>Health Check failed:</strong> не запущен процесс API или неверный URL в{' '}
+              <code className="bg-yellow-100 px-1 rounded">VITE_API_BASE_URL</code>.
+            </li>
+            <li>
+              <strong>CORS:</strong> на API задайте <code className="bg-yellow-100 px-1 rounded">ALLOWED_ORIGINS</code>{' '}
+              с origin фронтенда.
+            </li>
+            <li>
+              <strong>Timeout:</strong> проверьте сеть и логи процесса Node (pm2 / docker).
+            </li>
           </ul>
         </div>
       </CardContent>

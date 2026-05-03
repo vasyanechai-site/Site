@@ -8,7 +8,6 @@ import { Checkbox } from './ui/checkbox';
 import { Label } from './ui/label';
 import { Loader2, X, Check, AlertCircle } from 'lucide-react';
 import { CompanyAutocomplete } from './CompanyAutocomplete';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
 import { verifyPromoCode } from '../lib/api';
 import { toast } from 'sonner';
 import { API_BASE_URL } from '../lib/backendConfig';
@@ -68,14 +67,7 @@ export function OrderDialog({ open, onOpenChange, onSubmit, userId, totalAmount 
     
     try {
       setIsLoadingSettings(true);
-      const response = await fetch(
-        `${API_BASE_URL}/user-settings/${userId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/user-settings/${userId}`);
 
       if (response.ok) {
         const data = await response.json();
@@ -116,17 +108,11 @@ export function OrderDialog({ open, onOpenChange, onSubmit, userId, totalAmount 
     
     try {
       console.log('Saving user settings');
-      const response = await fetch(
-        `${API_BASE_URL}/user-settings/${userId}`,
-        {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ settings: data })
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/user-settings/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: data }),
+      });
 
       if (response.ok) {
         const result = await response.json();

@@ -1,61 +1,40 @@
-**Add your own guidelines here**
-<!--
+# Guidelines для ассистента (проект Site / Кофе Нечай)
 
-System Guidelines
+## Автоматизация (обязательно)
 
-Use this file to provide the AI with rules and guidelines you want it to follow.
-This template outlines a few examples of things you can add. You can add your own sections and format it to suit your needs
+Делать **самому** всё, что возможно из среды агента: терминал, правки файлов, сборка, тесты, `git`, поиск по репозиторию, запуск скриптов, инициация деплоя (см. ниже и `.cursor/rules/`). Пользователь вручную — **только** то, что агент не может (личный вход в сервис, 2FA, DNS/банк в чужом ЛК, секреты не из репозитория). Не заканчивать задачу длинным «сделайте сами», если шаги можно выполнить здесь; оставшиеся ручные шаги — перечислить коротко и по делу.
 
-TIP: More context isn't always better. It can confuse the LLM. Try and add the most important rules you need
+## Источник правды
 
-# General guidelines
+- Корень репозитория: **`README.md`**, **`НАЧАЛО-БЕЗ-КОДА.md`**, **`ПРОДАКШН-100-ПРОЦЕНТОВ.md`**, **`DEPLOY_REGRU.md`**.
+- Быстрый вход для кода во `src/app/`: **`START_HERE.md`**, **`GITHUB_ACTIONS_SETUP.md`**.
 
-Any general rules you want the AI to follow.
-For example:
+## Деплой после правок (обязательно)
 
-* Only use absolute positioning when necessary. Opt for responsive and well structured layouts that use flexbox and grid by default
-* Refactor code as you go to keep code clean
-* Keep file sizes small and put helper functions and components in their own files.
+Если внесены изменения, которые **должны оказаться на проде** (типично: `server/**`, `src/**`, `public/**`, корневой `index.html`, `vite.config.ts`, `package.json` / lockfile, `ecosystem.config.cjs`, `.github/workflows/deploy-*.yml`), в **конце той же задачи** ассистент **сам** инициирует выкладку, без отдельного запроса пользователя:
 
---------------
+1. **Есть локальные коммиты** с такими изменениями — выполнить **`git push origin main`** (если у среды есть доступ), чтобы сработали триггеры по `paths` в Actions.
+2. **Дополнительно или нужен ручной прогон** — выполнить **`gh workflow run`** (нужен установленный GitHub CLI и авторизация `gh auth login`):
+   - только бэкенд / общие зависимости:  
+     `gh workflow run "Deploy to Reg VPS" --ref main`
+   - только фронт (или после правок во `src/`, `public/`, Vite):  
+     `gh workflow run "Deploy Frontend to Reg.ru FTP" --ref main`
+   - затронуты и то и другое — оба workflow подряд.
 
-# Design system guidelines
-Rules for how the AI should make generations look like your company's design system
+Если `gh` недоступен или нет сети/прав — явно написать пользователю, что нужно запушить или запустить workflow вручную в GitHub → Actions.
 
-Additionally, if you select a design system to use in the prompt box, you can reference
-your design system's components, tokens, variables and components.
-For example:
+**Не** триггерить деплой, если правки только в документации без влияния на рантайм (например, только `*.md` вне CI-логики) — если пользователь явно не просил пересобрать фронт.
 
-* Use a base font-size of 14px
-* Date formats should always be in the format “Jun 10”
-* The bottom toolbar should only ever have a maximum of 4 items
-* Never use the floating action button with the bottom toolbar
-* Chips should always come in sets of 3 or more
-* Don't use a dropdown if there are 2 or fewer options
+## Деплой фронта
 
-You can also create sub sections and add more specific details
-For example:
+- В прод выкладывается только **`dist/`** после **`npm run build`**. В живом `index.html` должны быть скрипты **`/assets/*.js`**, не **`/src/main.tsx`**.
+- GitHub: **`deploy-reg-ftp.yml`** собирает и заливает `dist/`. Бэкенд отдельно: **`deploy-reg-vps.yml`**.
 
+## Код
 
-## Button
-The Button component is a fundamental interactive element in our design system, designed to trigger actions or navigate
-users through the application. It provides visual feedback and clear affordances to enhance user experience.
+- Соответствовать стилю существующих файлов; не раздувать дифф без запроса.
+- API и секреты — в **`server/`** и `.env` на VPS; не подставлять реальные ключи в ответы.
 
-### Usage
-Buttons should be used for important actions that users need to take, such as form submissions, confirming choices,
-or initiating processes. They communicate interactivity and should have clear, action-oriented labels.
+## UI
 
-### Variants
-* Primary Button
-  * Purpose : Used for the main action in a section or page
-  * Visual Style : Bold, filled with the primary brand color
-  * Usage : One primary button per section to guide users toward the most important action
-* Secondary Button
-  * Purpose : Used for alternative or supporting actions
-  * Visual Style : Outlined with the primary color, transparent background
-  * Usage : Can appear alongside a primary button for less important actions
-* Tertiary Button
-  * Purpose : Used for the least important actions
-  * Visual Style : Text-only with no border, using primary color
-  * Usage : For actions that should be available but not emphasized
--->
+- Адаптивная вёрстка (flex/grid), осмысленные отступы и типографика в духе текущих экранов.
