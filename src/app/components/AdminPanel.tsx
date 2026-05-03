@@ -8,6 +8,7 @@ import { AdminPromoCodes } from './AdminPromoCodes';
 import { UserManagement } from './UserManagement';
 import { OrdersManagement } from './OrdersManagement';
 import { PriceManagement } from './PriceManagement';
+import { DataExport } from './DataExport';
 import { TickerManagement } from './TickerManagement';
 import { RetailProductsManagement } from './RetailProductsManagement';
 import { RetailOrdersManagement } from './RetailOrdersManagement';
@@ -113,6 +114,7 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
                   <TabsTrigger value="users">Пользователи</TabsTrigger>
                   <TabsTrigger value="promo">Промокоды</TabsTrigger>
                   <TabsTrigger value="ticker">Бегущая строка</TabsTrigger>
+                  <TabsTrigger value="export">Экспорт</TabsTrigger>
                 </TabsList>
               </div>
             </FadeIn>
@@ -147,6 +149,10 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
 
               <TabsContent value="ticker">
                 <TickerManagement />
+              </TabsContent>
+
+              <TabsContent value="export">
+                <DataExport />
               </TabsContent>
             </div>
           </Tabs>

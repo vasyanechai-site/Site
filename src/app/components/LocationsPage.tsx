@@ -69,6 +69,8 @@ export function LocationsPage() {
   const [pendingLocations, setPendingLocations] = useState<Location[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
+  /** Без этого метки не перерисуются, если locations пришли раньше, чем ymaps.Map успел создаться (ref не триггерит эффект). */
+  const [mapInitialized, setMapInitialized] = useState(false);
   const mapRef = useRef<any>(null);
   const mapInstanceRef = useRef<any>(null);
   const clustererRef = useRef<any>(null);
@@ -255,7 +257,9 @@ export function LocationsPage() {
   useEffect(() => {
     if (!mapLoaded || !mapRef.current || mapInstanceRef.current) return;
 
+    let cancelled = false;
     const initMap = () => {
+      if (cancelled || !mapRef.current) return;
       const spbCenter = [59.9386, 30.3141];
       const map = new window.ymaps.Map(mapRef.current, {
         center: spbCenter,
@@ -263,16 +267,42 @@ export function LocationsPage() {
         controls: ['zoomControl', 'fullscreenControl']
       });
       mapInstanceRef.current = map;
-      console.log('🗺️ Map initialized');
+      if (!cancelled) {
+        setMapInitialized(true);
+        console.log('🗺️ Map initialized');
+      }
     };
 
     window.ymaps.ready(initMap);
+
+    return () => {
+      cancelled = true;
+      if (clustererRef.current && mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.geoObjects.remove(clustererRef.current);
+        } catch {
+          /* ignore */
+        }
+        clustererRef.current = null;
+      }
+      placemarksRef.current.clear();
+      if (mapInstanceRef.current) {
+        try {
+          mapInstanceRef.current.destroy();
+        } catch {
+          /* ignore */
+        }
+        mapInstanceRef.current = null;
+      }
+      setMapInitialized(false);
+    };
   }, [mapLoaded]);
 
   // Add markers when locations change
   useEffect(() => {
-    if (!mapInstanceRef.current || !window.ymaps || locations.length === 0) {
+    if (!mapInitialized || !mapInstanceRef.current || !window.ymaps || locations.length === 0) {
       console.log('⏸️ Waiting to add markers...', {
+        mapInitialized,
         hasMap: !!mapInstanceRef.current,
         hasYmaps: !!window.ymaps,
         locationsCount: locations.length
@@ -401,15 +431,19 @@ export function LocationsPage() {
       
       // Fit bounds to show all markers
       if (clusterer.getGeoObjects().length > 0) {
-        map.setBounds(clusterer.getBounds(), {
-          checkZoomRange: true,
-          zoomMargin: 50
-        });
+        try {
+          const b = clusterer.getBounds();
+          if (b) {
+            map.setBounds(b, { checkZoomRange: true, zoomMargin: 50 });
+          }
+        } catch (e) {
+          console.warn('setBounds skipped:', e);
+        }
       }
     };
 
     addMarkers();
-  }, [locations]);
+  }, [locations, mapInitialized]);
 
   const handleLocationClick = (loc: Location) => {
     setSelectedLocationId(loc.id);
