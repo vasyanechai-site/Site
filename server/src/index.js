@@ -70,6 +70,8 @@ import {
   formatBusinessRegistration,
   formatLocationRequest,
   formatPaymentReceived,
+  formatNewRetailUserCreated,
+  formatNewWholesaleUserCreated,
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
 import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
@@ -309,6 +311,9 @@ app.post("/api/users", async (req, res) => {
     ...body,
   };
   await setUsers([user, ...users]);
+  void telegramNotify("wholesale_user_created", formatNewWholesaleUserCreated(user)).catch((e) =>
+    console.error("[users POST] telegram", e),
+  );
   res.status(201).json(sanitizeUser(user));
 });
 
@@ -326,6 +331,10 @@ app.post("/api/retail-signup", async (req, res) => {
     ...body,
   };
   await setRetailUsers([user, ...users]);
+  const loyalty = await getRetailLoyalty(user.id);
+  void telegramNotify("retail_signup", formatNewRetailUserCreated(user, loyalty)).catch((e) =>
+    console.error("[retail-signup] telegram", e),
+  );
   res.status(201).json({ success: true, user: sanitizeUser(user) });
 });
 
@@ -1203,6 +1212,10 @@ app.post("/api/retail-users", async (req, res) => {
     createdAt,
   };
   await setRetailUsers([user, ...users.filter((x) => x.id !== user.id)]);
+  const loyalty = await getRetailLoyalty(user.id);
+  void telegramNotify("retail_user_admin", formatNewRetailUserCreated(user, loyalty)).catch((e) =>
+    console.error("[retail-users POST] telegram", e),
+  );
   const safe = sanitizeUser(user);
   res.status(201).json({
     user: { ...safe, created_at: user.createdAt || user.created_at || createdAt },

@@ -254,6 +254,75 @@ export function formatLocationRequest(item) {
 `.trim();
 }
 
+/**
+ * Новый аккаунт розницы: логин = email, пароль в теге code — в Telegram по нажатию копируется.
+ * @param {Record<string, any>} user — с полями email, password?, role, bonusPoints?, createdAt
+ * @param {Record<string, any>} loyalty — из getRetailLoyalty: balance и т.д.
+ */
+export function formatNewRetailUserCreated(user, loyalty) {
+  const email = String(user.email || "").trim() || "—";
+  const pwd = user.password != null && String(user.password) !== "" ? String(user.password) : null;
+  const createdRaw = user.createdAt || user.created_at || new Date().toISOString();
+  const created = escapeHtml(new Date(createdRaw).toLocaleString("ru-RU"));
+  const role = String(user.role || "user").trim();
+  const bonus = Number(user.bonusPoints || 0);
+  const balance = loyalty ? Number(loyalty.balance || 0) : 0;
+  const loyaltyBits = [];
+  if (Number.isFinite(bonus) && bonus !== 0) loyaltyBits.push(`бонус при регистрации: <b>${bonus}</b> баллов`);
+  if (Number.isFinite(balance) && balance !== 0) loyaltyBits.push(`баланс лояльности: <b>${balance}</b>`);
+  const loyaltyLine =
+    loyaltyBits.length > 0 ? `\n🎁 <b>Лояльность:</b> ${loyaltyBits.join("; ")}` : "";
+
+  const pwdBlock = pwd
+    ? `\n🔑 <b>Пароль</b> (нажмите, чтобы скопировать):\n<code>${escapeHtml(pwd)}</code>`
+    : `\n🔑 <b>Пароль:</b> не задан в запросе — задайте вручную или через восстановление.`;
+
+  return `
+🛒 <b>Новый пользователь розницы — Кофе Нечай</b>
+
+📧 <b>Логин (email)</b> — нажмите, чтобы скопировать:
+<code>${escapeHtml(email)}</code>${pwdBlock}
+
+👤 <b>Роль:</b> ${escapeHtml(role)}
+📅 <b>Создан:</b> ${created}${loyaltyLine}
+`.trim();
+}
+
+/**
+ * Новый пользователь опта: вход по телефону + пароль в теге code.
+ * @param {Record<string, any>} user
+ */
+export function formatNewWholesaleUserCreated(user) {
+  const phone = String(user.phone || "").trim() || "—";
+  const pwd = user.password != null && String(user.password) !== "" ? String(user.password) : null;
+  const createdRaw = user.created_at || user.createdAt || new Date().toISOString();
+  const created = escapeHtml(new Date(createdRaw).toLocaleString("ru-RU"));
+  const company = String(user.company_name || "").trim();
+  const name = String(user.name || "").trim();
+  const level = Number(user.loyaltyLevel ?? 0);
+  const discount = Number(user.discount ?? 0);
+  const hasLoyalty = (Number.isFinite(level) && level > 0) || (Number.isFinite(discount) && discount > 0);
+  const loyaltyLine = hasLoyalty
+    ? `\n🎁 <b>Лояльность:</b> уровень <b>${level}</b>, персональная скидка <b>${discount}</b>%`
+    : "";
+
+  const pwdBlock = pwd
+    ? `\n🔑 <b>Пароль</b> (нажмите, чтобы скопировать):\n<code>${escapeHtml(pwd)}</code>`
+    : `\n🔑 <b>Пароль:</b> не задан в запросе.`;
+
+  return `
+📦 <b>Новый пользователь опта — Кофе Нечай</b>
+
+📱 <b>Логин (телефон)</b> — нажмите, чтобы скопировать:
+<code>${escapeHtml(phone)}</code>${pwdBlock}
+${company ? `\n🏢 <b>Компания:</b> ${escapeHtml(company)}` : ""}
+${name ? `\n👤 <b>Имя:</b> ${escapeHtml(name)}` : ""}
+${user.email ? `\n📧 <b>Email:</b> <code>${escapeHtml(String(user.email).trim())}</code>` : ""}
+👤 <b>Роль:</b> ${escapeHtml(String(user.role || "wholesale"))}
+📅 <b>Создан:</b> ${created}${loyaltyLine}
+`.trim();
+}
+
 export function formatPaymentReceived(order) {
   return `
 🎉 <b>Оплата получена — Кофе Нечай</b>
