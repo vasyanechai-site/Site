@@ -11,6 +11,7 @@ import {
 import { ipv4HttpsRequest } from "./ipv4Https.js";
 import { getCdekToken, getCdekApiBase } from "./cdek.js";
 import { createCdekOrder } from "./cdekOrderCreate.js";
+import { createRetailOrderFromCheckout } from "./retailOrderCreate.js";
 
 function chatIdHint(chatId) {
   const s = String(chatId || "").trim();
@@ -282,5 +283,22 @@ export function registerDebugRoutes(app) {
       ...r,
       note: "Проверьте заказ в https://lk.cdek.ru/ (через 1–2 минуты). Не забудьте отменить тестовый, если политика СДЭК требует.",
     });
+  });
+
+  /**
+   * Как POST /api/retail/orders с полным чекаутом, но без Telegram (только /debug).
+   * Тело — как у витрины: customerName, customerPhone, customerEmail?, items[].product, deliveryInfo (pvzCode, city, cost, …).
+   */
+  app.post("/api/debug/retail/tochka-checkout", async (req, res) => {
+    try {
+      const saved = await createRetailOrderFromCheckout(req.body || {});
+      res.json({
+        ...saved,
+        note: "Заказ сохранён в БД; при наличии ссылок откройте оплату Точка. Уведомление в Telegram не отправлялось.",
+      });
+    } catch (e) {
+      const code = e?.statusCode === 400 ? 400 : 500;
+      res.status(code).json({ error: e?.message || String(e) });
+    }
   });
 }

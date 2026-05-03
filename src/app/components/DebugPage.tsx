@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { API_BASE_URL } from "../lib/backendConfig";
 import { CdekDebugPanel } from "./debug/CdekDebugPanel";
+import { TochkaRetailDebugPanel } from "./debug/TochkaRetailDebugPanel";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Loader2, ArrowLeft, Send, ClipboardList } from "lucide-react";
@@ -35,7 +36,7 @@ function formatJson(obj: unknown) {
 }
 
 export function DebugPage() {
-  const [section, setSection] = useState<"telegram" | "cdek">("telegram");
+  const [section, setSection] = useState<"telegram" | "cdek" | "tochka_retail">("telegram");
   const [logs, setLogs] = useState<string[]>([]);
   const [status, setStatus] = useState<TelegramStatus | null>(null);
   const [statusLoading, setStatusLoading] = useState(false);
@@ -148,8 +149,13 @@ export function DebugPage() {
           >
             СДЭК
           </Button>
-          <Button type="button" variant="ghost" size="sm" disabled className="text-muted-foreground">
-            Точка — скоро
+          <Button
+            type="button"
+            variant={section === "tochka_retail" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setSection("tochka_retail")}
+          >
+            Точка розница
           </Button>
         </div>
 
@@ -259,6 +265,8 @@ export function DebugPage() {
         )}
 
         {section === "cdek" && <CdekDebugPanel appendLog={appendLog} />}
+
+        {section === "tochka_retail" && <TochkaRetailDebugPanel appendLog={appendLog} />}
 
         <Card className="p-4">
           <div className="flex items-center justify-between mb-2">
