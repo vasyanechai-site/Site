@@ -4,6 +4,7 @@ import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "npm:@supabase/supabase-js";
 import * as kv from "./kv_store.tsx";
+import * as cdekLive from "./cdek_live.ts";
 
 const app = new Hono();
 const prefix = "/make-server-aa167a09";
@@ -1241,10 +1242,40 @@ app.post(`${prefix}/dadata/findById/party`, (c) => dadataProxy(c, "findById/part
 app.post(`${prefix}/dadata/suggest/address`, (c) => dadataProxy(c, "suggest/address"));
 app.post(`${prefix}/dadata/suggest/bank`, (c) => dadataProxy(c, "suggest/bank"));
 
-// ─── CDEK (stubs) ───────────────────────────────────────────────────────────
-app.get(`${prefix}/cdek/cities`, (c) => c.json({ cities: [] }));
-app.post(`${prefix}/cdek/calc`, (c) => c.json({ delivery_sum: 0, period_min: 1, period_max: 5 }));
-app.post(`${prefix}/cdek/pvz`, (c) => c.json({ pvz: [] }));
+// ─── CDEK (live, нужны CDEK_ACCOUNT / CDEK_SECRET в секретах функции) ─────
+app.get(`${prefix}/cdek/cities`, async (c) => {
+  try {
+    const q = c.req.query("q") || "";
+    const data = await cdekLive.searchCities(q);
+    return c.json(data);
+  } catch (err) {
+    logErr("cdek/cities", err);
+    return c.json({ error: err instanceof Error ? err.message : "CDEK cities failed", cities: [] }, 500);
+  }
+});
+app.post(`${prefix}/cdek/pvz`, async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = await cdekLive.getPickupPoints(body || {});
+    return c.json(data);
+  } catch (err) {
+    logErr("cdek/pvz", err);
+    return c.json(
+      { error: err instanceof Error ? err.message : "CDEK pvz failed", pickup_points: [] },
+      400,
+    );
+  }
+});
+app.post(`${prefix}/cdek/calc`, async (c) => {
+  try {
+    const body = await c.req.json();
+    const data = await cdekLive.calculateDelivery(body || {});
+    return c.json(data);
+  } catch (err) {
+    logErr("cdek/calc", err);
+    return c.json({ error: err instanceof Error ? err.message : "CDEK calc failed" }, 400);
+  }
+});
 
 // ─── TOCHKA ─────────────────────────────────────────────────────────────────
 app.post(`${prefix}/tochka/create-invoice`, async (c) => {

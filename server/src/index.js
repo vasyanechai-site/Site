@@ -7,6 +7,7 @@ import dotenv from "dotenv";
 import express from "express";
 import multer from "multer";
 import { calculateDelivery, getPickupPoints, searchCities } from "./cdek.js";
+import { createRetailOrderFromCheckout } from "./retailOrderCreate.js";
 import { createWholesaleTochkaBill } from "./tochkaWholesaleInvoice.js";
 import {
   addOrder,
@@ -418,17 +419,35 @@ app.put("/api/exchange-rate", async (req, res) => {
 });
 
 app.post("/api/retail/orders", async (req, res) => {
-  const body = req.body || {};
-  const order = {
-    orderId: body.orderId || `RETAIL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    date: body.date || new Date().toISOString(),
-    orderType: "retail",
-    paymentStatus: body.paymentStatus || "pending",
-    ...body,
-  };
-  const saved = await addRetailOrder(order);
-  await telegramNotify("retail_order", formatRetailOrderMessage(saved));
-  res.json(saved);
+  try {
+    const body = req.body || {};
+    /** Оформление с сайта: items[].product + customerName */
+    const isCheckoutPayload =
+      Boolean(body.customerName) &&
+      Array.isArray(body.items) &&
+      body.items.length > 0 &&
+      body.items[0]?.product;
+
+    let saved;
+    if (isCheckoutPayload) {
+      saved = await createRetailOrderFromCheckout(body);
+    } else {
+      const order = {
+        orderId: body.orderId || `RETAIL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        date: body.date || new Date().toISOString(),
+        orderType: "retail",
+        paymentStatus: body.paymentStatus || "pending",
+        ...body,
+      };
+      saved = await addRetailOrder(order);
+    }
+    await telegramNotify("retail_order", formatRetailOrderMessage(saved));
+    res.json(saved);
+  } catch (e) {
+    const code = e?.statusCode === 400 ? 400 : 500;
+    console.error("[retail/orders POST]", e?.message || e);
+    res.status(code).json({ error: e?.message || "Failed to create retail order" });
+  }
 });
 
 app.get("/api/retail/loyalty/:userId", async (req, res) => {

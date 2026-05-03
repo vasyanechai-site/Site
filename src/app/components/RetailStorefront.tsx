@@ -18,16 +18,11 @@ import { toast } from 'sonner';
 import { transliterate } from '../lib/transliterate';
 import { Footer } from './Footer';
 import { supabase } from '../lib/supabaseClient';
-import { projectId, publicAnonKey } from '../utils/supabase/info';
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import svgPaths from '../imports/svg-39dxhf3pmz';
 import recommendedStickerSrc from 'figma:asset/a2fc853b075f8b77543327aa0e2eedb50e131ffe.png';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `https://${projectId}.supabase.co/functions/v1/make-server-aa167a09`;
-const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
-  ? { Authorization: `Bearer ${publicAnonKey}` }
-  : {};
 
 // ── QuickAddButton ─────────────────────────────────────────────────────────────
 interface QuickAddButtonProps {
@@ -710,8 +705,6 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
 
   const handleSubmitOrder = async (customerName: string, customerPhone: string, customerEmail: string, deliveryInfo: any, usedPoints?: number) => {
     try {
-      const { projectId, publicAnonKey } = await import('../utils/supabase/info');
-      
       addLog('info', '🔍 Начало оформления заказа', {
         customerName,
         customerPhone,
@@ -770,7 +763,8 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
       const orderId = result.orderId;
 
       // Проверяем, есть ли платежная ссылка Точка Банк в ответе
-      if (result.tochkaPaymentUrl) {
+      const tochkaUrl = result.tochkaPaymentUrl || result.tochka_payment_url;
+      if (tochkaUrl) {
         addLog('success', '✅ Платежная ссылка Точка Банк получена. Переход...');
         
         // Очищаем корзину перед переходом
@@ -781,8 +775,8 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
         // Вуши списываются только после успешной оплаты через webhook на сервере
         
         // Переходим на страницу оплаты Точка Банк
-        console.log('🔗 Redirecting to Tochka payment:', result.tochkaPaymentUrl);
-        window.location.href = result.tochkaPaymentUrl;
+        console.log('🔗 Redirecting to Tochka payment:', tochkaUrl);
+        window.location.href = tochkaUrl;
         return;
       }
 

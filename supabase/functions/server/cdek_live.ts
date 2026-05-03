@@ -1,21 +1,17 @@
+/** СДЭК из Edge Functions (тот же контракт, что у Node server/src/cdek.js). */
 const CDEK_API_URL = "https://api.cdek.ru/v2";
 const SENDER_CITY_CODE = 137;
 const FALLBACK_TARIFFS = [136, 483, 234, 138, 139];
 
-let cachedToken = null;
+let cachedToken: string | null = null;
 let tokenExpiry = 0;
 
-export async function getCdekToken() {
-  if (cachedToken && Date.now() < tokenExpiry) {
-    return cachedToken;
-  }
+async function getCdekToken(): Promise<string> {
+  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
 
-  const account = process.env.CDEK_ACCOUNT;
-  const secret = process.env.CDEK_SECRET;
-
-  if (!account || !secret) {
-    throw new Error("CDEK_ACCOUNT or CDEK_SECRET is missing");
-  }
+  const account = Deno.env.get("CDEK_ACCOUNT");
+  const secret = Deno.env.get("CDEK_SECRET");
+  if (!account || !secret) throw new Error("CDEK_ACCOUNT or CDEK_SECRET is missing");
 
   const params = new URLSearchParams({
     grant_type: "client_credentials",
@@ -27,18 +23,14 @@ export async function getCdekToken() {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
   });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get CDEK token: ${response.status}`);
-  }
-
+  if (!response.ok) throw new Error(`Failed to get CDEK token: ${response.status}`);
   const data = await response.json();
   cachedToken = data.access_token;
   tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
-  return cachedToken;
+  return cachedToken!;
 }
 
-async function cdekRequest(endpoint, init = {}) {
+async function cdekRequest(endpoint: string, init: RequestInit = {}): Promise<any> {
   const token = await getCdekToken();
   const response = await fetch(`${CDEK_API_URL}${endpoint}`, {
     ...init,
@@ -48,23 +40,18 @@ async function cdekRequest(endpoint, init = {}) {
       ...(init.headers || {}),
     },
   });
-
   if (!response.ok) {
     const errorText = await response.text();
     throw new Error(`CDEK ${endpoint} failed: ${response.status} ${errorText}`);
   }
-
   return response.json();
 }
 
-export async function searchCities(query) {
+export async function searchCities(query: string): Promise<{ cities: any[] }> {
   const q = (query || "").trim();
-  if (q.length < 2) {
-    return { cities: [] };
-  }
+  if (q.length < 2) return { cities: [] };
 
-  // Как в legacy Supabase: city_like + фильтр по подстроке (подсказки при вводе).
-  let raw;
+  let raw: any[];
   try {
     raw = await cdekRequest(
       `/location/cities?city_like=${encodeURIComponent(q)}&country_codes=RU&size=500`,
@@ -77,14 +64,14 @@ export async function searchCities(query) {
 
   const list = Array.isArray(raw) ? raw : [];
   const lower = q.toLowerCase();
-  const filtered = list.filter((i) => {
+  const filtered = list.filter((i: any) => {
     const city = String(i.city || "").toLowerCase();
     const region = String(i.region || "").toLowerCase();
     return city.includes(lower) || region.includes(lower);
   });
 
   return {
-    cities: filtered.slice(0, 20).map((city) => ({
+    cities: filtered.slice(0, 20).map((city: any) => ({
       code: city.code,
       city: city.city,
       region: city.region,
@@ -98,15 +85,17 @@ export async function searchCities(query) {
   };
 }
 
-export async function getPickupPoints({ city_to, city_code }) {
-  if (!city_to && !city_code) {
-    throw new Error("city_to or city_code is required");
-  }
+export async function getPickupPoints(body: {
+  city_to?: string;
+  city_code?: number;
+}): Promise<{ city_code: number | null; pickup_points: any[] }> {
+  const { city_to, city_code } = body || {};
+  if (!city_to && !city_code) throw new Error("city_to or city_code is required");
 
   let cityCode = city_code;
   if (!cityCode) {
     const cities = await cdekRequest(
-      `/location/cities?city=${encodeURIComponent(city_to)}&country_codes=RU&size=1`,
+      `/location/cities?city=${encodeURIComponent(String(city_to))}&country_codes=RU&size=1`,
     );
     if (!cities?.length) return { city_code: null, pickup_points: [] };
     cityCode = cities[0].code;
@@ -114,10 +103,10 @@ export async function getPickupPoints({ city_to, city_code }) {
 
   const pvz = await cdekRequest(`/deliverypoints?city_code=${cityCode}&type=PVZ`);
   const rows = Array.isArray(pvz) ? pvz : [];
-  const onlyPvz = rows.filter((p) => p.type === "PVZ" || !p.type);
+  const onlyPvz = rows.filter((p: any) => p.type === "PVZ" || !p.type);
   return {
-    city_code: cityCode,
-    pickup_points: onlyPvz.map((point) => ({
+    city_code: cityCode as number,
+    pickup_points: onlyPvz.map((point: any) => ({
       code: point.code,
       name: point.name,
       address: point.location?.address_full || point.location?.address || "Адрес не указан",
@@ -131,7 +120,14 @@ export async function getPickupPoints({ city_to, city_code }) {
   };
 }
 
-export async function calculateDelivery({ city_to, city_code, pvz_code, order_price, packages }) {
+export async function calculateDelivery(body: {
+  city_to?: string;
+  city_code?: number;
+  pvz_code?: string;
+  order_price?: number;
+  packages?: any[];
+}): Promise<Record<string, any>> {
+  const { city_to, city_code, pvz_code, order_price, packages } = body || {};
   if (!pvz_code || order_price === undefined) {
     throw new Error("pvz_code and order_price are required");
   }
@@ -144,14 +140,14 @@ export async function calculateDelivery({ city_to, city_code, pvz_code, order_pr
   let receiverCityCode = city_code;
   if (!receiverCityCode) {
     const cities = await cdekRequest(
-      `/location/cities?city=${encodeURIComponent(city_to)}&country_codes=RU&size=1`,
+      `/location/cities?city=${encodeURIComponent(String(city_to))}&country_codes=RU&size=1`,
     );
     if (!cities?.length) throw new Error("Receiver city code not found");
     receiverCityCode = cities[0].code;
   }
 
   const dims = (packages || []).reduce(
-    (acc, pkg) => {
+    (acc: any, pkg: any) => {
       const qty = Number(pkg.quantity) || 1;
       const weight = Math.max(Number(pkg.weight) || 200, 100);
       const length = Math.max(Number(pkg.length) || 10, 5);
@@ -180,7 +176,7 @@ export async function calculateDelivery({ city_to, city_code, pvz_code, order_pr
         height: Math.round(sorted[2]),
       },
     ],
-    services: [],
+    services: [] as any[],
   };
 
   const tariffs = SENDER_CITY_CODE === receiverCityCode ? [483, 234, 138, 139] : FALLBACK_TARIFFS;

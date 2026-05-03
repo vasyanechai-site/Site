@@ -3,9 +3,8 @@ import { MapPin, Package, Clock, Phone, Search, X, ChevronRight, Loader2, Pencil
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog';
-import { publicAnonKey } from '../utils/supabase/info';
 import type { RetailProduct } from '../lib/api';
-import { API_BASE_URL } from '../lib/backendConfig';
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 import { toast } from 'sonner';
 import { cn } from './ui/utils';
 
@@ -56,10 +55,6 @@ declare global {
     ymaps: any;
   }
 }
-
-const API_AUTH_HEADER = API_BASE_URL.includes("supabase.co")
-  ? { Authorization: `Bearer ${publicAnonKey}` }
-  : {};
 
 const YANDEX_MAPS_KEY =
   import.meta.env.VITE_YANDEX_MAPS_API_KEY || "d273f32f-f343-413c-b1d4-9fc8c0879682";
@@ -183,13 +178,26 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           }
         );
 
-        if (!response.ok) return;
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '');
+          let msg = `Подсказки городов недоступны (${response.status})`;
+          try {
+            const j = JSON.parse(errText);
+            if (j.error) msg = String(j.error);
+          } catch { /* ignore */ }
+          console.error('CDEK cities:', response.status, errText.slice(0, 200));
+          toast.error(msg);
+          setCitySuggestions([]);
+          setShowSuggestions(false);
+          return;
+        }
 
         const data = await response.json();
         setCitySuggestions(data.cities || []);
         setShowSuggestions((data.cities || []).length > 0);
       } catch (error) {
         console.error('Error fetching city suggestions:', error);
+        toast.error('Не удалось загрузить города. Проверьте соединение.');
       }
     }, 300);
 
