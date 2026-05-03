@@ -1007,7 +1007,7 @@ export const initRetailTestData = async (): Promise<{ success: boolean; count: n
   }
 };
 
-export const DEFAULT_CATEGORY_ORDER = ['Фильтр', 'Эспрессо', 'Д��ип', 'Оборудование', 'Аксессуары'];
+export const DEFAULT_CATEGORY_ORDER = ['Фильтр', 'Эспрессо', 'Дрип', 'Оборудование', 'Аксессуары'];
 
 export const fetchCategoryOrder = async (): Promise<string[]> => {
   try {

@@ -338,6 +338,10 @@ export function RetailProductsManagement() {
       toast.error('Заполните обязательные поля (Название, Описание, Фото)');
       return;
     }
+    if (!formData.category.trim()) {
+      toast.error('Выберите категорию — иначе товар попадёт в «Прочее» и его легко не заметить в списке');
+      return;
+    }
 
     // Validation based on type
     let price = 0;
@@ -370,6 +374,7 @@ export function RetailProductsManagement() {
     }
 
     try {
+      const maxDisplayOrder = products.reduce((m, p) => Math.max(m, Number(p.displayOrder) || 0), 0);
       const productData = {
         name: formData.name,
         description: formData.description,
@@ -393,7 +398,13 @@ export function RetailProductsManagement() {
         price1000: formData.type === 'bean' && formData.price1000 ? parseFloat(formData.price1000) : undefined,
         pricePack: formData.type === 'drip' && formData.pricePack ? parseFloat(formData.pricePack) : undefined,
         farmPhotos: farmPhotos, // всегда передаём массив (пустой [] явно сбросит фото на сервере)
-        recommended: formData.recommended
+        recommended: formData.recommended,
+        ...(editingId
+          ? {}
+          : {
+              displayOrder: maxDisplayOrder + 1,
+              published: true,
+            }),
       };
 
       if (editingId) {
@@ -643,7 +654,14 @@ export function RetailProductsManagement() {
     return acc;
   }, {} as Record<string, RetailProduct[]>);
 
-  const orderedCategories = categoryOrder.filter(cat => groupedProducts[cat]);
+  /** Категории из сохранённого порядка, у которых есть товары; затем остальные (напр. «Прочее» без выбора категории). */
+  const categoriesWithProducts = Object.keys(groupedProducts).filter(
+    (cat) => (groupedProducts[cat] || []).length > 0,
+  );
+  const orderedCategories = [
+    ...categoryOrder.filter((cat) => categoriesWithProducts.includes(cat)),
+    ...categoriesWithProducts.filter((cat) => !categoryOrder.includes(cat)).sort((a, b) => a.localeCompare(b, 'ru')),
+  ];
 
   return (
     <DndProvider backend={HTML5Backend}>
