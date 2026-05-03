@@ -1,37 +1,59 @@
 import { addRetailOrder, updateRetailOrderById, getRetailLoyalty, setRetailLoyalty } from "./store.js";
 import { createCdekOrder } from "./cdekOrderCreate.js";
+import {
+  buildPaymentsWithReceiptData,
+  fetchPaymentsWithReceipt,
+  extractPaymentLink,
+  extractOperationId,
+  tochkaClientPhone,
+} from "./tochkaAcquiringReceipt.js";
 
+/**
+ * Платёжная ссылка + чек: полное тело payments_with_receipt (Client, Items, Supplier, taxSystemCode).
+ * @returns {{ paymentLink?: string, invoiceId?: string, tochkaStatusRaw?: unknown, error?: string }}
+ */
 async function createTochkaAcquiringPayment(order) {
-  const jwtToken = process.env.TOCHKA_JWT_TOKEN;
-  const customerCode = process.env.TOCHKA_CUSTOMER_CODE;
-  const merchantId = process.env.TOCHKA_MERCHANT_ID;
-  const terminalId = process.env.TOCHKA_TERMINAL_ID;
-  if (!jwtToken || !customerCode) return null;
-
-  const response = await fetch("https://enter.tochka.com/uapi/acquiring/v1.0/payments_with_receipt", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${jwtToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      Data: {
-        customerCode,
-        merchantId,
-        terminalId,
-        amount: String(Number(order.total) || 0),
-        purpose: `Оплата заказа ${order.orderId}`,
-      },
-    }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    console.error("[retail] Tochka acquiring error", response.status, JSON.stringify(data).slice(0, 500));
-    return null;
+  const jwtToken = (process.env.TOCHKA_JWT_TOKEN || "").trim();
+  const customerCode = (process.env.TOCHKA_CUSTOMER_CODE || "").trim();
+  const merchantId = (process.env.TOCHKA_MERCHANT_ID || "").trim();
+  const terminalId = (process.env.TOCHKA_TERMINAL_ID || "").trim();
+  if (!jwtToken || !customerCode) {
+    return { error: "Нет TOCHKA_JWT_TOKEN или TOCHKA_CUSTOMER_CODE в .env на API." };
   }
-  const paymentLink = data?.Data?.paymentLink;
-  const invoiceId = data?.Data?.operationId || data?.Data?.paymentLink;
+  if (!merchantId || !terminalId) {
+    return {
+      error:
+        "Для эквайринга нужны TOCHKA_MERCHANT_ID и TOCHKA_TERMINAL_ID (идентификаторы терминала в личном кабинете Точки). Без terminalId ссылка на оплату не создаётся.",
+    };
+  }
+
+  const phone = tochkaClientPhone(order.phone);
+  if (!phone) {
+    return {
+      error:
+        "Для чека Точки нужен корректный телефон покупателя (10–11 цифр, РФ). Проверьте поле телефона в заказе.",
+    };
+  }
+
+  const dataPayload = buildPaymentsWithReceiptData(order, {});
+
+  const { response, data } = await fetchPaymentsWithReceipt(dataPayload);
+  if (!response.ok) {
+    const snippet = JSON.stringify(data).slice(0, 800);
+    console.error("[retail] Tochka acquiring error", response.status, snippet);
+    return {
+      error: `Точка HTTP ${response.status}: ${snippet || response.statusText}`,
+      tochkaStatusRaw: data,
+    };
+  }
+  const paymentLink = extractPaymentLink(data);
+  const invoiceId = extractOperationId(data) || paymentLink;
+  if (!paymentLink) {
+    return {
+      error: `Точка ответила 200, но без paymentLink. Ответ: ${JSON.stringify(data).slice(0, 700)}`,
+      tochkaStatusRaw: data,
+    };
+  }
   return { paymentLink, invoiceId, tochkaStatusRaw: data };
 }
 
@@ -155,8 +177,11 @@ export async function createRetailOrderFromCheckout(body) {
   await addRetailOrder(order);
 
   let tochkaPaymentUrl = null;
+  let tochkaPaymentError = null;
+  let tochkaStatusRaw = null;
   try {
     const r = await createTochkaAcquiringPayment(order);
+    tochkaStatusRaw = r?.tochkaStatusRaw ?? null;
     if (r?.paymentLink) {
       tochkaPaymentUrl = r.paymentLink;
       await updateRetailOrderById(orderId, {
@@ -167,14 +192,25 @@ export async function createRetailOrderFromCheckout(body) {
         tochka_payment_url: tochkaPaymentUrl,
         paymentStatus: "pending",
       });
+    } else if (r?.error) {
+      tochkaPaymentError = r.error;
+      await updateRetailOrderById(orderId, {
+        tochkaStatusRaw: r.tochkaStatusRaw,
+        tochka_payment_error: r.error,
+      }).catch(() => {});
     }
   } catch (e) {
-    console.error("[retail] Tochka payment creation failed", e?.message || e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[retail] Tochka payment creation failed", msg);
+    tochkaPaymentError = msg;
   }
 
   return {
     ...order,
     tochkaPaymentUrl,
     tochka_payment_url: tochkaPaymentUrl,
+    tochkaPaymentError,
+    tochka_payment_error: tochkaPaymentError,
+    tochkaStatusRaw,
   };
 }

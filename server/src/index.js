@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import dns from "node:dns";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -8,7 +9,15 @@ import express from "express";
 import multer from "multer";
 import { calculateDelivery, getPickupPoints, searchCities } from "./cdek.js";
 import { createRetailOrderFromCheckout } from "./retailOrderCreate.js";
+import { signRetailToken, verifyRetailToken } from "./retailAuthToken.js";
 import { createWholesaleTochkaBill } from "./tochkaWholesaleInvoice.js";
+import {
+  buildPaymentsWithReceiptData,
+  fetchPaymentsWithReceipt,
+  extractPaymentLink,
+  extractOperationId,
+  tochkaClientPhone,
+} from "./tochkaAcquiringReceipt.js";
 import {
   addOrder,
   addRetailOrder,
@@ -63,10 +72,42 @@ import {
   formatPaymentReceived,
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
+import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
+const __repoRoot = path.resolve(__apiDir, "../..");
 dotenv.config({ path: path.resolve(__apiDir, "../../.env") });
 dotenv.config();
+
+/** Полный бэкап + письмо: тот же сценарий, что `node server/scripts/weekly-email-backup.mjs` (SMTP в .env). */
+function runWeeklyEmailBackupScript() {
+  const scriptPath = path.join(__repoRoot, "server/scripts/weekly-email-backup.mjs");
+  return new Promise((resolve, reject) => {
+    const proc = spawn(process.execPath, [scriptPath], {
+      cwd: __repoRoot,
+      env: { ...process.env },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout?.on("data", (c) => {
+      stdout += c;
+    });
+    proc.stderr?.on("data", (c) => {
+      stderr += c;
+    });
+    const timer = setTimeout(() => {
+      proc.kill("SIGTERM");
+      reject(new Error("Таймаут отправки бэкапа (120 с)"));
+    }, 120_000);
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      clearTimeout(timer);
+      if (code === 0) resolve({ stdout: stdout.trim(), stderr: stderr.trim() });
+      else reject(new Error(stderr.trim() || stdout.trim() || `Скрипт завершился с кодом ${code}`));
+    });
+  });
+}
 
 /** Единая точка: отправка в Telegram + лог при сбое (канал / чат из TELEGRAM_CHAT_ID). */
 async function telegramNotify(context, html) {
@@ -93,14 +134,18 @@ const allowedOrigins = String(allowedOriginsRaw)
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
+/** В development не привязываемся к одному порту Vite (5173 может быть занят → 5174). */
+const nodeEnv = String(process.env.NODE_ENV || "").toLowerCase();
 const corsOriginOption =
-  allowedOrigins.length === 1 && allowedOrigins[0] === "*"
+  nodeEnv === "development"
     ? true
-    : (origin, cb) => {
-        if (!origin) return cb(null, true);
-        if (allowedOrigins.includes(origin)) return cb(null, true);
-        return cb(null, false);
-      };
+    : allowedOrigins.length === 1 && allowedOrigins[0] === "*"
+      ? true
+      : (origin, cb) => {
+          if (!origin) return cb(null, true);
+          if (allowedOrigins.includes(origin)) return cb(null, true);
+          return cb(null, false);
+        };
 const uploadDir = path.resolve(process.cwd(), "server", "data", "uploads");
 
 if (!fs.existsSync(uploadDir)) {
@@ -293,13 +338,47 @@ app.post("/api/retail-signup", async (req, res) => {
   res.status(201).json({ success: true, user: sanitizeUser(user) });
 });
 
+app.post("/api/auth/retail/login", async (req, res) => {
+  const { email, password } = req.body || {};
+  const em = String(email || "").trim().toLowerCase();
+  if (!em || !password) {
+    return res.status(400).json({ error: "Укажите email и пароль" });
+  }
+  const users = await getRetailUsers();
+  const user = users.find(
+    (x) => String(x.email || "").toLowerCase() === em && String(x.password || "") === String(password),
+  );
+  if (!user) {
+    return res.status(401).json({ error: "Неверный email или пароль" });
+  }
+  const access_token = signRetailToken({
+    sub: user.id,
+    email: user.email,
+    role: user.role || "user",
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  });
+  res.json({ access_token, user: sanitizeUser(user) });
+});
+
+app.get("/api/auth/retail/me", async (req, res) => {
+  const auth = req.headers.authorization || "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7).trim() : "";
+  const v = verifyRetailToken(token);
+  if (!v?.sub) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const users = await getRetailUsers();
+  const user = users.find((x) => x.id === v.sub);
+  if (!user) {
+    return res.status(401).json({ error: "User not found" });
+  }
+  res.json({ user: sanitizeUser(user) });
+});
+
 app.post("/api/users/login", async (req, res) => {
   const { phone, password } = req.body || {};
   const users = await getUsers();
-  const retailUsers = await getRetailUsers();
-  const user =
-    users.find((x) => x.phone === phone && x.password === password) ||
-    retailUsers.find((x) => x.phone === phone && x.password === password);
+  const user = users.find((x) => x.phone === phone && x.password === password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
   res.json(sanitizeUser(user));
 });
@@ -850,12 +929,19 @@ app.post("/api/cdek/calc", async (req, res) => {
 });
 
 app.get("/api/tochka/acquiring/test-token", (_req, res) => {
+  const hasToken = Boolean((process.env.TOCHKA_JWT_TOKEN || "").trim());
+  const hasCustomer = Boolean((process.env.TOCHKA_CUSTOMER_CODE || "").trim());
+  const hasMerchant = Boolean((process.env.TOCHKA_MERCHANT_ID || "").trim());
+  const hasTerminal = Boolean((process.env.TOCHKA_TERMINAL_ID || "").trim());
+  const hasClientId = Boolean((process.env.TOCHKA_CLIENT_ID || "").trim());
   res.json({
-    hasToken: Boolean(process.env.TOCHKA_JWT_TOKEN),
-    hasCustomer: Boolean(process.env.TOCHKA_CUSTOMER_CODE),
-    hasMerchant: Boolean(process.env.TOCHKA_MERCHANT_ID),
-    hasTerminal: Boolean(process.env.TOCHKA_TERMINAL_ID),
-    hasClientId: Boolean(process.env.TOCHKA_CLIENT_ID),
+    hasToken,
+    hasCustomer,
+    hasMerchant,
+    hasTerminal,
+    hasClientId,
+    /** Без terminalId payments_with_receipt не вернёт ссылку на оплату. */
+    acquiringReady: hasToken && hasCustomer && hasMerchant && hasTerminal,
   });
 });
 
@@ -882,25 +968,48 @@ app.post("/api/tochka/create-invoice", async (req, res) => {
     });
   }
 
-  try {
-    const response = await fetch("https://enter.tochka.com/uapi/acquiring/v1.0/payments_with_receipt", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${jwtToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        Data: {
-          customerCode,
-          merchantId,
-          terminalId,
-          amount: String(finalAmount),
-          purpose: purpose || `Заказ ${orderId}`,
-        },
-      }),
+  if (!merchantId?.trim() || !terminalId?.trim()) {
+    return res.status(500).json({
+      success: false,
+      error: "TOCHKA_MERCHANT_ID и TOCHKA_TERMINAL_ID обязательны для payments_with_receipt",
     });
+  }
 
-    const data = await response.json().catch(() => ({}));
+  try {
+    const orderForReceipt =
+      order && Array.isArray(order.items) && order.items.length > 0
+        ? { ...order, total: Number(order.total) || Number(finalAmount) }
+        : {
+            orderId,
+            total: Number(finalAmount),
+            contact: order?.contact || order?.company || "Покупатель",
+            email: order?.email || "no-reply@coffeenechai.ru",
+            phone: order?.phone || process.env.TOCHKA_RECEIPT_FALLBACK_PHONE || "",
+            items: [
+              {
+                name: String(purpose || `Заказ ${orderId}`).slice(0, 255),
+                quantity: 1,
+                subtotal: Number(finalAmount),
+              },
+            ],
+            delivery_cost: 0,
+          };
+
+    const ph = tochkaClientPhone(orderForReceipt.phone);
+    if (!ph) {
+      return res.status(400).json({
+        success: false,
+        error:
+          "Для оплаты с чеком нужен телефон в заказе или в .env TOCHKA_RECEIPT_FALLBACK_PHONE (10–11 цифр, РФ).",
+      });
+    }
+
+    const dataPayload = buildPaymentsWithReceiptData(
+      { ...orderForReceipt, phone: ph },
+      { purpose: purpose || `Заказ ${orderId}`, orderId: String(orderId).trim() },
+    );
+
+    const { response, data } = await fetchPaymentsWithReceipt(dataPayload);
     if (!response.ok) {
       return res.status(response.status).json({
         success: false,
@@ -909,8 +1018,8 @@ app.post("/api/tochka/create-invoice", async (req, res) => {
       });
     }
 
-    const invoiceId = data?.Data?.operationId || data?.Data?.paymentLink || `INV-${orderId}`;
-    const paymentLink = data?.Data?.paymentLink;
+    const paymentLink = extractPaymentLink(data);
+    const invoiceId = extractOperationId(data) || paymentLink || `INV-${orderId}`;
     const updates = {
       invoiceId,
       invoiceCreatedAt: new Date().toISOString(),
@@ -937,50 +1046,85 @@ app.post("/api/tochka/create-invoice", async (req, res) => {
   }
 });
 
-app.post("/api/tochka/webhook", async (req, res) => {
-  // Important: always return 200 to avoid repeated retries.
-  try {
-    const payload = req.body || {};
-    const requestId = payload.requestId || payload?.Data?.requestId || payload?.Data?.operationId || payload.operationId;
-    const externalOrderId = payload.orderId || payload?.Data?.orderId || payload?.Data?.metadata?.orderId;
-    const statusRaw = String(payload.status || payload?.Data?.status || payload.paymentStatus || "").toLowerCase();
-
-    let statusMapped = "pending";
-    if (["paid", "success", "completed", "authorized", "done"].includes(statusRaw)) statusMapped = "paid";
-    if (["failed", "error", "declined"].includes(statusRaw)) statusMapped = "failed";
-    if (["cancelled", "canceled"].includes(statusRaw)) statusMapped = "cancelled";
-
-    let orderId = externalOrderId;
-    if (!orderId && requestId && String(requestId).startsWith("PAY-")) {
-      orderId = String(requestId).slice(4);
-    }
-
-    if (orderId) {
-      const before =
-        (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
-      const prevPaid = ["paid", "success", "completed"].includes(
-        String(before?.paymentStatus || before?.payment_status || "").toLowerCase(),
-      );
-      const updates = {
-        paymentStatus: statusMapped,
-        payment_status: statusMapped,
-        paidAt: statusMapped === "paid" ? new Date().toISOString() : undefined,
-        tochkaWebhookAt: new Date().toISOString(),
-        tochkaWebhookPayload: payload,
-      };
-      (await updateRetailOrderById(orderId, updates)) || (await updateOrderById(orderId, updates));
-      if (statusMapped === "paid" && before && !prevPaid) {
-        const after =
-          (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
-        if (after) void telegramNotify("payment_received", formatPaymentReceived(after));
+app.post(
+  "/api/tochka/webhook",
+  express.text({ type: "*/*", limit: "256kb" }),
+  async (req, res) => {
+    // Точка шлёт text/plain: тело = JWT (RS256). См. acquiringInternetPayment.
+    // Всегда 200, иначе до 30 повторов с шагом 10 с.
+    let payload = {};
+    const raw = typeof req.body === "string" ? req.body.trim() : "";
+    try {
+      if (raw && raw.split(".").length === 3) {
+        payload = await verifyTochkaWebhookJwt(raw);
+      } else if (raw.startsWith("{")) {
+        payload = JSON.parse(raw);
+      } else if (raw) {
+        console.warn("[tochka webhook] unexpected body (not JWT / JSON), length", raw.length);
       }
+    } catch (e) {
+      console.error("[tochka webhook] parse/verify failed:", e?.message || e);
+      return res.status(200).send("OK");
     }
 
-    return res.status(200).send("OK");
-  } catch (_error) {
-    return res.status(200).send("OK");
-  }
-});
+    try {
+      const webhookType = String(payload.webhookType || "").toLowerCase();
+      const requestId =
+        payload.requestId || payload.operationId || payload?.Data?.requestId || payload?.Data?.operationId;
+      const paymentLinkId = payload.paymentLinkId != null ? String(payload.paymentLinkId) : "";
+      const externalOrderId =
+        paymentLinkId ||
+        payload.orderId ||
+        payload?.Data?.orderId ||
+        payload?.Data?.metadata?.orderId ||
+        "";
+
+      const statusUpper = String(payload.status || payload?.Data?.status || payload.paymentStatus || "").toUpperCase();
+      const statusLower = statusUpper.toLowerCase();
+
+      let statusMapped = "pending";
+      if (webhookType === "acquiringinternetpayment") {
+        if (statusUpper === "APPROVED") statusMapped = "paid";
+        else if (statusUpper === "AUTHORIZED") statusMapped = "pending";
+        else if (["FAILED", "DECLINED", "CANCELLED", "CANCELED"].includes(statusUpper)) statusMapped = "failed";
+      } else {
+        if (["paid", "success", "completed", "authorized", "done", "approved"].includes(statusLower)) statusMapped = "paid";
+        if (["failed", "error", "declined"].includes(statusLower)) statusMapped = "failed";
+        if (["cancelled", "canceled"].includes(statusLower)) statusMapped = "cancelled";
+      }
+
+      let orderId = externalOrderId ? String(externalOrderId).trim() : "";
+      if (!orderId && requestId && String(requestId).startsWith("PAY-")) {
+        orderId = String(requestId).slice(4);
+      }
+
+      if (orderId) {
+        const before =
+          (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
+        const prevPaid = ["paid", "success", "completed"].includes(
+          String(before?.paymentStatus || before?.payment_status || "").toLowerCase(),
+        );
+        const updates = {
+          paymentStatus: statusMapped,
+          payment_status: statusMapped,
+          paidAt: statusMapped === "paid" ? new Date().toISOString() : undefined,
+          tochkaWebhookAt: new Date().toISOString(),
+          tochkaWebhookPayload: payload,
+        };
+        (await updateRetailOrderById(orderId, updates)) || (await updateOrderById(orderId, updates));
+        if (statusMapped === "paid" && before && !prevPaid) {
+          const after =
+            (await getRetailOrderById(orderId)) || (await getOrderById(orderId));
+          if (after) void telegramNotify("payment_received", formatPaymentReceived(after));
+        }
+      }
+
+      return res.status(200).send("OK");
+    } catch (_error) {
+      return res.status(200).send("OK");
+    }
+  },
+);
 
 app.post("/api/retail/check-pending-payments", async (_req, res) => {
   // Placeholder for scheduled reconciliation.
@@ -1076,15 +1220,37 @@ app.post("/api/admin/retail-users/:id/balance", async (req, res) => {
 
 app.post("/api/business-registration", async (req, res) => {
   const body = req.body || {};
+  const { status: _statusFromClient, ...rest } = body;
   const items = await getBusinessRegistrations();
-  const item = { id: `biz-${Date.now()}-${Math.floor(Math.random() * 1000)}`, createdAt: new Date().toISOString(), ...body };
+  const item = {
+    id: `biz-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    createdAt: new Date().toISOString(),
+    status: "pending",
+    ...rest,
+  };
   await setBusinessRegistrations([item, ...items]);
   await telegramNotify("business_registration", formatBusinessRegistration(item));
   res.status(201).json({ success: true, registration: item });
 });
 
 app.get("/api/business-registrations", async (_req, res) => {
-  res.json(await getBusinessRegistrations());
+  const registrations = await getBusinessRegistrations();
+  res.json({ registrations });
+});
+
+app.patch("/api/business-registration/:id/status", async (req, res) => {
+  const { status } = req.body || {};
+  const allowed = new Set(["pending", "processed", "rejected"]);
+  if (!allowed.has(String(status || ""))) {
+    return res.status(400).json({ error: "Invalid status" });
+  }
+  const items = await getBusinessRegistrations();
+  const ix = items.findIndex((x) => x.id === req.params.id);
+  if (ix === -1) return res.status(404).json({ error: "Not found" });
+  const updated = { ...items[ix], status };
+  const next = items.map((x, i) => (i === ix ? updated : x));
+  await setBusinessRegistrations(next);
+  res.json({ success: true, registration: updated });
 });
 
 app.delete("/api/business-registration/:id", async (req, res) => {
@@ -1150,6 +1316,23 @@ app.get("/api/utilities/list-all-order-keys", async (_req, res) => {
     problematic: [],
     summary: { wholesaleCount: wholesale.length, retailCount: retail.length, problematicCount: 0 },
   });
+});
+
+app.post("/api/backup/send-email", async (_req, res) => {
+  try {
+    await runWeeklyEmailBackupScript();
+    res.json({
+      success: true,
+      message: "Backup created and sent to email",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[backup/send-email]", msg);
+    res.status(500).json({
+      error: "Failed to create or send backup",
+      details: msg,
+    });
+  }
 });
 
 app.use((error, _req, res, next) => {
