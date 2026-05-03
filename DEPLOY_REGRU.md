@@ -14,7 +14,10 @@
 
 **Optional — same `patch_dotenv` on each VPS deploy** (Repository secrets; if empty, строка в `.env` не трогается):
 
+- `JWT_SECRET` — подпись розничных токенов (если задан в Secrets, патчится на VPS при деплое)
+- `DATABASE_URL` — Postgres (если задан; иначе на VPS используется `server/data/db.json`)
 - `CDEK_ACCOUNT`, `CDEK_SECRET` — СДЭК API
+- `CDEK_API_URL` *(optional)* — если тестовые ключи СДЭК: `https://api.edu.cdek.ru/v2` (боевой по умолчанию `https://api.cdek.ru/v2`; путаница даёт OAuth «No such account secure»)
 - `TOCHKA_JWT_TOKEN` — JWT для API Точки (оптовые счета `bills`, эквайринг и т.д.)
 - `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
@@ -28,23 +31,9 @@ Workflow [`.github/workflows/weekly-database-email-backup.yml`](.github/workflow
 
 Включение: GitHub → **Variables** → `WEEKLY_EMAIL_BACKUP_ENABLED` = `1`. Ручная проверка: Actions → **Weekly database email backup** → Run workflow. На VPS в `.env` нужны `DATABASE_URL` (если используете Postgres) и рабочий SMTP (для Mail.ru — пароль приложения, порт 465).
 
-### Supabase (Edge Function `telegram-relay`)
+### Telegram relay (опционально)
 
-Инфраструктура Telegram — на стороне Supabase (исходящий HTTPS к `api.telegram.org` с их сети, не с вашего VPS). В репозитории: [`supabase/functions/telegram-relay/index.ts`](supabase/functions/telegram-relay/index.ts), [`supabase/config.toml`](supabase/config.toml) (`verify_jwt = false` для вызова с VPS по своему `Bearer`).
-
-**Локально или в CI:** [Supabase CLI](https://supabase.com/docs/guides/cli) — `supabase login`, `supabase link --project-ref <ref>`, затем:
-
-```bash
-supabase secrets set TELEGRAM_BOT_TOKEN="..." TELEGRAM_CHAT_ID="..." TELEGRAM_RELAY_SECRET="..."
-supabase functions deploy telegram-relay
-supabase functions deploy keepalive
-```
-
-**Автодеплой из GitHub:** workflow [`.github/workflows/deploy-supabase-telegram-relay.yml`](.github/workflows/deploy-supabase-telegram-relay.yml). Нужны Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`; опционально те же `TELEGRAM_*` для шага синхронизации секретов в Supabase. Variable `SUPABASE_RELAY_DEPLOY_ENABLED` = `1` — чтобы job запускался при push (иначе только **Run workflow** вручную). Деплой поднимает и **`keepalive`** — лёгкую функцию для анти-паузы (см. ниже).
-
-**Анти-пауза бесплатного Supabase (~7 дней без запросов):** workflow [`.github/workflows/supabase-keepalive-ping.yml`](.github/workflows/supabase-keepalive-ping.yml) раз в ~5 дней делает `GET` на `https://<ref>.supabase.co/functions/v1/keepalive`. Включение: Variables → **`SUPABASE_KEEPALIVE_ENABLED`** = `1` (нужен тот же Secret **`SUPABASE_PROJECT_REF`**). Ручной прогон: Actions → **Supabase keepalive ping** → Run workflow.
-
-**На VPS:** `TELEGRAM_RELAY_URL=https://<ref>.supabase.co/functions/v1/telegram-relay`, `TELEGRAM_RELAY_SECRET` = значение `TELEGRAM_RELAY_SECRET` из Supabase Secrets, затем `pm2 restart site-api --update-env`.
+GitHub Actions для автодеплоя **Supabase** `telegram-relay` / **keepalive** удалены — сайт и API на вашем VPS. Если исходящий HTTPS к `api.telegram.org` с VPS по-прежнему недоступен, можно вручную держать relay где угодно (в т.ч. старый Edge) и задать на VPS в `.env`: `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET`, затем `pm2 restart site-api --update-env`.
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 
@@ -131,24 +120,32 @@ pm2 start ecosystem.config.cjs --env production
 pm2 save
 ```
 
-## 5) Deploy flow
+## 5) Deploy flow (GitHub Actions)
 
-Push to `main` branch. Workflow:
+Two workflows:
 
-1. builds frontend
-2. copies repo to VPS
-3. installs production dependencies
-4. restarts `site-api` via PM2
+**`deploy-reg-vps.yml`** (paths: `server/**`, lockfile, workflow itself):
+
+1. SSH to VPS → `git reset --hard origin/main` in `VPS_APP_PATH`
+2. Optional: `patch_dotenv.py` lines from Secrets (CORS, JWT, DB, CDEK, Tochka, Telegram, backup SMTP, etc.)
+3. `npm ci` (production deps for the whole repo on server — needed for API)
+4. `pm2 restart` for `site-api`, health check `/api/health`
+5. If `API_PUBLIC_HOST` is set: nginx + HTTPS helper script (see earlier sections)
+
+**`deploy-reg-ftp.yml`** (paths: `src/**`, `public/**`, `index.html`, Vite, lockfile):
+
+1. `npm ci` on the runner
+2. `npm run build` with `VITE_API_BASE_URL` (and optional maps key) from Secrets
+3. Upload **`./dist/`** to `FTP_TARGET_DIR` — **only built assets**, not the dev `index.html` from repo root as the “live” site root unless that is what you intend for local preview.
 
 ---
 
 ## FTP-only mode
 
-If you use only FTP deploy, GitHub Action uploads `dist/` to hosting.
+The FTP workflow uploads **`dist/`** after a production Vite build.
 
-Important:
+Critical:
 
-- FTP hosting deploys frontend only.
-- CDEK/Tochka/order APIs still require backend runtime (VPS or external API).
-- If backend is not available, set `VITE_API_BASE_URL` to your currently working API before build.
+- **Never** replace the live site’s `index.html` with the **repository root** `index.html` used for `npm run dev` (it references `/src/main.tsx`). Production HTML must reference **`/assets/index-*.js`**. If you see a blank page, “View source” and confirm script URLs.
+- FTP deploys **static frontend only**. CDEK / Tochka / orders require the **Node API** (VPS or another host) and correct **`VITE_API_BASE_URL`** at build time (e.g. `https://api.example.ru/api`).
 

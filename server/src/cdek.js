@@ -1,12 +1,30 @@
-const CDEK_API_URL = "https://api.cdek.ru/v2";
 const SENDER_CITY_CODE = 137;
 const FALLBACK_TARIFFS = [136, 483, 234, 138, 139];
 
 let cachedToken = null;
 let tokenExpiry = 0;
+let cachedTokenForBase = "";
+
+/**
+ * Базовый URL API 2.0 (оканчивается на `/v2`).
+ * Боевой: https://api.cdek.ru/v2 — только боевые Account/Secret из ЛК.
+ * Тестовый: https://api.edu.cdek.ru/v2 — только тестовая пара; на боевом хосте даст «No such account secure».
+ */
+export function getCdekApiBase() {
+  const fromEnv = (process.env.CDEK_API_URL || "").trim().replace(/\/+$/, "");
+  if (fromEnv) {
+    return /\/v2$/i.test(fromEnv) ? fromEnv : `${fromEnv.replace(/\/$/, "")}/v2`;
+  }
+  const useTest = String(process.env.CDEK_USE_TEST_API || "").trim().toLowerCase();
+  if (useTest === "1" || useTest === "true" || useTest === "yes") {
+    return "https://api.edu.cdek.ru/v2";
+  }
+  return "https://api.cdek.ru/v2";
+}
 
 export async function getCdekToken() {
-  if (cachedToken && Date.now() < tokenExpiry) {
+  const base = getCdekApiBase();
+  if (cachedToken && Date.now() < tokenExpiry && cachedTokenForBase === base) {
     return cachedToken;
   }
 
@@ -23,7 +41,7 @@ export async function getCdekToken() {
     client_secret: secret,
   }).toString();
 
-  const response = await fetch(`${CDEK_API_URL}/oauth/token`, {
+  const response = await fetch(`${base}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
@@ -49,13 +67,15 @@ export async function getCdekToken() {
 
   const data = await response.json();
   cachedToken = data.access_token;
+  cachedTokenForBase = base;
   tokenExpiry = Date.now() + (data.expires_in - 60) * 1000;
   return cachedToken;
 }
 
 async function cdekRequest(endpoint, init = {}) {
+  const base = getCdekApiBase();
   const token = await getCdekToken();
-  const response = await fetch(`${CDEK_API_URL}${endpoint}`, {
+  const response = await fetch(`${base}${endpoint}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,

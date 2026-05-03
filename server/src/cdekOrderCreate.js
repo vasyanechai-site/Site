@@ -1,9 +1,7 @@
 /**
  * Создание заказа в СДЭК (розница). Логика согласована с src/app/supabase/functions/server/cdek_order_create.tsx
  */
-import { getCdekToken } from "./cdek.js";
-
-const CDEK_API_URL = "https://api.cdek.ru/v2";
+import { getCdekToken, getCdekApiBase } from "./cdek.js";
 const COMPANY_NAME = "ИП Порохина Анастасия Игоревна";
 const CONTACT_PERSON = "Василий Нечай";
 const COMPANY_EMAIL = "chai.nechai@yandex.ru";
@@ -26,7 +24,8 @@ function normalizePhone(customerPhone) {
  * @param {Array<{ id?: string; name: string; price: number; quantity: number; weight?: number; length?: number; width?: number; height?: number }>} items
  */
 export async function createCdekOrder(orderId, customerName, customerPhone, deliveryInfo, items) {
-  const diagnostic = { api_host: CDEK_API_URL, timestamp: new Date().toISOString() };
+  const apiBase = getCdekApiBase();
+  const diagnostic = { api_host: apiBase, timestamp: new Date().toISOString() };
 
   try {
     if (!deliveryInfo?.pvzCode) {
@@ -106,7 +105,7 @@ export async function createCdekOrder(orderId, customerName, customerPhone, deli
 
     diagnostic.order_body = cdekOrder;
 
-    const cdekResponse = await fetch(`${CDEK_API_URL}/orders`, {
+    const cdekResponse = await fetch(`${apiBase}/orders`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,

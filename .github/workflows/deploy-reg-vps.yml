@@ -32,6 +32,12 @@ jobs:
             if [ -n "${{ secrets.ALLOWED_ORIGINS }}" ]; then
               python3 server/deploy/patch_dotenv.py ALLOWED_ORIGINS "${{ secrets.ALLOWED_ORIGINS }}"
             fi
+            if [ -n "${{ secrets.JWT_SECRET }}" ]; then
+              python3 server/deploy/patch_dotenv.py JWT_SECRET "${{ secrets.JWT_SECRET }}"
+            fi
+            if [ -n "${{ secrets.DATABASE_URL }}" ]; then
+              python3 server/deploy/patch_dotenv.py DATABASE_URL "${{ secrets.DATABASE_URL }}"
+            fi
             if [ -n "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
               python3 server/deploy/patch_dotenv.py TELEGRAM_BOT_TOKEN "${{ secrets.TELEGRAM_BOT_TOKEN }}"
             fi
@@ -55,6 +61,9 @@ jobs:
             fi
             if [ -n "${{ secrets.CDEK_SECRET }}" ]; then
               python3 server/deploy/patch_dotenv.py CDEK_SECRET "${{ secrets.CDEK_SECRET }}"
+            fi
+            if [ -n "${{ secrets.CDEK_API_URL }}" ]; then
+              python3 server/deploy/patch_dotenv.py CDEK_API_URL "${{ secrets.CDEK_API_URL }}"
             fi
             if [ -n "${{ secrets.TOCHKA_JWT_TOKEN }}" ]; then
               python3 server/deploy/patch_dotenv.py TOCHKA_JWT_TOKEN "${{ secrets.TOCHKA_JWT_TOKEN }}"

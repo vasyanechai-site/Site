@@ -24,6 +24,8 @@ const YANDEX_MAPS_KEY =
 type CdekStatus = {
   ok: boolean;
   oauth?: string;
+  /** Какой хост API дергает сервер (боевой / тестовый). */
+  cdekApiBase?: string;
   hasAccount: boolean;
   hasSecret: boolean;
   accountLength: number;
@@ -336,12 +338,13 @@ export function CdekDebugPanel({ appendLog }: { appendLog: (line: string) => voi
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          <strong>401</strong> — СДЭК не принял пару ключей. Нужны именно <strong>Account</strong> и <strong>Secure password</strong> из раздела интеграции API в lk.cdek.ru (не логин/пароль входа в ЛК). В <code className="text-xs bg-muted px-1 rounded">.env</code> без кавычек и без пробела в конце строки; не перепутайте{' '}
-          <code className="text-xs">CDEK_ACCOUNT</code> и <code className="text-xs">CDEK_SECRET</code>. После правки —{' '}
-          <code className="text-xs">pm2 restart site-api --update-env</code>. В логе ниже после обновления API будет текст ошибки от СДЭК (например «No such account secure»).
+          <strong>401 / «No such account secure»</strong> — часто <strong>тестовые ключи</strong> при запросе к <strong>боевому</strong> API (или наоборот). На VPS в <code className="text-xs bg-muted px-1 rounded">.env</code>: для теста задайте{' '}
+          <code className="text-xs">CDEK_API_URL=https://api.edu.cdek.ru/v2</code> или <code className="text-xs">CDEK_USE_TEST_API=1</code>; для боя оставьте по умолчанию (<code className="text-xs">https://api.cdek.ru/v2</code>). Плюс: Account и Secure password из раздела интеграции API, не логин ЛК. После правки —{' '}
+          <code className="text-xs">pm2 restart site-api --update-env</code>.
         </p>
         {status && (
           <ul className="text-sm font-mono bg-muted/50 rounded-lg p-3 list-none space-y-1">
+            {status.cdekApiBase ? <li>API host: {status.cdekApiBase}</li> : null}
             <li>OAuth: {status.oauth}</li>
             <li>ok: {String(status.ok)}</li>
             <li>CDEK_ACCOUNT: {status.hasAccount ? `да, длина ${status.accountLength}` : 'нет'}</li>

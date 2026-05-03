@@ -9,7 +9,7 @@ import {
   serializeFetchError,
 } from "./telegram.js";
 import { ipv4HttpsRequest } from "./ipv4Https.js";
-import { getCdekToken } from "./cdek.js";
+import { getCdekToken, getCdekApiBase } from "./cdek.js";
 import { createCdekOrder } from "./cdekOrderCreate.js";
 
 function chatIdHint(chatId) {
@@ -213,7 +213,9 @@ export function registerDebugRoutes(app) {
     const account = (process.env.CDEK_ACCOUNT || "").trim();
     const secret = (process.env.CDEK_SECRET || "").trim();
     const hints = [];
+    const cdekApiBase = getCdekApiBase();
     const base = {
+      cdekApiBase,
       hasAccount: Boolean(account),
       hasSecret: Boolean(secret),
       accountLength: account.length,
@@ -231,6 +233,11 @@ export function registerDebugRoutes(app) {
       return res.json({ ok: true, oauth: "ok", hints, ...base });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      if (String(msg).toLowerCase().includes("no such account secure")) {
+        hints.push(
+          "Сообщение «No such account secure»: чаще всего **не та среда**. Тестовые ключи СДЭК работают только с https://api.edu.cdek.ru/v2 — в .env задайте CDEK_API_URL=https://api.edu.cdek.ru/v2 (или CDEK_USE_TEST_API=1). Боевые ключи — только с https://api.cdek.ru/v2 (значение по умолчанию). Пары нельзя мешать.",
+        );
+      }
       if (String(msg).includes("401")) {
         hints.push(
           "401: пара Account / Secure password не принята СДЭК. В lk.cdek.ru → Интеграция → API возьмите «Идентификатор» (Account) и «Секретный ключ» (Secure password), не логин/пароль входа в ЛК. В .env без кавычек, без пробела в конце строки; не перепутайте CDEK_ACCOUNT и CDEK_SECRET. После правки: pm2 restart site-api --update-env.",
