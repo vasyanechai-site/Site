@@ -451,3 +451,91 @@ export async function getWholesaleAccessRequests() {
 export async function setWholesaleAccessRequests(items) {
   return setCollection("wholesaleAccessRequests", items);
 }
+
+/**
+ * Полный снимок данных опта и розницы (как в server/data/db.json + заказы в Postgres).
+ * Для восстановления из файлового режима достаточно сохранить JSON и подменить db.json (с осторожностью).
+ */
+export async function getFullDatabaseSnapshot() {
+  const exportedAt = new Date().toISOString();
+  const meta = { exportedAt, version: 2, format: "nechai-site-full" };
+
+  if (!pgPool) {
+    const db = readDb();
+    const snapshot = JSON.parse(JSON.stringify(db));
+    return { ...meta, ...snapshot };
+  }
+
+  await ensurePgSchema();
+  const [orderRows, retailOrderRows, settingRows] = await Promise.all([
+    pgPool.query("SELECT payload FROM orders ORDER BY created_at ASC"),
+    pgPool.query("SELECT payload FROM retail_orders ORDER BY created_at ASC"),
+    pgPool.query("SELECT key, payload FROM app_settings ORDER BY key ASC"),
+  ]);
+
+  const orders = orderRows.rows.map((r) => r.payload);
+  const retailOrders = retailOrderRows.rows.map((r) => r.payload);
+
+  const out = {
+    orders,
+    retailOrders,
+    coffeeItems: [],
+    users: [],
+    promoCodes: [],
+    retailProducts: [],
+    categoryOrder: [],
+    favoritesByUser: {},
+    businessRegistrations: [],
+    retailUsers: [],
+    tickerSettings: { ...defaultDb.tickerSettings },
+    wholesaleAccessRequests: [],
+    exchangeRate: { ...defaultDb.exchangeRate },
+    loyaltyByUser: {},
+    retailLocations: [],
+    retailLocationRequests: [],
+    userSettingsByUser: {},
+  };
+
+  const arrayKeys = new Set([
+    "coffeeItems",
+    "users",
+    "promoCodes",
+    "retailProducts",
+    "categoryOrder",
+    "businessRegistrations",
+    "retailUsers",
+    "wholesaleAccessRequests",
+    "retailLocations",
+    "retailLocationRequests",
+  ]);
+
+  for (const row of settingRows.rows) {
+    const key = row.key;
+    const payload = row.payload;
+    if (key.startsWith("loyalty:")) {
+      out.loyaltyByUser[key.slice("loyalty:".length)] = payload;
+      continue;
+    }
+    if (key.startsWith("userSettings:")) {
+      out.userSettingsByUser[key.slice("userSettings:".length)] = payload;
+      continue;
+    }
+    if (arrayKeys.has(key) && Array.isArray(payload)) {
+      out[key] = payload;
+      continue;
+    }
+    if (key === "favoritesByUser" && payload && typeof payload === "object") {
+      out.favoritesByUser = payload;
+      continue;
+    }
+    if (key === "tickerSettings" && payload && typeof payload === "object") {
+      out.tickerSettings = payload;
+      continue;
+    }
+    if (key === "exchangeRate" && payload && typeof payload === "object") {
+      out.exchangeRate = payload;
+    }
+  }
+
+  return { ...meta, ...out };
+}

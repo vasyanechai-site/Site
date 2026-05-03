@@ -39,12 +39,8 @@ import { AgentPayouts } from "./components/agent/AgentPayouts";
 import MessengerLinksTest from "./pages/MessengerLinksTest";
 import { autoKeepAlive } from "./lib/keepAlive";
 import { ThemeProvider } from "./components/theme-provider";
-import { EncodingChecker } from "./components/EncodingChecker";
-import { EncodingValidator } from "./components/EncodingValidator";
 import { Toaster } from "./components/ui/sonner";
 import { isUUID } from "./lib/transliterate";
-import { supabase } from "./lib/supabaseClient";
-import { projectId, publicAnonKey } from './utils/supabase/info';
 import "./lib/devTools"; // Expose dev tools to window
 
 function App() {
@@ -62,43 +58,6 @@ function App() {
   useEffect(() => {
     // Автоматический keep-alive для предотвращения отключения БД
     autoKeepAlive();
-
-    // Проверка и восстановление сессии Supabase для розничных пользователей
-    const checkSupabaseSession = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('Error checking Supabase session:', error);
-          // Если токен недействителен, очищаем сессию
-          if (error.message.includes('Refresh Token') || error.message.includes('Invalid')) {
-            await supabase.auth.signOut();
-            console.log('Invalid session cleared');
-          }
-          return;
-        }
-        
-        if (session) {
-          // Сессия активна - пользователь авторизован
-          console.log('Supabase session restored');
-        }
-      } catch (error) {
-        console.error('Error checking Supabase session:', error);
-      }
-    };
-    
-    checkSupabaseSession();
-    
-    // Подписываемся на изменения состояния авторизации Supabase
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN') {
-        console.log('User signed in');
-      } else if (event === 'SIGNED_OUT') {
-        console.log('User signed out');
-      } else if (event === 'TOKEN_REFRESHED') {
-        console.log('Token refreshed');
-      }
-    });
 
     // Проверка админской авторизации
     const authData = localStorage.getItem("adminAuth");
@@ -160,11 +119,6 @@ function App() {
         setIsUserAuthenticated(false);
       }
     }
-    
-    // Очищаем подписку при размонтировании
-    return () => {
-      subscription.unsubscribe();
-    };
   }, []);
 
   const handleOrderSuccess = (id: string) => {
@@ -279,8 +233,6 @@ function App() {
 
   return (
     <ThemeProvider defaultTheme="light" storageKey="nechai-ui-theme">
-      <EncodingChecker />
-      <EncodingValidator />
       <BrowserRouter>
         <div className="min-h-screen bg-background text-foreground">
           <Routes>

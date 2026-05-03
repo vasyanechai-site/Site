@@ -61,6 +61,7 @@ import {
   setTickerSettings,
   getWholesaleAccessRequests,
   setWholesaleAccessRequests,
+  getFullDatabaseSnapshot,
 } from "./store.js";
 import {
   telegramNotify,
@@ -1180,6 +1181,17 @@ app.get("/api/admin/retail/orders", async (_req, res) => {
 
 app.get("/api/admin/users", async (_req, res) => {
   res.json(sanitizeUsers(await getUsers()));
+});
+
+/** Полный JSON опта + розницы для ручного бэкапа (товары, заказы, пользователи, промокоды, лояльность и т.д.). */
+app.get("/api/admin/full-export", async (_req, res) => {
+  try {
+    const snapshot = await getFullDatabaseSnapshot();
+    res.json(snapshot);
+  } catch (e) {
+    console.error("[admin/full-export]", e);
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 app.get("/api/admin/users/:id/orders", async (req, res) => {

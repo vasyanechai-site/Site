@@ -9,18 +9,10 @@ import { UserManagement } from './UserManagement';
 import { OrdersManagement } from './OrdersManagement';
 import { PriceManagement } from './PriceManagement';
 import { DataExport } from './DataExport';
-import { DataImport } from './DataImport';
-import { DatabaseHealthCheck } from './DatabaseHealthCheck';
 import { TickerManagement } from './TickerManagement';
 import { RetailProductsManagement } from './RetailProductsManagement';
 import { RetailOrdersManagement } from './RetailOrdersManagement';
 import { RetailDashboard } from './RetailDashboard';
-import { DeleteSpecificOrdersButton } from './DeleteSpecificOrdersButton';
-import { DiagnosticOrdersButton } from './DiagnosticOrdersButton';
-import { DatabaseKeysViewer } from './DatabaseKeysViewer';
-import { RegistrationRequests } from './RegistrationRequests';
-import { TelegramBroadcast } from './TelegramBroadcast';
-import { EncodingLogsViewer } from './EncodingLogsViewer';
 import { RetailUsersPage } from './admin/RetailUsersPage';
 import { RetailCoverConstructor } from './admin/RetailCoverConstructor';
 import { RetailLocationsManagement } from './admin/RetailLocationsManagement';
@@ -160,24 +152,8 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
                 <TickerManagement />
               </TabsContent>
 
-              <TabsContent value="broadcast">
-                <TelegramBroadcast />
-              </TabsContent>
-
               <TabsContent value="export">
                 <DataExport />
-              </TabsContent>
-
-              <TabsContent value="import">
-                <DataImport />
-              </TabsContent>
-
-              <TabsContent value="health">
-                <DatabaseHealthCheck />
-              </TabsContent>
-
-              <TabsContent value="encoding">
-                <EncodingLogsViewer />
               </TabsContent>
             </div>
           </Tabs>
