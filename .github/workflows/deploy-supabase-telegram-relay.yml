@@ -17,6 +17,7 @@ on:
     branches: [main]
     paths:
       - "supabase/functions/telegram-relay/**"
+      - "supabase/functions/keepalive/**"
       - "supabase/config.toml"
       - ".github/workflows/deploy-supabase-telegram-relay.yml"
   workflow_dispatch:
@@ -50,10 +51,12 @@ jobs:
             echo "Пропуск sync (задайте TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_RELAY_SECRET в GitHub или вручную в Supabase → Edge Functions → Secrets)."
           fi
 
-      - name: Deploy function
+      - name: Deploy Edge functions
         env:
           REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-        run: supabase functions deploy telegram-relay --project-ref "$REF"
+        run: |
+          supabase functions deploy telegram-relay --project-ref "$REF"
+          supabase functions deploy keepalive --project-ref "$REF"
 
       - name: URL для TELEGRAM_RELAY_URL на VPS
         env:

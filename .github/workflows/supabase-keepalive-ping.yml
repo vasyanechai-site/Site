@@ -1,0 +1,31 @@
+# Периодический HTTP-запрос к Edge Function `keepalive`, чтобы проект Supabase не уходил в паузу (~7 дней без активности).
+# Расписание: 1, 6, 11, 16, 21, 26 числа каждого месяца (~каждые 5 дней), 08:15 UTC.
+#
+# Включение: GitHub → Settings → Variables → Actions → `SUPABASE_KEEPALIVE_ENABLED` = `1`
+# Нужен Secret: `SUPABASE_PROJECT_REF` (тот же ref, что в URL проекта).
+# Первый деплой функции: workflow «Deploy Supabase telegram-relay» или вручную `supabase functions deploy keepalive`.
+#
+# Ручная проверка: Actions → Supabase keepalive ping → Run workflow
+
+name: Supabase keepalive ping
+
+on:
+  schedule:
+    - cron: "15 8 1,6,11,16,21,26 * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: vars.SUPABASE_KEEPALIVE_ENABLED == '1' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET keepalive
+        env:
+          REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -e
+          if [ -z "$REF" ]; then echo "Задайте Secret SUPABASE_PROJECT_REF"; exit 1; fi
+          URL="https://${REF}.supabase.co/functions/v1/keepalive"
+          echo "GET $URL"
+          curl -fsS --max-time 45 "$URL"
+          echo

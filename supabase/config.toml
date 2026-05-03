@@ -1,7 +1,10 @@
 # Локальная конфигурация CLI: https://supabase.com/docs/guides/cli/config
 # Облако: supabase login && supabase link --project-ref <ref>
 # Секреты функции: supabase secrets set TELEGRAM_BOT_TOKEN=... TELEGRAM_CHAT_ID=... TELEGRAM_RELAY_SECRET=...
-# Деплой: supabase functions deploy telegram-relay
+# Деплой: supabase functions deploy telegram-relay && supabase functions deploy keepalive
 
 [functions.telegram-relay]
+verify_jwt = false
+
+[functions.keepalive]
 verify_jwt = false

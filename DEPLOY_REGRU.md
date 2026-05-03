@@ -29,9 +29,12 @@
 ```bash
 supabase secrets set TELEGRAM_BOT_TOKEN="..." TELEGRAM_CHAT_ID="..." TELEGRAM_RELAY_SECRET="..."
 supabase functions deploy telegram-relay
+supabase functions deploy keepalive
 ```
 
-**Автодеплой из GitHub:** workflow [`.github/workflows/deploy-supabase-telegram-relay.yml`](.github/workflows/deploy-supabase-telegram-relay.yml). Нужны Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`; опционально те же `TELEGRAM_*` для шага синхронизации секретов в Supabase. Variable `SUPABASE_RELAY_DEPLOY_ENABLED` = `1` — чтобы job запускался при push (иначе только **Run workflow** вручную).
+**Автодеплой из GitHub:** workflow [`.github/workflows/deploy-supabase-telegram-relay.yml`](.github/workflows/deploy-supabase-telegram-relay.yml). Нужны Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`; опционально те же `TELEGRAM_*` для шага синхронизации секретов в Supabase. Variable `SUPABASE_RELAY_DEPLOY_ENABLED` = `1` — чтобы job запускался при push (иначе только **Run workflow** вручную). Деплой поднимает и **`keepalive`** — лёгкую функцию для анти-паузы (см. ниже).
+
+**Анти-пауза бесплатного Supabase (~7 дней без запросов):** workflow [`.github/workflows/supabase-keepalive-ping.yml`](.github/workflows/supabase-keepalive-ping.yml) раз в ~5 дней делает `GET` на `https://<ref>.supabase.co/functions/v1/keepalive`. Включение: Variables → **`SUPABASE_KEEPALIVE_ENABLED`** = `1` (нужен тот же Secret **`SUPABASE_PROJECT_REF`**). Ручной прогон: Actions → **Supabase keepalive ping** → Run workflow.
 
 **На VPS:** `TELEGRAM_RELAY_URL=https://<ref>.supabase.co/functions/v1/telegram-relay`, `TELEGRAM_RELAY_SECRET` = значение `TELEGRAM_RELAY_SECRET` из Supabase Secrets, затем `pm2 restart site-api --update-env`.
 
