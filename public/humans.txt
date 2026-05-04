@@ -8,12 +8,7 @@ Email: support@coffeenechai.ru
 Описание: Обжарщики specialty кофе в Санкт-Петербурге
 Продукция: Свежеобжаренный кофе в зернах оптом и в розницу
 Доставка: По всей России
-Специализация: Specialty coffee, обжарка под фильтр и эспрессо
-
-/* KEYWORDS */
-Кофе Нечай, нечай кофе, Nechai Coffee, кофе в зернах, specialty coffee,
-свежая обжарка, кофе опт, кофе в розницу, обжарщики Петербург,
-кофе под фильтр, кофе под эспрессо, кофе доставка Россия
+Специализация: Обжарка под фильтр и эспрессо
 
 /* THANKS */
-React, TypeScript, Tailwind CSS, Supabase, Vite
+React, TypeScript, Tailwind CSS, Vite

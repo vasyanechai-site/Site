@@ -28,6 +28,7 @@ Disallow: /order-success
 Disallow: /order-failed
 Disallow: /messenger-test
 Disallow: /tochka-diagnostics
+Disallow: /humans.txt
 
 Sitemap: https://coffeenechai.ru/sitemap.xml
 
@@ -39,6 +40,7 @@ Allow: /
 Allow: /product/
 Allow: /business
 Allow: /locations
+Disallow: /humans.txt
 Disallow: /admin
 Disallow: /admin/
 Disallow: /login
@@ -49,6 +51,7 @@ Allow: /
 Allow: /product/
 Allow: /business
 Allow: /locations
+Disallow: /humans.txt
 Disallow: /admin
 Disallow: /admin/
 Disallow: /login
