@@ -10,7 +10,15 @@
     "dev:server": "node --watch server/src/index.js",
     "start:server": "node server/src/index.js",
     "import-backup": "node server/scripts/import-nechai-backup.mjs",
-    "backup:weekly-email": "node server/scripts/weekly-email-backup.mjs"
+    "backup:weekly-email": "node server/scripts/weekly-email-backup.mjs",
+    "wholesale:seed": "node server/scripts/generate-wholesale-pdf-seed.mjs",
+    "wholesale:audit": "node server/scripts/audit-coffee-items.mjs",
+    "wholesale:audit:local": "node server/scripts/audit-coffee-items.mjs --local",
+    "wholesale:merge": "node server/scripts/merge-wholesale-from-pdf.mjs",
+    "wholesale:merge:local": "node server/scripts/merge-wholesale-from-pdf.mjs --local",
+    "wholesale:merge:dry": "node server/scripts/merge-wholesale-from-pdf.mjs --dry-run",
+    "wholesale:merge:local:dry": "node server/scripts/merge-wholesale-from-pdf.mjs --local --dry-run",
+    "wholesale:sync:local": "npm run wholesale:seed && npm run wholesale:merge:local && npm run wholesale:audit:local"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
