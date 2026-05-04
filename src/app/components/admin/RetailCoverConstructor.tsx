@@ -6,6 +6,7 @@ import { Switch } from '../ui/switch';
 import { Label } from '../ui/label';
 import baseImage from 'figma:asset/da86eda3aa0b3673f383844dd2a79141efbb39e5.png';
 import rareBadge from 'figma:asset/3dcaaf2bcb1e31e8cfea5d02934ee73987861f97.png';
+import drip10Cover from '../../../assets/retail-cover-drip-10.png';
 
 // Определение стран с цветами
 const COUNTRIES = [
@@ -40,8 +41,10 @@ interface BadgeData {
   color: string;
 }
 
+type CoverProductType = 'coffee' | 'drip6' | 'drip10';
+
 export function RetailCoverConstructor() {
-  const [productType, setProductType] = useState<'coffee' | 'drip'>('coffee');
+  const [productType, setProductType] = useState<CoverProductType>('coffee');
   const [selectedCountry, setSelectedCountry] = useState<string>('');
   const [selectedFlavor, setSelectedFlavor] = useState<string>('');
   const [selectedDripFlavors, setSelectedDripFlavors] = useState<string[]>([]);
@@ -64,6 +67,9 @@ export function RetailCoverConstructor() {
   useEffect(() => {
     renderPreview();
   }, [selectedCountry, selectedFlavor, selectedDripFlavors, isRareLot, productType]);
+
+  const isDripMode = productType === 'drip6' || productType === 'drip10';
+  const activeCoverSrc = productType === 'drip10' ? drip10Cover : baseImage;
 
   const renderPreview = async () => {
     const canvas = canvasRef.current;
@@ -104,7 +110,7 @@ export function RetailCoverConstructor() {
           drawBadges(ctx, countryBadge, flavorBadge);
         }
       } else {
-        // Drip mode - multiple flavors in 2 rows
+        // Дрипы (6) и (10) — те же бейджи вкусов
         drawDripFlavors(ctx);
       }
 
@@ -113,7 +119,7 @@ export function RetailCoverConstructor() {
         await drawRareBadge(ctx);
       }
     };
-    img.src = baseImage;
+    img.src = activeCoverSrc;
   };
 
   const drawBadges = (
@@ -361,7 +367,7 @@ export function RetailCoverConstructor() {
           >
             {/* Base Image */}
             <img 
-              src={baseImage} 
+              src={activeCoverSrc} 
               alt="Base cover" 
               className="absolute inset-0 w-full h-full object-cover"
             />
@@ -407,7 +413,7 @@ export function RetailCoverConstructor() {
             )}
 
             {/* Drip Flavors - 2 rows */}
-            {productType === 'drip' && selectedDripFlavors.length > 0 && (
+            {isDripMode && selectedDripFlavors.length > 0 && (
               <div className="absolute left-0 right-0" style={{ top: '15px' }}>
                 {/* First row - 3 flavors */}
                 <div className="flex justify-center items-center" style={{ gap: '3.8px' }}>
@@ -483,13 +489,14 @@ export function RetailCoverConstructor() {
           
           <div className="space-y-6">
             {/* Product Type Tabs */}
-            <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+            <div className="grid grid-cols-3 gap-1.5 p-1 bg-gray-100 rounded-lg">
               <button
+                type="button"
                 onClick={() => {
                   setProductType('coffee');
                   setSelectedDripFlavors([]);
                 }}
-                className={`flex-1 px-4 py-2 rounded-md font-medium transition-all ${
+                className={`px-2 py-2 rounded-md text-sm font-medium transition-all ${
                   productType === 'coffee'
                     ? 'bg-white text-black shadow-sm'
                     : 'text-gray-600 hover:text-black'
@@ -498,19 +505,36 @@ export function RetailCoverConstructor() {
                 Кофе
               </button>
               <button
+                type="button"
                 onClick={() => {
-                  setProductType('drip');
+                  setProductType('drip6');
                   setSelectedCountry('');
                   setSelectedFlavor('');
                   setIsRareLot(false);
                 }}
-                className={`flex-1 px-4 py-2 rounded-md font-medium transition-all ${
-                  productType === 'drip'
+                className={`px-2 py-2 rounded-md text-sm font-medium transition-all ${
+                  productType === 'drip6'
                     ? 'bg-white text-black shadow-sm'
                     : 'text-gray-600 hover:text-black'
                 }`}
               >
-                Дрипы
+                Дрипы (6)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProductType('drip10');
+                  setSelectedCountry('');
+                  setSelectedFlavor('');
+                  setIsRareLot(false);
+                }}
+                className={`px-2 py-2 rounded-md text-sm font-medium transition-all ${
+                  productType === 'drip10'
+                    ? 'bg-white text-black shadow-sm'
+                    : 'text-gray-600 hover:text-black'
+                }`}
+              >
+                Дрипы (10)
               </button>
             </div>
 
@@ -542,7 +566,7 @@ export function RetailCoverConstructor() {
             {/* Flavor Selection */}
             <div>
               <label className="text-sm font-medium mb-2 block">
-                Вкус{productType === 'drip' && ` (${selectedDripFlavors.length}/5)`}
+                Вкус{isDripMode && ` (${selectedDripFlavors.length}/5)`}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {FLAVORS.map(flavor => (
@@ -557,7 +581,7 @@ export function RetailCoverConstructor() {
                     }}
                     className={`px-4 py-2 rounded font-bold text-black transition-all border-2 ${
                       (productType === 'coffee' && selectedFlavor === flavor.name) ||
-                      (productType === 'drip' && selectedDripFlavors.includes(flavor.name))
+                      (isDripMode && selectedDripFlavors.includes(flavor.name))
                         ? 'border-pink-500 scale-105' 
                         : 'border-transparent hover:scale-102'
                     }`}
