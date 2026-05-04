@@ -257,10 +257,16 @@ app.get("/api/keep-alive", (_req, res) => {
   });
 });
 
+/** Для опта/каталога: только опубликованные (`published === false` — скрыто). */
+function filterPublishedCoffeeItems(items) {
+  return (Array.isArray(items) ? items : []).filter((item) => item && item.published !== false);
+}
+
 app.get("/api/coffee-items", async (_req, res) => {
   res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
   res.set("Pragma", "no-cache");
-  res.json(await getCoffeeItems());
+  const items = await getCoffeeItems();
+  res.json(filterPublishedCoffeeItems(items));
 });
 
 app.get("/api/coffee-items-admin", async (_req, res) => {
@@ -270,9 +276,15 @@ app.get("/api/coffee-items-admin", async (_req, res) => {
 });
 
 app.post("/api/coffee-items", async (req, res) => {
-  const body = req.body || {};
+  const body = req.body && typeof req.body === "object" ? req.body : {};
   const items = await getCoffeeItems();
-  const item = { ...body, id: body.id || `coffee-${Date.now()}-${Math.floor(Math.random() * 1000)}` };
+  const id = body.id || `coffee-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const item = {
+    ...body,
+    id,
+    published: body.published !== undefined ? Boolean(body.published) : true,
+    no_discount: body.no_discount !== undefined ? Boolean(body.no_discount) : false,
+  };
   await setCoffeeItems([...items.filter((x) => x.id !== item.id), item]);
   res.status(201).json(item);
 });
@@ -282,7 +294,15 @@ app.put("/api/coffee-items/:id", async (req, res) => {
   const items = await getCoffeeItems();
   const current = items.find((x) => x.id === id);
   if (!current) return res.status(404).json({ error: "Coffee item not found" });
-  const updated = { ...current, ...(req.body || {}), id };
+  const body = req.body && typeof req.body === "object" ? req.body : {};
+  const updated = { ...current, ...body, id };
+  // Явно сохраняем boolean, чтобы false не «терялся» при частичных обновлениях
+  if (Object.prototype.hasOwnProperty.call(body, "published")) {
+    updated.published = Boolean(body.published);
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "no_discount")) {
+    updated.no_discount = Boolean(body.no_discount);
+  }
   await setCoffeeItems(items.map((x) => (x.id === id ? updated : x)));
   res.json(updated);
 });

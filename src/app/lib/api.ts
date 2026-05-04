@@ -208,7 +208,7 @@ const saveLocalOrder = (order: Order): void => {
 
 export const fetchCoffeeItems = async (): Promise<CoffeeItem[]> => {
   if (USE_FALLBACK) {
-    return getLocalCoffeeItems();
+    return getLocalCoffeeItems().filter((item) => item.published !== false);
   }
   
   try {

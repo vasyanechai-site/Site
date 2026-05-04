@@ -19,7 +19,7 @@ import { RetailLocationsManagement } from './admin/RetailLocationsManagement';
 import { PricePdfExport } from './admin/PricePdfExport';
 import { AgentsManagement, AgentTopWidget } from './admin/AgentsManagement';
 import type { CoffeeItem } from '../types';
-import { fetchCoffeeItems } from '../lib/api';
+import { fetchCoffeeItemsAdmin } from '../lib/api';
 import { FadeIn } from './ui/fade-in';
 
 interface AdminPanelProps {
@@ -38,7 +38,8 @@ export function AdminPanel({ onLogout, onNavigateToRetail }: AdminPanelProps) {
 
   const loadCoffeeItems = async () => {
     try {
-      const items = await fetchCoffeeItems();
+      // Полный список (включая снятые с публикации) — для заказов и сводок в админке
+      const items = await fetchCoffeeItemsAdmin();
       setCoffeeItems(items);
     } catch (error) {
       console.error('Failed to load coffee items:', error);
