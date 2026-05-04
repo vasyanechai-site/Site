@@ -367,7 +367,7 @@ export function PricePdfExport() {
             <div className="rounded-lg bg-muted/40 px-3 py-2.5 text-xs text-muted-foreground space-y-1">
               <div className="font-medium text-foreground text-sm">Что войдёт в прайс:</div>
               <div>· Логотип НЕЧАЙ + дата составления</div>
-              <div>· Зерновой кофе и д��ипы (опубликованные позиции)</div>
+              <div>· Зерновой кофе и дрипы (опубликованные позиции)</div>
               <div>· Название, обработка, дескрипторы, оценка Q, цены</div>
               <div>· Откроется диалог «Печать» — сохраните как PDF</div>
             </div>

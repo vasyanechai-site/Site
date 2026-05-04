@@ -126,7 +126,7 @@ function hasNoLargeGap(orders: any[], maxGapDays: number): boolean {
 }
 
 /**
- * Вычисляет авто-ступень лояль��ости по истории заказов.
+ * Вычисляет авто-ступень лояльности по истории заказов.
  *   Ступень 3 — 12 заказов за 12 месяцев + нет перерывов > 40 дней
  *   Ступень 2 — 8 заказов за 6 месяцев  + нет перерывов > 45 дней
  *   Ступень 1 — 4 заказа за 3 месяца
@@ -161,7 +161,7 @@ function applyDropByOne(storedLevel: number, earnedLevel: number): number {
 }
 
 /**
- * 🔒 SECURITY: Проверка админского доступ����
+ * 🔒 SECURITY: Проверка админского доступа
  * 
  * Проверяет, имеет ли запрос права администратора.
  * Токен должен быть в env variable ADMIN_API_TOKEN.
@@ -179,7 +179,7 @@ function applyDropByOne(storedLevel: number, earnedLevel: number): number {
 
 /**
  * Формирует позиции для счета в Точка Банке из элементов корзины.
- * Разделяет один ��овар с разными весами на отдельные позиции.
+ * Разделяет один товар с разными весами на отдельные позиции.
  */
 function formatTochkaPositions(items: any[]): any[] {
   const positions: any[] = [];
@@ -355,7 +355,7 @@ app.get(`${prefix}/coffee-items`, async (c) => {
         },
         {
           id: '4',
-          name: 'К��ста-Рика Тарразу',
+          name: 'Коста-Рика Тарразу',
           country: 'Коста-Рика',
           category: 'Фильтр',
           process: 'Хани',
@@ -413,7 +413,7 @@ app.get(`${prefix}/coffee-items`, async (c) => {
         updated = { ...updated, type: 'grain' };
       }
       
-      // Мигр��ция: если нет USD цен, рассчитываем их из рублевых
+      // Миграция: если нет USD цен, рассчитываем их из рублевых
       if (!item.price_usd_kg && item.price_kg) {
         needsUpdate = true;
         updated = { 
@@ -457,7 +457,7 @@ app.get(`${prefix}/coffee-items`, async (c) => {
     if (needsUpdate) {
       await kv.set(COFFEE_ITEMS_KEY, migratedItems);
       console.log('Migrated coffee items: added USD prices and converted old data');
-      // Фильтруем только опублик��ванные товары для пользователей
+      // Фильтруем только опубликованные товары для пользователей
       const publishedItems = migratedItems.filter((item: any) => item.published !== false);
       return c.json(publishedItems);
     }
@@ -471,7 +471,7 @@ app.get(`${prefix}/coffee-items`, async (c) => {
   }
 });
 
-// Получить все позиции кофе (включая неопубликованные) дл�� админки
+// Получить все позиции кофе (включая неопубликованные) для админки
 app.get(`${prefix}/coffee-items-admin`, async (c) => {
   try {
     let items = await kv.get(COFFEE_ITEMS_KEY) || [];
@@ -618,7 +618,7 @@ app.put(`${prefix}/coffee-items/:id`, async (c) => {
   }
 });
 
-// Обновить поря����ок позиций кофе (массовое обновление)
+// Обновить порядок позиций кофе (массовое обновление)
 app.put(`${prefix}/coffee-items-reorder`, async (c) => {
   try {
     const body = await c.req.json();
@@ -628,7 +628,7 @@ app.put(`${prefix}/coffee-items-reorder`, async (c) => {
       return c.json({ error: 'Invalid data format' }, 400);
     }
     
-    // Просто сохраняем весь массив, так как порядок в массиве и ��сть порядок отображения
+    // Просто сохраняем весь массив, так как порядок в массиве и есть порядок отображения
     await kv.set(COFFEE_ITEMS_KEY, items);
     
     return c.json({ success: true, items });
@@ -814,7 +814,7 @@ app.get(`${prefix}/orders`, async (c) => {
       return order;
     });
     
-    // Фильтр��ем только оптовые заказы (без orderType или orderType === 'wholesale')
+    // Фильтруем только оптовые заказы (без orderType или orderType === 'wholesale')
     // Это нужно, чтобы исключить розничные заказы, которые были ошибочно сохранены под префиксом ORDERS_PREFIX
     const wholesaleOrders = migratedOrders.filter((order: any) => 
       !order.orderType || order.orderType === 'wholesale'
@@ -849,7 +849,7 @@ app.get(`${prefix}/orders/:id`, async (c) => {
   }
 });
 
-// Уд��лить заказ
+// Удалить заказ
 app.delete(`${prefix}/orders/:id`, async (c) => {
   try {
     const id = c.req.param('id');
@@ -868,7 +868,7 @@ app.delete(`${prefix}/orders/:id`, async (c) => {
 // WHOLESALE ACCESS REQUEST ENDPOINTS
 // ============================================================================
 
-// Функция для генерации с��учайного пароля
+// Функция для генерации случайного пароля
 function generatePassword(length = 6): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz23456789';
   let password = '';
@@ -994,7 +994,7 @@ app.post(`${prefix}/wholesale/request-access`, async (c) => {
 // USERS ENDPOINTS
 // ============================================================================
 
-// 🔒 Получ��ть всех пользователей - ТРЕБУЕТ АВТОРИЗАЦИИ АДМИНА
+// 🔒 Получить всех пользователей - ТРЕБУЕТ АВТОРИЗАЦИИ АДМИНА
 app.get(`${prefix}/users`, async (c) => {
   try {
     console.log('Fetching all users');
@@ -1030,7 +1030,7 @@ app.post(`${prefix}/users`, async (c) => {
       return c.json({ error: 'Missing required fields' }, 400);
     }
     
-    // ВАЖНО: Проверяем обязат��льное наличие названия компании
+    // ВАЖНО: Проверяем обязательное наличие названия компании
     if (!company_name || company_name.trim() === '') {
       console.log('Missing company_name - users can only be created with a company name');
       return c.json({ error: 'Company name is required. Users can only be created through admin panel with valid company data.' }, 400);
@@ -1139,7 +1139,7 @@ app.put(`${prefix}/users/:id`, async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
-    // Если меняется телефон, пр��веряем что новый телефон не занят
+    // Если меняется телефон, проверяем что новый телефон не занят
     if (phone && phone !== existingUser.phone) {
       const allUsers = await kv.getByPrefix(USERS_PREFIX);
       const phoneExists = allUsers.some((user: any) => user.phone === phone && user.id !== id);
@@ -1411,7 +1411,7 @@ app.put(`${prefix}/user-settings/:userId`, async (c) => {
     
     await kv.set(`${USER_SETTINGS_PREFIX}${userId}`, settings);
     
-    // Проверяем, что данные действит��льно сохранились
+    // Проверяем, что данные действительно сохранились
     const saved = await kv.get(`${USER_SETTINGS_PREFIX}${userId}`);
     console.log(`Settings saved and verified for user ${userId}:`, JSON.stringify(saved));
     
@@ -1437,7 +1437,7 @@ app.get(`${prefix}/promo-codes`, async (c) => {
   }
 });
 
-// Создать ��ромокод
+// Создать промокод
 app.post(`${prefix}/promo-codes`, async (c) => {
   try {
     const body = await c.req.json();
@@ -1449,7 +1449,7 @@ app.post(`${prefix}/promo-codes`, async (c) => {
 
     const promoKey = `${PROMO_PREFIX}${code.toUpperCase()}`;
     
-    // П��оверка на существование
+    // Проверка на существование
     const existing = await kv.get(promoKey);
     if (existing) {
       return c.json({ error: 'Promo code already exists' }, 400);
@@ -1583,7 +1583,7 @@ app.post(`${prefix}/favorites/:userId`, async (c) => {
   }
 });
 
-// Удал��ть товар из ��збран��ого
+// Удалить товар из избранного
 app.delete(`${prefix}/favorites/:userId/:itemId`, async (c) => {
   try {
     const userId = c.req.param('userId');
@@ -1619,7 +1619,7 @@ app.post(`${prefix}/backup/send-email`, async (c) => {
     await sendBackupEmail(backupData, false);
     console.log('Backup sent to email successfully');
     
-    // Обновляем расписан��е
+    // Обновляем расписание
     await backup.updateBackupSchedule(3);
     
     // Очищаем старые бэкапы
@@ -1712,7 +1712,7 @@ app.get(`${prefix}/backups/:id`, async (c) => {
   }
 });
 
-// Восстановить д��нные из бэкапа
+// Восстановить данные из бэкапа
 app.post(`${prefix}/backups/:id/restore`, async (c) => {
   try {
     const id = c.req.param('id');
@@ -1888,7 +1888,7 @@ app.post(`${prefix}/retail/loyalty/claim-bonus`, async (c) => {
     
     console.log(`🔍 Current balance for user ${user.id}: ${currentBalance}`);
     
-    // Начисляем 2000 вушей (можно ��олучать бонус многократно)
+    // Начисляем 2000 вушей (можно получать бонус многократно)
     const newBalance = currentBalance + 2000;
     await kv.set(balanceKey, {
       balance: newBalance,
@@ -1935,7 +1935,7 @@ app.post(`${prefix}/admin/grant-welcome-bonus`, async (c) => {
       return c.json({ error: 'Failed to fetch users' }, 500);
     }
     
-    // Фильтруем только ро��ничных пользователей
+    // Фильтруем только розничных пользователей
     const retailUsers = users.filter(user => 
       user.user_metadata?.role === 'retail' || 
       (!user.user_metadata?.role && user.email) // также включаем пользователей без роли
@@ -2115,7 +2115,7 @@ app.post(`${prefix}/admin/fix-user-profiles`, async (c) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
     
-    // Получаем всех пользоват��лей из auth
+    // Получаем всех пользователей из auth
     const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
     
     if (usersError) {
@@ -2192,7 +2192,7 @@ app.post(`${prefix}/admin/fix-user-profiles`, async (c) => {
 // TOCHKA BANK INTEGRATION
 // ============================================================================
 
-// Keep-alive эндпоинт для предотвращения отключения базы дан��ых
+// Keep-alive эндпоинт для предотвращения отключения базы данных
 app.get(`${prefix}/keep-alive`, async (c) => {
   return c.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -2238,7 +2238,7 @@ app.post(`${prefix}/tochka/create-invoice`, async (c) => {
     // Формируем позиции счета
     const positions = formatTochkaPositions(order.items);
     
-    // Формируем тело запроса для Точка Банка согласно ПРАВИЛЬН��МУ шаблону из документации
+    // Формируем тело запроса для Точка Банка согласно ПРАВИЛЬНОМУ шаблону из документации
     const body = {
       Data: {
         accountId: "40802810901500399057/044525104", // Ваш расчетный счет
@@ -2317,7 +2317,7 @@ app.post(`${prefix}/tochka/create-invoice`, async (c) => {
   } catch (error) {
     console.log('Error creating Tochka Bank invoice:', error);
     return c.json({ 
-      error: 'Ошибка при создании счет��'
+      error: 'Ошибка при создании счета'
     }, 500);
   }
 });
@@ -2348,7 +2348,7 @@ app.get(`${prefix}/ticker-settings`, async (c) => {
   }
 });
 
-// О��новить настройки бегущей строки
+// Обновить настройки бегущей строки
 app.put(`${prefix}/ticker-settings`, async (c) => {
   try {
     const body = await c.req.json();
@@ -2384,10 +2384,10 @@ app.post(`${prefix}/retail/init-test-data`, async (c) => {
       {
         id: 'test_1',
         name: 'Эфиопия Иргачиф',
-        description: 'Натуральна�� обработка. Ноты черники, жасмина и цитрусовых. Яркая кислотно��ть.',
+        description: 'Натуральная обработка. Ноты черники, жасмина и цитрусовых. Яркая кислотность.',
         price: 650,
         imageUrl: defaultImage,
-        category: 'Фил��тр',
+        category: 'Фильтр',
         weight: '250гр, 1кг',
         roast: 'Фильтр',
         grind: 'В зернах, Для воронки, Для френч-пресса',
@@ -2447,7 +2447,7 @@ app.post(`${prefix}/retail/init-test-data`, async (c) => {
         description: 'Мытая обработка. Ноты цитрусовых, меда и молочного шоколада. Чистый вкус.',
         price: 640,
         imageUrl: defaultImage,
-        category: 'Ф��льтр',
+        category: 'Фильтр',
         weight: '250гр, 1кг',
         roast: 'Фильтр',
         grind: 'В зернах, Для воронки, Для капельной кофеварки',
@@ -2558,7 +2558,7 @@ app.get(`${prefix}/retail/products`, async (c) => {
       return updated;
     });
     
-    // Сохраняем обновленные т��вар���
+    // Сохраняем обновленные товары
     if (needsUpdate) {
       console.log('🔄 Migrating product dimensions to numbers...');
       for (const product of updatedProducts) {
@@ -2806,7 +2806,7 @@ app.post(`${prefix}/retail/upload-image`, async (c) => {
       await supabase.storage.createBucket(bucketName, { public: true });
     }
     
-    // Генерируем уникаль��ое имя файла
+    // Генерируем уникальное имя файла
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExt}`;
     
@@ -2880,7 +2880,7 @@ app.put(`${prefix}/retail/category-order`, async (c) => {
 // RETAIL ORDERS API (для новой структуры RetailOrder)
 // ============================================================================
 
-// Создать розничный ��аказ (нов��я структура)
+// Создать розничный заказ (новая структура)
 app.post(`${prefix}/retail/orders`, async (c) => {
   try {
     const requestData = await c.req.json();
@@ -3160,7 +3160,7 @@ app.post(`${prefix}/retail/orders`, async (c) => {
                 paymentUrl 
               });
               
-              // Со��раняем operationId в заказ (именно tochka_operation_id как требует ТЗ)
+              // Сохраняем operationId в заказ (именно tochka_operation_id как требует ТЗ)
               order.tochka_operation_id = tochkaOperationId;
               order.tochka_payment_url = paymentUrl;
               order.tochka_created_at = new Date().toISOString();
@@ -3223,7 +3223,7 @@ app.post(`${prefix}/retail/orders`, async (c) => {
         // Добавляем доставку как отдельную позицию, если есть
         if (order.delivery_cost && order.delivery_cost > 0) {
           positions.push({
-            positionName: "Доставка ��ДЭК",
+            positionName: "Доставка СДЭК",
             unitCode: "услуга",
             ndsKind: "without_nds",
             price: Math.round(order.delivery_cost).toString(),
@@ -3306,7 +3306,7 @@ app.post(`${prefix}/retail/orders`, async (c) => {
         if (order.delivery_cost > 0) {
           deliveryText += `\n💰 Стоимость доставки: ${order.delivery_cost} ₽`;
         } else {
-          deliveryText += `\n💰 До��тавка: Бесплатно`;
+          deliveryText += `\n💰 Доставка: Бесплатно`;
         }
         if (order.cdek_number) {
           deliveryText += `\n📦 Трек-номер СДЭК: <code>${order.cdek_number}</code>`;
@@ -3314,7 +3314,7 @@ app.post(`${prefix}/retail/orders`, async (c) => {
         if (order.cdek_status === 'failed' || order.cdek_status === 'error') {
           deliveryText += `\n⚠️ <b>ВНИМАНИЕ:</b> Ошибка при создании заказа в СДЭК`;
           if (order.cdek_error?.message) {
-            deliveryText += `\n❌ ��шибка: ${order.cdek_error.message}`;
+            deliveryText += `\n❌ Ошибка: ${order.cdek_error.message}`;
           }
         }
       } else if (order.delivery_method === 'delivery') {
@@ -3322,20 +3322,20 @@ app.post(`${prefix}/retail/orders`, async (c) => {
       }
 
       const message = `
-🛍 <b>НОВЫЙ РОЗН��ЧНЫЙ ЗАКАЗ</b>
+🛍 <b>НОВЫЙ РОЗНИЧНЫЙ ЗАКАЗ</b>
 
 📦 <b>Заказ:</b> <code>${order.orderId}</code>
 📅 <b>Дата:</b> ${new Date(order.date).toLocaleString('ru-RU')}
 
 👤 <b>Клиент:</b> ${order.contact}
-📞 <b>Те��ефон:</b> ${order.phone}
+📞 <b>Телефон:</b> ${order.phone}
 ${order.email ? `📧 <b>Email:</b> ${order.email}\n` : ''}
 ${deliveryText}
 
 <b>Состав заказа:</b>
 ${itemsList}
 
-${order.subtotal ? `💵 <b>Сумма товаро��:</b> ${order.subtotal.toLocaleString('ru-RU')} ₽\n` : ''}💰 <b>Итого:</b> ${order.total.toLocaleString('ru-RU')} ₽
+${order.subtotal ? `💵 <b>Сумма товаров:</b> ${order.subtotal.toLocaleString('ru-RU')} ₽\n` : ''}💰 <b>Итого:</b> ${order.total.toLocaleString('ru-RU')} ₽
 ${invoiceUrl ? `\n🧾 <b>Счет в ЛК Точка:</b> ${invoiceUrl}` : ''}
       `.trim();
 
@@ -3344,7 +3344,7 @@ ${invoiceUrl ? `\n🧾 <b>Счет в ЛК Точка:</b> ${invoiceUrl}` : ''}
       console.log('✅ Telegram notification sent for retail order');
     } catch (telegramError) {
       console.error('Failed to send Telegram notification:', telegramError);
-      // Не падаем, если не удалось отправить уведомл��ние
+      // Не падаем, если не удалось отправить уведомление
     }
     
     console.log('========================================');
@@ -3442,7 +3442,7 @@ app.delete(`${prefix}/retail/orders/:orderId`, async (c) => {
 });
 
 // ============================================================================
-// 🔐 ADMIN ENDPOINTS (безопасные, то��ько для администраторов)
+// 🔐 ADMIN ENDPOINTS (безопасные, только для администраторов)
 // ============================================================================
 // Эти endpoints созданы для явного разделения админского и пользовательского доступа.
 // Админ-панель теперь открыта для всех (без проверки токена)
@@ -3532,7 +3532,7 @@ app.get(`${prefix}/admin/retail/orders`, async (c) => {
       return isValid;
     });
     
-    // Сорти��уем по дате (от новых к старым)
+    // Сортируем по дате (от новых к старым)
     const sortedOrders = validOrders.sort((a: any, b: any) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
     );
@@ -3673,14 +3673,14 @@ app.post(`${prefix}/utilities/find-orders-by-total`, async (c) => {
       misplaced: [] as any[]
     };
     
-    // Получаем все опт��вые заказы
+    // Получаем все оптовые заказы
     const wholesaleOrders = await kv.getByPrefix(ORDERS_PREFIX);
     for (const order of wholesaleOrders) {
       if (totals.includes(order.total)) {
         const key = `${ORDERS_PREFIX}${order.orderId}`;
         results.wholesale.push({ ...order, _key: key });
         
-        // Проверяем, не розничный ��и это заказ по ошибке
+        // Проверяем, не розничный ли это заказ по ошибке
         if (order.orderType === 'retail' || (!order.company && !order.inn)) {
           results.misplaced.push({ ...order, _key: key, _reason: 'Retail order in wholesale prefix' });
         }
@@ -3707,7 +3707,7 @@ app.post(`${prefix}/utilities/find-orders-by-total`, async (c) => {
   }
 });
 
-// Удалить заказ по точному ключ��
+// Удалить заказ по точному ключу
 app.post(`${prefix}/utilities/delete-order-by-key`, async (c) => {
   try {
     const { key } = await c.req.json();
@@ -3828,7 +3828,7 @@ function formatPhoneForMessenger(phone: string): string {
   return cleaned;
 }
 
-// Функция дл�� генерации ссылки на мессенджер
+// Функция для генерации ссылки на мессенджер
 function generateMessengerLink(phone: string, messenger: string): string {
   const formattedPhone = formatPhoneForMessenger(phone);
   
@@ -3875,7 +3875,7 @@ function createRegistrationMessage(phone: string, companyName: string, messenger
     `🕐 Дата: ${new Date().toLocaleString('ru-RU')}`;
 }
 
-// Регистр��ция оптового клиента
+// Регистрация оптового клиента
 app.post(`${prefix}/business-registration`, async (c) => {
   try {
     const body = await c.req.json();
@@ -3898,14 +3898,14 @@ app.post(`${prefix}/business-registration`, async (c) => {
 
     await kv.set(registrationId, registrationData);
 
-    // Отправляем уведомление в Telegram с кликабел��ной ссылкой на мессендж��р
+    // Отправляем уведомление в Telegram с кликабельной ссылкой на мессенджер
     const message = createRegistrationMessageWithLink(phone, companyName, messenger);
 
     try {
       await sendTelegramMessage(message);
     } catch (telegramError) {
       console.log('Failed to send Telegram notification:', telegramError);
-      // Продолжаем выполнение, даже если уведомление н�� отправилось
+      // Продолжаем выполнение, даже если уведомление не отправилось
     }
 
     return c.json({ success: true, registrationId });
@@ -4077,10 +4077,10 @@ app.post(`${prefix}/telegram-webhook`, async (c) => {
 
     if (!chatId) {
       console.log('⚠️ No chat_id found in update');
-      return c.json({ ok: true }); // В��звращаем 200 для Telegram
+      return c.json({ ok: true }); // Возвращаем 200 для Telegram
     }
 
-    // С��храняем пользователя в KV таблицу
+    // Сохраняем пользователя в KV таблицу
     const TG_USER_PREFIX = 'telegram_user:';
     const key = `${TG_USER_PREFIX}${chatId}`;
     const userData = {
@@ -4097,7 +4097,7 @@ app.post(`${prefix}/telegram-webhook`, async (c) => {
     await kv.set(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, key, JSON.stringify(userData));
     console.log('✅ User saved to database');
 
-    // Отправляем приветственное со��бщение при первом контакте или команде /start
+    // Отправляем приветственное сообщение при первом контакте или команде /start
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
     if (TELEGRAM_BOT_TOKEN && (messageText.startsWith('/start') || messageText.toLowerCase().includes('подписаться'))) {
       try {
@@ -4138,13 +4138,13 @@ app.post(`${prefix}/telegram-webhook`, async (c) => {
 const TG_USER_PREFIX = 'telegram_user:';
 const LAST_UPDATE_ID_KEY = 'telegram_last_update_id';
 
-// Endpoint для запуска polling вруч��ую
+// Endpoint для запуска polling вручную
 app.post(`${prefix}/telegram/poll`, async (c) => {
   try {
     const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN');
     
     if (!TELEGRAM_BOT_TOKEN) {
-      return c.json({ error: 'TELEGRAM_BOT_TOKEN не нас��роен' }, 500);
+      return c.json({ error: 'TELEGRAM_BOT_TOKEN не настроен' }, 500);
     }
 
     const supabase = createClient(
@@ -4152,7 +4152,7 @@ app.post(`${prefix}/telegram/poll`, async (c) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Получаем п��следний обработанный update_id
+    // Получаем последний обработанный update_id
     const lastUpdateResult = await kv.get(LAST_UPDATE_ID_KEY);
     const lastUpdateId = lastUpdateResult || 0;
 
@@ -4184,7 +4184,7 @@ app.post(`${prefix}/telegram/poll`, async (c) => {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 chat_id: chatId,
-              text: '✅ Вы подписалис�� на рассыл��у!\n\nТеперь вы будете получать уве��омления о новинках и специальных предложениях от нашего магазина кофе.',
+              text: '✅ Вы подписались на рассылку!\n\nТеперь вы будете получать уведомления о новинках и специальных предложениях от нашего магазина кофе.',
               parse_mode: 'HTML'
               })
             }
@@ -4211,7 +4211,7 @@ app.post(`${prefix}/telegram/poll`, async (c) => {
     if (!data.ok) {
       // Если webhook активен, автоматически удаляем его
       if (data.description && data.description.includes('webhook is active')) {
-        console.log('⚠️ Webhook активен, автоматически удаля��м...');
+        console.log('⚠️ Webhook активен, автоматически удаляем...');
         
         const deleteResponse = await fetch(
           `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`,
@@ -4392,7 +4392,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
     const PROCESSING_DAYS = 2;
     const SENDER_PVZ_CODE = 'SPB1204'; // ПВЗ отправителя
     
-    // Fallback тарифы - ТОЛЬКО посылочн��е тарифы (ПВЗ→ПВЗ)
+    // Fallback тарифы - ТОЛЬКО посылочные тарифы (ПВЗ→ПВЗ)
     // 136 - Посылка склад-склад
     // 483 - Экспресс-лайт склад-склад (для внутригородской доставки)
     // 234 - Эконом склад-склад
@@ -4451,7 +4451,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
         console.log(`📦 Item: ${weight}g × ${quantity} = ${weight * quantity}g, dims: ${length}×${width}×${height}cm`);
       });
     } else {
-      // Де��олтные значения
+      // Дефолтные значения
       totalWeight = 500;
       maxLength = 20;
       maxWidth = 15;
@@ -4466,7 +4466,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
     debug.weight_after = totalWeight;
 
     // СОРТИРУЕМ ГАБАРИТЫ ПО УБЫВАНИЮ (length >= width >= height)
-    // API СДЭК требует правильной сортировки дл�� расчета объемного веса
+    // API СДЭК требует правильной сортировки для расчета объемного веса
     const dimensions = [maxLength, maxWidth, maxHeight].sort((a, b) => b - a);
     const sortedLength = dimensions[0];
     const sortedWidth = dimensions[1];
@@ -4521,7 +4521,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
     // Для внутригородской доставки в СПб используем специальный набор тарифов
     let tariffsToTest = FALLBACK_TARIFFS;
     if (isIntraCityDelivery) {
-      // Для ��Пб → СПб работают только тарифы: 483 (экспресс-лайт), 234 (эконом)
+      // Для СПб → СПб работают только тарифы: 483 (экспресс-лайт), 234 (эконом)
       tariffsToTest = [483, 234, 138, 139];
       console.log(`📍 Внутригородская доставка СПб → СПб, используем тарифы: ${tariffsToTest.join(', ')}`);
     }
@@ -4540,10 +4540,10 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
     console.log(`⚖️ Total weight: ${totalWeight}g`);
     console.log(`📐 Dimensions: ${lengthCm}×${widthCm}×${heightCm}cm`);
     console.log(`💰 Goods value: ${order_price} RUB`);
-    console.log(`�� Delivery type: ${isIntraCityDelivery ? 'Intra-city' : 'Inter-city'}`);
+    console.log(`🚚 Delivery type: ${isIntraCityDelivery ? 'Intra-city' : 'Inter-city'}`);
     console.log(`${'='.repeat(60)}\n`);
 
-    // Пере��ираем тарифы до первого успешного
+    // Перебираем тарифы до первого успешного
     let selectedTariff = null;
     let selectedTariffResponse = null;
     let lastError = null;
@@ -4587,14 +4587,14 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
         
         console.log(`📥 Response for tariff ${tariff}:`, JSON.stringify(data, null, 2));
 
-        // Проверяем ус��овия успешного тарифа:
+        // Проверяем условия успешного тарифа:
         // 1. Нет ошибок
         // 2. Стоимость > 0 (игнорируем нулевые тарифы - они недоступны)
         // 3. Стоимость <= 5000 ₽ (защита от экспресс-тарифов)
         const hasNoErrors = !data.errors || data.errors.length === 0;
         const isPriceReasonable = data.total_sum && data.total_sum > 0 && data.total_sum <= 5000;
         
-        // Сох��аняем попытку в debug
+        // Сохраняем попытку в debug
         fallbackAttempts.push({
           tariff,
           status: response.status,
@@ -4614,7 +4614,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
           console.log(`❌ Tariff ${tariff} has errors:`, data.errors);
           lastError = data.errors;
         } else if (data.total_sum === 0) {
-          console.log(`��️ Tariff ${tariff} price is ZERO (tariff not available for this route) - skipping`);
+          console.log(`⚠️ Tariff ${tariff} price is ZERO (tariff not available for this route) - skipping`);
           lastError = `Tariff ${tariff} not available (price = 0)`;
         } else {
           console.log(`⚠️ Tariff ${tariff} price too high: ${data.total_sum} RUB (skipping)`);
@@ -4630,7 +4630,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
       }
     }
 
-    // С��храняем в debug
+    // Сохраняем в debug
     debug.fallback_attempts = fallbackAttempts;
     debug.selected_tariff = selectedTariff;
     debug.selected_tariff_response = selectedTariffResponse;
@@ -4650,7 +4650,7 @@ app.post(`${prefix}/cdek/calc`, async (c) => {
     console.log(`💰 Delivery cost: ${selectedTariffResponse.total_sum} RUB`);
     console.log(`⏱️ Period: ${selectedTariffResponse.period_min}-${selectedTariffResponse.period_max} days`);
 
-    // Используем результ��т выбранного тарифа
+    // Используем результат выбранного тарифа
     const calcResponse = selectedTariffResponse;
     let deliveryCost = calcResponse.total_sum || 0;
     const deliveryDays = (calcResponse.period_min || 0) + PROCESSING_DAYS;
@@ -4718,7 +4718,7 @@ app.post(`${prefix}/cdek/pvz`, async (c) => {
     
     debug.city_code = cityCode;
 
-    // Получить список ПВЗ (без лимита для получения вс��х точек)
+    // Получить список ПВЗ (без лимита для получения всех точек)
     // CDEK API может не поддерживать большие значения size, попробуем без него
     let pvzUrl = `/deliverypoints?city_code=${cityCode}&type=PVZ`;
     debug.pvz_query_url = `https://api.cdek.ru/v2${pvzUrl}`;
@@ -4747,7 +4747,7 @@ app.post(`${prefix}/cdek/pvz`, async (c) => {
 
     console.log(`\n${'='.repeat(60)}`);
     console.log(`✅ PVZ list prepared`);
-    console.log(`��� Total PVZ from API: ${pvzResponse.length}`);
+    console.log(`📊 Total PVZ from API: ${pvzResponse.length}`);
     console.log(`✅ Available PVZ: ${availablePvz.length}`);
     console.log(`${'='.repeat(60)}\n`);
 
@@ -4795,7 +4795,7 @@ app.post(`${prefix}/cdek/create`, async (c) => {
     const COMPANY_EMAIL = 'chai.nechai@yandex.ru';
     const COMPANY_PHONE = '+79818747388';
     const SENDER_OFFICE_CODE = 'SPB1204';
-    const TARIFF_CODE = tariff_code || 136; // Используем тариф из расчета или fallback на 136 (��ВЗ→ПВЗ)
+    const TARIFF_CODE = tariff_code || 136; // Используем тариф из расчета или fallback на 136 (ПВЗ→ПВЗ)
     const PACKAGE_COMMENT = 'Хрупкое';
 
     // Генерируем уникальный номер заказа
@@ -5196,7 +5196,7 @@ app.post(`${prefix}/retail/checkout/pay`, async (c) => {
     console.log('✅ All cart items valid');
 
     // ВАЖНО: Используем сумму из заказа, которая уже учитывает скидку от вушей!
-    // НЕ пере��читы��аем из корзины, так как там оригинальные цены без скидки
+    // НЕ пересчитываем из корзины, так как там оригинальные цены без скидки
     const totalAmount = order.total;
     const deliveryCost = order.delivery_cost || 0;
     
@@ -5277,7 +5277,7 @@ app.post(`${prefix}/retail/checkout/pay`, async (c) => {
         // Добавляем доставку как отдельную позицию, если она есть
         if (deliveryCost > 0) {
           receiptItems.push({
-            name: "Д��ставка СДЭК",
+            name: "Доставка СДЭК",
             amount: deliveryCost.toFixed(2),
             quantity: 1,
             vatType: "none",
@@ -5330,7 +5330,7 @@ app.post(`${prefix}/retail/checkout/pay`, async (c) => {
         return receiptItems;
       })(),
       supplier: {
-        name: "Индивидуальный предприним��тель Порохина Анастасия Игоревна",
+        name: "Индивидуальный предприниматель Порохина Анастасия Игоревна",
         phone: "+79819747388",
         taxCode: "591000733530"
       }
@@ -5364,7 +5364,7 @@ app.post(`${prefix}/retail/checkout/pay`, async (c) => {
 // RETAIL USER REGISTRATION ENDPOINT
 // ============================================================================
 
-// Регистраци�� розничного пользователя с автоматическим подтверждением email
+// Регистрация розничного пользователя с автоматическим подтверждением email
 app.post(`${prefix}/retail-signup`, async (c) => {
   try {
     const body = await c.req.json();
@@ -5402,7 +5402,7 @@ app.post(`${prefix}/retail-signup`, async (c) => {
         errorMessage = 'Пользователь с таким email уже зарегистрирован';
         console.log(`Signup validation: User with email ${email} already exists (code: ${error.code})`);
       } else if (error.code === 'weak_password' || error.message.includes('Password')) {
-        errorMessage = 'Пароль должен содержать минимум 6 сим��олов';
+        errorMessage = 'Пароль должен содержать минимум 6 символов';
         console.log('Signup validation: Weak password');
       } else if (error.code === 'invalid_email' || error.message.includes('Email')) {
         errorMessage = 'Некорректный email адрес';
@@ -5520,7 +5520,7 @@ app.get(`${prefix}/retail-users`, async (c) => {
       });
     }
     
-    console.log(`✅ [RETAIL-USERS] Успешно получено ${usersWithBalance.length} пользователей с б��лансами`);
+    console.log(`✅ [RETAIL-USERS] Успешно получено ${usersWithBalance.length} пользователей с балансами`);
     
     return c.json({ users: usersWithBalance });
     
@@ -5623,7 +5623,7 @@ app.post(`${prefix}/retail-users/:userId/add-points`, async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
     
-    // Получаем текущи�� баланс
+    // Получаем текущий баланс
     const balanceData = await kv.get(`nechai_loyalty_${userId}`);
     const currentBalance = typeof balanceData === 'number' 
       ? balanceData 
@@ -5657,7 +5657,7 @@ app.post(`${prefix}/retail-users/:userId/add-points`, async (c) => {
 
 // DELETE /retail-users/:userId - удалить пользователя розницы
 app.delete(`${prefix}/retail-users/:userId`, async (c) => {
-  console.log('🗑️ [DELETE-USER] Запрос на удаление ��ользователя');
+  console.log('🗑️ [DELETE-USER] Запрос на удаление пользователя');
   
   try {
     const userIdToDelete = c.req.param('userId');
@@ -5687,7 +5687,7 @@ app.delete(`${prefix}/retail-users/:userId`, async (c) => {
       // Проверяем, что пользователь - админ
       const adminProfile = await kv.get(`nechai_profile_${user.id}`);
       if (!adminProfile || adminProfile.role !== 'admin') {
-        console.log('❌ [DELETE-USER] Доступ запреще�� - пользователь не админ');
+        console.log('❌ [DELETE-USER] Доступ запрещён - пользователь не админ');
         return c.json({ error: 'Forbidden: Admin access required' }, 403);
       }
       
@@ -5701,7 +5701,7 @@ app.delete(`${prefix}/retail-users/:userId`, async (c) => {
       }
     }
     
-    // Провер��ем, что пользователь существует
+    // Проверяем, что пользователь существует
     const profileToDelete = await kv.get(`nechai_profile_${userIdToDelete}`);
     if (!profileToDelete) {
       console.log('❌ [DELETE-USER] Пользователь не найден');
@@ -5732,7 +5732,7 @@ app.delete(`${prefix}/retail-users/:userId`, async (c) => {
     // Удаляем баланс лояльности
     await kv.del(`nechai_loyalty_${userIdToDelete}`);
     
-    console.log(`✅ [DELETE-USER] Пользователь ${userIdToDelete} усп��шно удален`);
+    console.log(`✅ [DELETE-USER] Пользователь ${userIdToDelete} успешно удален`);
     
     return c.json({ success: true });
     
@@ -5831,7 +5831,7 @@ app.delete(`${prefix}/retail-users/:userId`, async (c) => {
               }
             }
             
-            // Если это не временная ��шибка ��ли закончилис�� попытки
+            // Если это не временная ошибка или закончились попытки
             throw kvError;
           }
         }
@@ -6159,7 +6159,7 @@ app.post(`${prefix}/payment/check-status/:orderId`, async (c) => {
 
 /**
  * Подтвердить оплату заказа (вызывается со страницы успеха)
- * Если пользователь попал на страницу success - значит Точка Банк подтвер��ила оплату
+ * Если пользователь попал на страницу success - значит Точка Банк подтвердила оплату
  */
 app.post(`${prefix}/retail/mark-paid/:orderId`, async (c) => {
   try {
@@ -6337,7 +6337,7 @@ app.post(`${prefix}/tochka/webhook`, async (c) => {
       order.paidAt = new Date().toISOString();
       wasUpdated = true;
       
-      // Loyalty: Начисление баллов (если еще не был�� начислены)
+      // Loyalty: Начисление баллов (если еще не были начислены)
       if (order.userId && order.pointsEarned > 0 && !order.pointsAccrued) {
         try {
           const balanceKey = `nechai_loyalty_${order.userId}`;
@@ -6387,7 +6387,7 @@ app.post(`${prefix}/tochka/webhook`, async (c) => {
     
   } catch (error) {
     console.error('❌ CRITICAL ERROR in Tochka Webhook handler:', error);
-    // ВСЕГДА возвращаем 200, чтобы избежать бесконечных ретраев от Точк��
+    // ВСЕГДА возвращаем 200, чтобы избежать бесконечных ретраев от Точки
     return c.text('OK', 200);
   }
 });
@@ -6515,7 +6515,7 @@ app.get(`${prefix}/retail/order-payment-info/:orderId`, async (c) => {
 });
 
 // ============================================================================
-// RETAIL LOCATIONS API - Управление ��очками продаж
+// RETAIL LOCATIONS API - Управление точками продаж
 // ============================================================================
 
 // Initialize retail locations (one-time migration) with geocoding

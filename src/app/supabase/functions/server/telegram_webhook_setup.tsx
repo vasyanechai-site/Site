@@ -40,7 +40,7 @@ export async function setWebhook(): Promise<{ success: boolean; message: string;
   }
 
   // ВАЖНО: Используем publicAnonKey вместо service role key для webhook URL
-  // ��то позволит Telegram отправлять запросы с анонимной авторизацией
+  // Это позволит Telegram отправлять запросы с анонимной авторизацией
   const PUBLIC_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY');
   
   // Webhook URL с встроенным анонимным ключом в query параметрах
