@@ -258,10 +258,14 @@ app.get("/api/keep-alive", (_req, res) => {
 });
 
 app.get("/api/coffee-items", async (_req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Pragma", "no-cache");
   res.json(await getCoffeeItems());
 });
 
 app.get("/api/coffee-items-admin", async (_req, res) => {
+  res.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  res.set("Pragma", "no-cache");
   res.json(await getCoffeeItems());
 });
 
@@ -289,12 +293,14 @@ app.put("/api/coffee-items-reorder", async (req, res) => {
   const force =
     String(req.query.force || "") === "1" ||
     String(req.query.force || "").toLowerCase() === "true";
-  if (
+  const shrinkBlocked =
     !force &&
-    current.length >= 10 &&
     next.length > 0 &&
-    next.length < Math.floor(current.length * 0.25)
-  ) {
+    current.length > next.length &&
+    ((current.length >= 10 &&
+      next.length < Math.floor(current.length * 0.25)) ||
+      (current.length >= 6 && next.length < current.length - 2));
+  if (shrinkBlocked) {
     return res.status(400).json({
       error:
         "Сохранение порядка отклонено: список позиций сократился слишком сильно (часто из‑за сбоя UI после перетаскивания). Обновите страницу админки и повторите; при осознанной массовой правке можно вызвать API с query force=1.",

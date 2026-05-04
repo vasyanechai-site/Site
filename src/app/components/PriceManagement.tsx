@@ -281,6 +281,13 @@ export function PriceManagement() {
       itemsRef.current = coffeeItems;
     } catch (error) {
       console.error('Failed to load coffee items:', error);
+      setItems([]);
+      itemsRef.current = [];
+      toast.error(
+        error instanceof Error
+          ? `Прайс не загрузился с сервера: ${error.message}. Проверьте API и жёстко обновите страницу (Ctrl+Shift+R). В DevTools удалите ключ localStorage «nechai_coffee_items», если раньше включался офлайн-режим.`
+          : 'Прайс не загрузился с сервера. Проверьте API и обновите страницу.',
+      );
     } finally {
       setIsLoading(false);
     }

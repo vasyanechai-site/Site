@@ -230,17 +230,12 @@ export const fetchCoffeeItemsAdmin = async (): Promise<CoffeeItem[]> => {
   if (USE_FALLBACK) {
     return getLocalCoffeeItems();
   }
-  
-  try {
-    const response = await fetch(`${API_URL}/coffee-items-admin`, { headers });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch coffee items (admin): ${response.statusText}`);
-    }
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching coffee items (admin), using localStorage fallback:', error);
-    return getLocalCoffeeItems();
+
+  const response = await fetch(`${API_URL}/coffee-items-admin`, { headers });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch coffee items (admin): ${response.statusText}`);
   }
+  return await response.json();
 };
 
 export const createCoffeeItem = async (item: Omit<CoffeeItem, 'id'>): Promise<CoffeeItem> => {
@@ -266,15 +261,8 @@ export const createCoffeeItem = async (item: Omit<CoffeeItem, 'id'>): Promise<Co
     }
     return await response.json();
   } catch (error) {
-    console.error('Error creating coffee item, using localStorage fallback:', error);
-    const items = getLocalCoffeeItems();
-    const newItem: CoffeeItem = {
-      ...item,
-      id: Date.now().toString()
-    };
-    items.push(newItem);
-    saveLocalCoffeeItems(items);
-    return newItem;
+    console.error('Error creating coffee item:', error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 };
 
@@ -301,15 +289,8 @@ export const updateCoffeeItem = async (id: string, updates: Partial<CoffeeItem>)
     }
     return await response.json();
   } catch (error) {
-    console.error('Error updating coffee item, using localStorage fallback:', error);
-    const items = getLocalCoffeeItems();
-    const index = items.findIndex(item => item.id === id);
-    if (index !== -1) {
-      items[index] = { ...items[index], ...updates };
-      saveLocalCoffeeItems(items);
-      return items[index];
-    }
-    throw error;
+    console.error('Error updating coffee item:', error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 };
 
@@ -335,8 +316,8 @@ export const reorderCoffeeItems = async (items: CoffeeItem[]): Promise<void> => 
       throw new Error(`Failed to reorder coffee items: ${detail}`);
     }
   } catch (error) {
-    console.error('Error reordering coffee items, using localStorage fallback:', error);
-    saveLocalCoffeeItems(items);
+    console.error('Error reordering coffee items:', error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 };
 
@@ -357,10 +338,8 @@ export const deleteCoffeeItem = async (id: string): Promise<void> => {
       throw new Error(`Failed to delete coffee item: ${response.statusText}`);
     }
   } catch (error) {
-    console.error('Error deleting coffee item, using localStorage fallback:', error);
-    const items = getLocalCoffeeItems();
-    const filtered = items.filter(item => item.id !== id);
-    saveLocalCoffeeItems(filtered);
+    console.error('Error deleting coffee item:', error);
+    throw error instanceof Error ? error : new Error(String(error));
   }
 };
 
