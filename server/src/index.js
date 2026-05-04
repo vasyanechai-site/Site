@@ -285,6 +285,21 @@ app.put("/api/coffee-items/:id", async (req, res) => {
 
 app.put("/api/coffee-items-reorder", async (req, res) => {
   const next = Array.isArray(req.body?.items) ? req.body.items : [];
+  const current = await getCoffeeItems();
+  const force =
+    String(req.query.force || "") === "1" ||
+    String(req.query.force || "").toLowerCase() === "true";
+  if (
+    !force &&
+    current.length >= 10 &&
+    next.length > 0 &&
+    next.length < Math.floor(current.length * 0.25)
+  ) {
+    return res.status(400).json({
+      error:
+        "Сохранение порядка отклонено: список позиций сократился слишком сильно (часто из‑за сбоя UI после перетаскивания). Обновите страницу админки и повторите; при осознанной массовой правке можно вызвать API с query force=1.",
+    });
+  }
   await setCoffeeItems(next);
   res.json({ success: true });
 });

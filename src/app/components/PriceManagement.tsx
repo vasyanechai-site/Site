@@ -237,6 +237,11 @@ export function PriceManagement() {
     loadExchangeRate();
   }, []);
 
+  /** Всегда актуальный список для сохранения порядка (избегаем stale closure в handleDropSave → reorder). */
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
   const loadExchangeRate = async () => {
     try {
       const rate = await fetchExchangeRate();
@@ -494,13 +499,15 @@ export function PriceManagement() {
   }, []);
 
   const handleDropSave = useCallback(async () => {
+    const snapshot = itemsRef.current;
+    if (!snapshot.length) return;
     try {
-      await reorderCoffeeItems(itemsRef.current.length > 0 ? items : itemsRef.current);
-      itemsRef.current = items;
+      await reorderCoffeeItems(snapshot);
     } catch (error) {
       console.error('Failed to reorder:', error);
+      toast.error(error instanceof Error ? error.message : 'Не удалось сохранить порядок позиций');
     }
-  }, [items]);
+  }, []);
 
   // Группируем по категориям
   const groupedItems = useMemo(() => {

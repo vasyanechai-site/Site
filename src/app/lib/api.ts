@@ -327,7 +327,12 @@ export const reorderCoffeeItems = async (items: CoffeeItem[]): Promise<void> => 
     });
     
     if (!response.ok) {
-      throw new Error(`Failed to reorder coffee items: ${response.statusText}`);
+      let detail = response.statusText;
+      try {
+        const errBody = await response.json();
+        if (errBody?.error) detail = String(errBody.error);
+      } catch { /* ignore */ }
+      throw new Error(`Failed to reorder coffee items: ${detail}`);
     }
   } catch (error) {
     console.error('Error reordering coffee items, using localStorage fallback:', error);
