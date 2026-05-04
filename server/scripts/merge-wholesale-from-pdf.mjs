@@ -4,6 +4,8 @@
  *
  * Использование из корня репозитория (нужен DATABASE_URL или локальный server/data/db.json):
  *   node server/scripts/merge-wholesale-from-pdf.mjs --dry-run
+ *   node server/scripts/merge-wholesale-from-pdf.mjs --local --dry-run   # без Postgres
+ *   node server/scripts/merge-wholesale-from-pdf.mjs --local
  *   node server/scripts/merge-wholesale-from-pdf.mjs
  *   node server/scripts/merge-wholesale-from-pdf.mjs /path/to/other.json
  *
@@ -12,7 +14,8 @@
  * При --dry-run из .env не подставляется DATABASE_URL — чтобы сработал server/data/db.json
  * без локального Postgres (только для просмотра дубликатов).
  *
- * FORCE_DB_JSON=1 — то же для реальной записи: слияние в server/data/db.json (без Postgres).
+ * FORCE_DB_JSON=1 или флаг --local — запись/чтение через server/data/db.json без Postgres
+ * (если в .env DATABASE_URL=localhost, а PostgreSQL не запущен).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -20,7 +23,8 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 
 const __dry = process.argv.includes("--dry-run");
-const __skipPg = __dry || process.env.FORCE_DB_JSON === "1";
+const __local = process.argv.includes("--local") || process.env.FORCE_DB_JSON === "1";
+const __skipPg = __dry || __local;
 const __envPath = path.resolve(process.cwd(), ".env");
 if (fs.existsSync(__envPath)) {
   const parsed = dotenv.parse(fs.readFileSync(__envPath, "utf-8"));
@@ -113,7 +117,25 @@ async function main() {
   console.log(`[merge-pdf] готово. coffeeItems всего: ${after.length}`);
 }
 
+function pgRefused(err) {
+  const s = String(err?.message ?? err);
+  if (err?.code === "ECONNREFUSED" || s.includes("ECONNREFUSED")) return true;
+  if (Array.isArray(err?.errors) && err.errors.some((x) => x?.code === "ECONNREFUSED")) return true;
+  return false;
+}
+
 main().catch((e) => {
+  if (pgRefused(e)) {
+    console.error(`
+Postgres недоступен (ECONNREFUSED). В .env указан DATABASE_URL на localhost, а БД не запущена.
+
+Локально (файл server/data/db.json), без PostgreSQL:
+  node server/scripts/merge-wholesale-from-pdf.mjs --local --dry-run
+  node server/scripts/merge-wholesale-from-pdf.mjs --local
+
+На VPS с реальной БД: задайте DATABASE_URL и запускайте без --local / без FORCE_DB_JSON.
+`);
+  }
   console.error(e);
   process.exit(1);
 });
