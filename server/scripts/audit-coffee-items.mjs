@@ -3,21 +3,11 @@
  *
  *   node server/scripts/audit-coffee-items.mjs
  *   node server/scripts/audit-coffee-items.mjs --local
- *   FORCE_DB_JSON=1 node server/scripts/audit-coffee-items.mjs
+ * На Mac с DATABASE_URL=localhost без Postgres — автоматически db.json (см. server/scripts/lib/store-env.mjs).
  */
-import fs from "node:fs";
-import path from "node:path";
-import dotenv from "dotenv";
+import { loadStoreEnvForScripts } from "./lib/store-env.mjs";
 
-const useFile = process.env.FORCE_DB_JSON === "1" || process.argv.includes("--local");
-const envPath = path.resolve(process.cwd(), ".env");
-if (fs.existsSync(envPath)) {
-  const parsed = dotenv.parse(fs.readFileSync(envPath, "utf-8"));
-  for (const [k, v] of Object.entries(parsed)) {
-    if (useFile && k === "DATABASE_URL") continue;
-    if (process.env[k] == null || process.env[k] === "") process.env[k] = v;
-  }
-}
+loadStoreEnvForScripts("audit");
 
 const { initStorage, getCoffeeItems } = await import("../src/store.js");
 
@@ -43,12 +33,7 @@ try {
 } catch (e) {
   if (pgRefused(e)) {
     console.error(`
-Postgres недоступен (ECONNREFUSED). В .env задан DATABASE_URL на localhost, а сервер БД не запущен.
-
-Локально (server/data/db.json), без PostgreSQL:
-  node server/scripts/audit-coffee-items.mjs --local
-
-На VPS: задайте рабочий DATABASE_URL и запускайте без --local.
+Postgres недоступен (ECONNREFUSED). Пример: npm run wholesale:audit:local или STORE_FORCE_PG=1 если Postgres на localhost нужен.
 `);
     process.exit(1);
   }

@@ -11,28 +11,16 @@
  *
  * Источник по умолчанию: server/seed-data/wholesale-from-pdf-2026-04-24.json
  *
- * При --dry-run из .env не подставляется DATABASE_URL — чтобы сработал server/data/db.json
- * без локального Postgres (только для просмотра дубликатов).
- *
- * FORCE_DB_JSON=1 или флаг --local — запись/чтение через server/data/db.json без Postgres
- * (если в .env DATABASE_URL=localhost, а PostgreSQL не запущен).
+ * При --dry-run — без Postgres (db.json).
+ * FORCE_DB_JSON=1 или --local — явно db.json.
+ * Если в .env DATABASE_URL на localhost — автоматически db.json (иначе STORE_FORCE_PG=1 для Postgres на localhost).
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import dotenv from "dotenv";
+import { loadStoreEnvForScripts } from "./lib/store-env.mjs";
 
-const __dry = process.argv.includes("--dry-run");
-const __local = process.argv.includes("--local") || process.env.FORCE_DB_JSON === "1";
-const __skipPg = __dry || __local;
-const __envPath = path.resolve(process.cwd(), ".env");
-if (fs.existsSync(__envPath)) {
-  const parsed = dotenv.parse(fs.readFileSync(__envPath, "utf-8"));
-  for (const [k, v] of Object.entries(parsed)) {
-    if (__skipPg && k === "DATABASE_URL") continue;
-    if (process.env[k] == null || process.env[k] === "") process.env[k] = v;
-  }
-}
+const { dry: __dry } = loadStoreEnvForScripts("merge-pdf");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -127,14 +115,11 @@ function pgRefused(err) {
 main().catch((e) => {
   if (pgRefused(e)) {
     console.error(`
-Postgres недоступен (ECONNREFUSED). В .env указан DATABASE_URL на localhost, а БД не запущена.
-
-Локально (файл server/data/db.json), без PostgreSQL:
-  node server/scripts/merge-wholesale-from-pdf.mjs --local --dry-run
-  node server/scripts/merge-wholesale-from-pdf.mjs --local
-
-На VPS с реальной БД: задайте DATABASE_URL и запускайте без --local / без FORCE_DB_JSON.
+Postgres недоступен (ECONNREFUSED). Запустите БД или используйте server/data/db.json:
+  npm run wholesale:merge:local
+  # либо в .env уберите localhost из DATABASE_URL / задайте STORE_FORCE_PG=1 только если Postgres на localhost нужен принудительно.
 `);
+    process.exit(1);
   }
   console.error(e);
   process.exit(1);
