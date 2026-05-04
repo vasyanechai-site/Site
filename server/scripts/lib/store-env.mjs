@@ -46,9 +46,7 @@ export function loadStoreEnvForScripts(label = "store") {
   if (useJsonFile && process.env.DATABASE_URL) {
     if (autoJson) {
       console.warn(
-        `[${label}] DATABASE_URL указывает на localhost — используется server/data/db.json ` +
-          "(каталог на продакшене не меняется). Postgres на localhost: STORE_FORCE_PG=1. " +
-          "Прод: GitHub Actions «Merge wholesale seed on VPS» или SSH на VPS и node …/merge-wholesale-from-pdf.mjs.",
+        `[${label}] localhost → server/data/db.json (прод не меняется). Прод: Actions «Merge wholesale seed on VPS» или SSH+node …/merge-wholesale-from-pdf.mjs. Postgres на localhost: STORE_FORCE_PG=1.`,
       );
     }
     delete process.env.DATABASE_URL;
