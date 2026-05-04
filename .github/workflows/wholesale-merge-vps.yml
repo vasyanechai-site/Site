@@ -1,0 +1,31 @@
+# Слияние server/seed-data/wholesale-from-pdf-*.json в coffeeItems на ПРОДАКШЕНЕ (Postgres в app_settings).
+# Локальный «npm run wholesale:merge» на Mac трогает только server/data/db.json — админка на сайте этого не видит.
+name: Merge wholesale seed on VPS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  merge-wholesale:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH — git pull + merge + audit
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_APP_PATH }}"
+            git fetch --all
+            git reset --hard origin/main
+            if [ -n "${{ secrets.DATABASE_URL }}" ]; then
+              python3 server/deploy/patch_dotenv.py DATABASE_URL "${{ secrets.DATABASE_URL }}"
+            fi
+            npm ci --omit=dev
+            echo "=== merge wholesale (Postgres на VPS из .env) ==="
+            node server/scripts/merge-wholesale-from-pdf.mjs
+            echo "=== audit ==="
+            node server/scripts/audit-coffee-items.mjs
