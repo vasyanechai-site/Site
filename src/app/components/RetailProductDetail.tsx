@@ -111,7 +111,7 @@ export function RetailProductDetail({
         targetWeight = selectedWeight;
         targetGrind = selectedGrind;
     } else if (type === 'drip') {
-        targetWeight = 'Упаковка (6 шт.)';
+        targetWeight = 'Упаковка (10 шт.)';
     }
     // accessory / equipment: empty strings
     return cartItems.find(item => 
@@ -142,7 +142,7 @@ export function RetailProductDetail({
         weightToAdd = selectedWeight;
         grindToAdd = selectedGrind;
       } else if (type === 'drip') {
-        weightToAdd = 'Упаковка (6 шт.)';
+        weightToAdd = 'Упаковка (10 шт.)';
       }
       // accessory / equipment: no weight needed
       
@@ -165,7 +165,7 @@ export function RetailProductDetail({
         weightToAdd = selectedWeight;
         grindToAdd = selectedGrind;
       } else if (type === 'drip') {
-        weightToAdd = 'Упаковка (6 шт.)';
+        weightToAdd = 'Упаковка (10 шт.)';
       }
       // accessory / equipment: no weight needed
 
@@ -188,7 +188,7 @@ export function RetailProductDetail({
         targetWeight = selectedWeight;
         targetGrind = selectedGrind;
     } else if (type === 'drip') {
-        targetWeight = 'Упаковка (6 шт.)';
+        targetWeight = 'Упаковка (10 шт.)';
     }
     // accessory / equipment: empty strings
     
@@ -205,7 +205,7 @@ export function RetailProductDetail({
         targetWeight = selectedWeight;
         targetGrind = selectedGrind;
     } else if (type === 'drip') {
-        targetWeight = 'Упаковка (6 шт.)';
+        targetWeight = 'Упаковка (10 шт.)';
     }
     // accessory / equipment: empty strings
     
@@ -535,7 +535,7 @@ export function RetailProductDetail({
                 <div className="space-y-2">
                   <label className="text-sm text-[#222222]">Количество</label>
                   <div className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222] flex items-center">
-                    Упаковка (6 шт.)
+                    Упаковка (10 шт.)
                   </div>
                 </div>
               )}

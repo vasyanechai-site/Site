@@ -110,7 +110,7 @@ export function RetailCoverConstructor() {
           drawBadges(ctx, countryBadge, flavorBadge);
         }
       } else {
-        // Дрипы (6) и (10) — те же бейджи вкусов
+        // Два варианта обложек дрипов — те же бейджи вкусов
         drawDripFlavors(ctx);
       }
 
@@ -518,7 +518,7 @@ export function RetailCoverConstructor() {
                     : 'text-gray-600 hover:text-black'
                 }`}
               >
-                Дрипы (6)
+                Дрипы
               </button>
               <button
                 type="button"

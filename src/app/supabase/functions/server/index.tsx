@@ -212,7 +212,7 @@ function formatTochkaPositions(items: any[]): any[] {
       const kgSubtotal = Math.round(item.kg * priceKg);
       
       positions.push({
-        positionName: isDrip ? `${item.name} (упак. 6 шт.)` : `${item.name}${categorySuffix}`,
+        positionName: isDrip ? `${item.name} (упак. 10 шт.)` : `${item.name}${categorySuffix}`,
         unitCode: isDrip ? "шт." : "кг.", // Для дрипов упаковка - это штука, для кофе - кг
         ndsKind: "without_nds", // Без НДС для УСН
         price: Math.round(priceKg).toString(),

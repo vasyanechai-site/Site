@@ -305,7 +305,7 @@ export function RetailCartPage({
                                 )}
                                 {item.product.type === 'drip' && (
                                   <Badge variant="outline" className="border-[#222222]/10 text-[#222222]/70 font-normal">
-                                    {item.weight || 'Упаковка (6 шт.)'}
+                                    {item.weight || 'Упаковка (10 шт.)'}
                                   </Badge>
                                 )}
                               </div>

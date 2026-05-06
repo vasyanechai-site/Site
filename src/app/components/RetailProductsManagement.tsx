@@ -803,7 +803,7 @@ export function RetailProductsManagement() {
 
             {formData.type === 'drip' && (
               <div className="p-4 bg-muted/30 rounded-lg">
-                <label className="block text-sm mb-2 text-foreground">Цена за Упаковку 6 шт. (₽)</label>
+                <label className="block text-sm mb-2 text-foreground">Цена за Упаковку 10 шт. (₽)</label>
                 <Input
                   type="number"
                   value={formData.pricePack}

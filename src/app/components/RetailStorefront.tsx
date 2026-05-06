@@ -46,7 +46,7 @@ function QuickAddButton({ product, cartItems, onAddToCart, onUpdateQuantity, onR
 
   const defaultWeight = type === 'bean'
     ? (product.price200 ? '200гр' : (product.weight?.split(',')[0].trim() || '200гр'))
-    : type === 'drip' ? 'Упаковка (6 шт.)' : '';
+    : type === 'drip' ? 'Упаковка (10 шт.)' : '';
 
   const defaultRoast = type === 'bean'
     ? (product.roast?.split(',')[0].trim() || 'Фильтр')
