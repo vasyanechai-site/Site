@@ -1,6 +1,7 @@
 import { API_BASE_URL } from './backendConfig';
 
-const STORAGE_KEY = 'nechai-retail-auth';
+export const RETAIL_AUTH_STORAGE_KEY = 'nechai-retail-auth';
+const STORAGE_KEY = RETAIL_AUTH_STORAGE_KEY;
 
 export type RetailAuthUser = {
   id: string;

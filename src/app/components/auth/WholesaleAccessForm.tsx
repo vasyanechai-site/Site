@@ -7,13 +7,15 @@ import { toast } from 'sonner';
 import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
 import { API_BASE_URL } from '../../lib/backendConfig';
+import { formatRuMobile8Display, isCompleteRuMobile8, parseRuMobile8Input } from '../../lib/ruMobilePhoneMask';
 
 export function WholesaleAccessForm() {
   const navigate = useNavigate();
+  /** Только цифры: 8 + 10 цифр (после нормализации +7→8 и т.п.) */
+  const [phoneDigits, setPhoneDigits] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     company: '',
-    phone: '',
     email: '',
     channel: 'telegram' as 'telegram' | 'whatsapp'
   });
@@ -26,6 +28,12 @@ export function WholesaleAccessForm() {
     setLoading(true);
     setPhoneError(''); // Сбрасываем ошибку перед отправкой
 
+    if (!isCompleteRuMobile8(phoneDigits)) {
+      toast.error('Введите номер телефона полностью в формате 8 (999) 000-00-00');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/wholesale/request-access`,
@@ -34,7 +42,10 @@ export function WholesaleAccessForm() {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(formData)
+          body: JSON.stringify({
+            ...formData,
+            phone: phoneDigits,
+          })
         }
       );
 
@@ -132,11 +143,12 @@ export function WholesaleAccessForm() {
             <Input
               id="phone"
               type="tel"
-              placeholder="+7 999 999-99-99"
-              value={formData.phone}
+              inputMode="numeric"
+              autoComplete="tel"
+              placeholder="8 (999) 000-00-00"
+              value={formatRuMobile8Display(phoneDigits)}
               onChange={(e) => {
-                setFormData({ ...formData, phone: e.target.value });
-                // Сбрасываем ошибку при изменении значения
+                setPhoneDigits(parseRuMobile8Input(e.target.value));
                 if (phoneError) setPhoneError('');
               }}
               required

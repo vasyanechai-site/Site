@@ -40,6 +40,7 @@ import MessengerLinksTest from "./pages/MessengerLinksTest";
 import { autoKeepAlive } from "./lib/keepAlive";
 import { ThemeProvider } from "./components/theme-provider";
 import { Toaster } from "./components/ui/sonner";
+import { CookieConsent } from "./components/CookieConsent";
 import { isUUID } from "./lib/transliterate";
 import "./lib/devTools"; // Expose dev tools to window
 
@@ -330,6 +331,7 @@ function App() {
             />
           </Routes>
         </div>
+        <CookieConsent />
         <Toaster />
       </BrowserRouter>
     </ThemeProvider>
