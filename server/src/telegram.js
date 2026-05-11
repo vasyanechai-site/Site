@@ -152,13 +152,18 @@ export function formatWholesaleBusinessLoginForwardMessage(loginPhone, password,
   const lines = [
     "Привет! Это ваши доступы к сайту Нечай кофе — coffeenechai.ru.",
     "",
-    "Для входа нажмите на кнопку «Вход для бизнеса» в шапке сайта и введите логин",
-    `<code>${l}</code> и пароль <code>${p}</code>.`,
+    "Для входа нажмите на кнопку «Вход для бизнеса» в шапке сайта и введите логин и пароль.",
+    "",
+    "Логин:",
+    `<code>${l}</code>`,
+    "",
+    "Пароль:",
+    `<code>${p}</code>`,
   ];
   if (telegramMeta?.url && telegramMeta?.display) {
     lines.push(
       "",
-      `✈️ Ваш профиль в Telegram: <a href="${escapeHtml(telegramMeta.url)}">${escapeHtml(telegramMeta.display)}</a>`,
+      `✈️ Телеграм: <a href="${escapeHtml(telegramMeta.url)}">${escapeHtml(telegramMeta.display)}</a>`,
     );
   }
   return lines.join("\n");
