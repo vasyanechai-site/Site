@@ -24,3 +24,21 @@ export function wholesaleLoginPhonesMatch(a, b) {
   const nb = normalizeWholesaleLoginPhone(b);
   return Boolean(na && nb && na === nb);
 }
+
+/**
+ * Публичный @username Telegram: 5–32 символа, a–z, 0–9, _, с буквы (правила Telegram).
+ * @returns {{ handle: string, display: string, url: string } | null}
+ */
+export function parseTelegramPublicUsername(raw) {
+  const h = String(raw ?? "")
+    .replace(/^@+/g, "")
+    .trim()
+    .toLowerCase();
+  if (!h) return null;
+  if (!/^[a-z][a-z0-9_]{4,31}$/.test(h)) return null;
+  return {
+    handle: h,
+    display: `@${h}`,
+    url: `https://t.me/${encodeURIComponent(h)}`,
+  };
+}

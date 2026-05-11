@@ -144,16 +144,24 @@ export function buildWholesaleAccessCopyKeyboard(loginPhone, password) {
  * Текст для пересылки клиенту (опт, вход по телефону).
  * @param {string} loginPhone — 89999999999
  * @param {string} password
+ * @param {{ display: string, url: string } | null} [telegramMeta] — ссылка на t.me
  */
-export function formatWholesaleBusinessLoginForwardMessage(loginPhone, password) {
+export function formatWholesaleBusinessLoginForwardMessage(loginPhone, password, telegramMeta = null) {
   const l = escapeHtml(loginPhone);
   const p = escapeHtml(password);
-  return [
+  const lines = [
     "Привет! Это ваши доступы к сайту Нечай кофе — coffeenechai.ru.",
     "",
     "Для входа нажмите на кнопку «Вход для бизнеса» в шапке сайта и введите логин",
     `<code>${l}</code> и пароль <code>${p}</code>.`,
-  ].join("\n");
+  ];
+  if (telegramMeta?.url && telegramMeta?.display) {
+    lines.push(
+      "",
+      `✈️ Ваш профиль в Telegram: <a href="${escapeHtml(telegramMeta.url)}">${escapeHtml(telegramMeta.display)}</a>`,
+    );
+  }
+  return lines.join("\n");
 }
 
 export function formatWholesaleOrderMessage(order) {
@@ -261,6 +269,13 @@ ${order.subtotal ? `💵 <b>Товары:</b> ${Number(order.subtotal).toLocaleS
  * @param {{ loginPhone: string, password: string } | null} creds — если аккаунт создан автоматически
  */
 export function formatWholesaleAccessRequest(item, creds = null) {
+  const ch = String(item.channel || "").toLowerCase();
+  const un = String(item.telegramUsername || "").trim().toLowerCase();
+  const telegramProfileLine =
+    ch === "telegram" && un && /^[a-z][a-z0-9_]{4,31}$/.test(un)
+      ? `\n✈️ <b>Ник в Telegram:</b> <a href="${escapeHtml(`https://t.me/${un}`)}">@${escapeHtml(un)}</a>`
+      : "";
+
   const base = `
 📩 <b>Заявка на доступ к опту — Кофе Нечай</b>
 
@@ -268,7 +283,7 @@ export function formatWholesaleAccessRequest(item, creds = null) {
 🏢 <b>Компания:</b> ${escapeHtml(item.company || "—")}
 📞 <b>Телефон:</b> <code>${escapeHtml(item.phone || "—")}</code>
 📧 <b>Email:</b> ${escapeHtml(item.email || "—")}
-💬 <b>Канал:</b> ${escapeHtml(item.channel || "—")}
+💬 <b>Канал:</b> ${escapeHtml(item.channel || "—")}${telegramProfileLine}
 `.trim();
 
   if (!creds || !creds.loginPhone || !creds.password) return base;

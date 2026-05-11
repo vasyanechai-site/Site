@@ -4,10 +4,15 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Loader2, CheckCircle2, HelpCircle } from 'lucide-react';
 import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import { API_BASE_URL } from '../../lib/backendConfig';
 import { formatRuMobile8Display, isCompleteRuMobile8, parseRuMobile8Input } from '../../lib/ruMobilePhoneMask';
+import { isValidTelegramUsername } from '../../lib/telegramUsername';
+
+const TELEGRAM_USERNAME_HINT =
+  'Настройки → ваш профиль → «Имя пользователя». Это @ник; если поля нет — задайте username там же (латиница, цифры, _).';
 
 export function WholesaleAccessForm() {
   const navigate = useNavigate();
@@ -17,7 +22,8 @@ export function WholesaleAccessForm() {
     name: '',
     company: '',
     email: '',
-    channel: 'telegram' as 'telegram' | 'whatsapp'
+    channel: 'telegram' as 'telegram' | 'whatsapp',
+    telegramUsername: '',
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -34,6 +40,12 @@ export function WholesaleAccessForm() {
       return;
     }
 
+    if (formData.channel === 'telegram' && !isValidTelegramUsername(formData.telegramUsername)) {
+      toast.error('Введите ник в Telegram, например @name (латиница, цифры, _, от 5 символов)');
+      setLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(
         `${API_BASE_URL}/wholesale/request-access`,
@@ -45,6 +57,7 @@ export function WholesaleAccessForm() {
           body: JSON.stringify({
             ...formData,
             phone: phoneDigits,
+            ...(formData.channel === 'whatsapp' ? { telegramUsername: undefined } : {}),
           })
         }
       );
@@ -189,7 +202,13 @@ export function WholesaleAccessForm() {
             <Label className="text-sm text-gray-500 font-medium">Куда прислать данные для входа?</Label>
             <RadioGroup
               value={formData.channel}
-              onValueChange={(value) => setFormData({ ...formData, channel: value as 'telegram' | 'whatsapp' })}
+              onValueChange={(value) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  channel: value as 'telegram' | 'whatsapp',
+                  ...(value === 'whatsapp' ? { telegramUsername: '' } : {}),
+                }))
+              }
               className="flex flex-col space-y-2"
             >
               <div className="flex items-center space-x-2 bg-[#F9F9F9] p-3 rounded-lg cursor-pointer hover:bg-[#F0F0F0] transition-colors">
@@ -201,6 +220,46 @@ export function WholesaleAccessForm() {
                 <Label htmlFor="whatsapp" className="text-base cursor-pointer flex-1">WhatsApp</Label>
               </div>
             </RadioGroup>
+
+            {formData.channel === 'telegram' && (
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="telegram-username" className="text-sm text-gray-500 font-medium">
+                    Ник в Telegram
+                  </Label>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
+                        aria-label="Где узнать ник в Telegram"
+                      >
+                        <HelpCircle className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      className="max-w-[min(280px,calc(100vw-2rem))] border-0 bg-zinc-900 px-3 py-2 text-xs leading-snug text-zinc-50"
+                    >
+                      {TELEGRAM_USERNAME_HINT}
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <Input
+                  id="telegram-username"
+                  type="text"
+                  inputMode="text"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  placeholder="@name"
+                  value={formData.telegramUsername}
+                  onChange={(e) => setFormData({ ...formData, telegramUsername: e.target.value })}
+                  required
+                  className="bg-[#F9F9F9] border-none h-12 text-base focus-visible:ring-1 focus-visible:ring-[#FF90A1] placeholder:text-gray-400"
+                />
+              </div>
+            )}
           </div>
 
           <Button 

@@ -84,6 +84,7 @@ import {
   normalizeWholesaleLoginPhone,
   generateWholesaleAccessPassword6,
   wholesaleLoginPhonesMatch,
+  parseTelegramPublicUsername,
 } from "./wholesaleAccessCredentials.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
@@ -488,6 +489,19 @@ app.post("/api/wholesale/request-access", async (req, res) => {
     const email = String(body.email || "").trim();
     const channel = String(body.channel || "").trim() || "—";
 
+    let telegramUsername = undefined;
+    let telegramMeta = null;
+    if (String(channel).toLowerCase() === "telegram") {
+      telegramMeta = parseTelegramPublicUsername(body.telegramUsername);
+      if (!telegramMeta) {
+        return res.status(400).json({
+          error:
+            "Укажите ник в Telegram (например @name): только латиница, цифры и _, от 5 символов. Где взять: Настройки → ваш профиль → поле «Имя пользователя».",
+        });
+      }
+      telegramUsername = telegramMeta.handle;
+    }
+
     const loginPhone = normalizeWholesaleLoginPhone(body.phone);
     if (!loginPhone || loginPhone.length !== 11 || loginPhone[0] !== "8" || loginPhone[1] !== "9") {
       return res.status(400).json({
@@ -533,6 +547,7 @@ app.post("/api/wholesale/request-access", async (req, res) => {
       phone: loginPhone,
       email: email || undefined,
       channel,
+      ...(telegramUsername ? { telegramUsername } : {}),
     };
 
     const requests = await getWholesaleAccessRequests();
@@ -541,7 +556,7 @@ app.post("/api/wholesale/request-access", async (req, res) => {
     const creds = { loginPhone, password };
     const keyboard = buildWholesaleAccessCopyKeyboard(loginPhone, password);
     const htmlMain = formatWholesaleAccessRequest(item, creds);
-    const htmlForward = formatWholesaleBusinessLoginForwardMessage(loginPhone, password);
+    const htmlForward = formatWholesaleBusinessLoginForwardMessage(loginPhone, password, telegramMeta);
 
     await telegramNotify("wholesale_access", htmlMain, keyboard);
     await telegramNotify("wholesale_access_forward", htmlForward, keyboard);
