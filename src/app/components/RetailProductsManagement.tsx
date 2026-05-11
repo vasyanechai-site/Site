@@ -202,7 +202,7 @@ const DraggableRow = ({ product, index, category, moveProduct, onSaveOrder, onEd
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                {product.outOfStock ? 'Товар закончился' : 'В продаже'}
+                {product.outOfStock ? 'Скоро в продаже' : 'В продаже'}
               </span>
               <Switch
                 checked={product.outOfStock === true}
@@ -540,7 +540,7 @@ export function RetailProductsManagement() {
       });
     } catch (error) {
       console.error('Failed to toggle outOfStock:', error);
-      toast.error('Не удалось сохранить «Товар закончился»');
+      toast.error('Не удалось сохранить «Скоро в продаже»');
     }
   };
 
@@ -1058,7 +1058,7 @@ export function RetailProductsManagement() {
             <div className="border-t border-border pt-4">
               <div className="flex items-center justify-between p-4 bg-muted/40 rounded-xl border border-border">
                 <div>
-                  <h4 className="text-sm font-medium text-foreground">Товар закончился</h4>
+                  <h4 className="text-sm font-medium text-foreground">Скоро в продаже</h4>
                   <p className="text-xs text-muted-foreground mt-0.5">На сайте вместо цены и «+» — «Скоро появится», без добавления в корзину. Карточку и страницу товара открыть можно.</p>
                 </div>
                 <Switch
