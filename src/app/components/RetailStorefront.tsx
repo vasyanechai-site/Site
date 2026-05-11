@@ -34,6 +34,18 @@ interface QuickAddButtonProps {
 }
 
 function QuickAddButton({ product, cartItems, onAddToCart, onUpdateQuantity, onRemoveItem }: QuickAddButtonProps) {
+  if (product.outOfStock) {
+    return (
+      <button
+        type="button"
+        disabled
+        className="flex items-center justify-center px-5 py-2.5 rounded-full bg-[#222222]/10 text-[#222222]/60 font-normal cursor-not-allowed border border-[#222222]/10"
+      >
+        <span className="text-base leading-tight">Скоро появится</span>
+      </button>
+    );
+  }
+
   const getProductType = (p: RetailProduct) => {
     if (p.type) return p.type;
     if (p.category === 'Дрип') return 'drip';

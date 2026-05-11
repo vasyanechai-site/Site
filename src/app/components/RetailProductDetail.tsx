@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './ui/utils';
-import { RetailProduct, RetailCartItem } from '../types';
+import type { RetailProduct } from '../lib/api';
+import type { RetailCartItem } from './RetailCart';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -126,6 +127,7 @@ export function RetailProductDetail({
   const quantityInCart = cartItem ? cartItem.quantity : 0;
 
   const handleBuy = () => {
+    if (product?.outOfStock) return;
     if (product && imageRef.current) {
       const rect = imageRef.current.getBoundingClientRect();
       setFlyingImage({
@@ -179,7 +181,7 @@ export function RetailProductDetail({
   };
   
   const handleIncrement = () => {
-    if (!product) return;
+    if (!product || product.outOfStock) return;
     const type = getProductType(product);
     let targetWeight = '';
     let targetGrind = '';
@@ -196,7 +198,7 @@ export function RetailProductDetail({
   };
 
   const handleDecrement = () => {
-    if (!product) return;
+    if (!product || product.outOfStock) return;
     const type = getProductType(product);
     let targetWeight = '';
     let targetGrind = '';
@@ -318,14 +320,36 @@ export function RetailProductDetail({
     );
   }
 
+  const productSlugPath = transliterate(product.name);
+  const productPageUrl = `https://coffeenechai.ru/${productSlugPath}`;
+  const rawImg = product.imageUrl || '';
+  const productOgImage = rawImg.startsWith('http')
+    ? rawImg
+    : rawImg
+      ? `https://coffeenechai.ru${rawImg.startsWith('/') ? '' : '/'}${rawImg}`
+      : undefined;
+  const isOutOfStock = product.outOfStock === true;
+  const schemaOfferPrice = currentPrice > 0 ? currentPrice : product.price;
+  const metaDescription = [
+    product.description || product.name,
+    product.cardText ? product.cardText.slice(0, 200) : '',
+    'Свежеобжаренный specialty кофе Кофе Нечай, доставка по России.',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 320);
+
   return (
     <div className="min-h-screen bg-[#FFF4E5]">
-      {/* SEO Meta Tags - автогенерация из названия товара */}
-      <SEOHelmet 
-        title={`${product.name} - Кофе Нечай`}
-        description={`${product.description || product.name} - Свежеобжаренный кофе в зернах от Кофе Нечай. ${product.cardText ? product.cardText.substring(0, 150) : 'Specialty coffee с доставкой по России.'}`}
-        keywords={`${product.name}, кофе ${product.country || ''}, ${product.category || 'кофе в зернах'}, specialty coffee, свежая обжарка, кофе нечай`}
-        ogImage={product.imageUrl?.startsWith('http') ? product.imageUrl : product.imageUrl ? `https://coffeenechai.ru${product.imageUrl.startsWith('/') ? '' : '/'}${product.imageUrl}` : undefined}
+      <SEOHelmet
+        title={`${product.name} — купить в интернет-магазине Кофе Нечай`}
+        rawTitle
+        description={metaDescription}
+        keywords={`${product.name}, ${product.category || 'кофе в зернах'}, specialty coffee, свежая обжарка, кофе нечай, купить кофе онлайн, coffeenechai`}
+        canonical={productPageUrl}
+        ogImage={productOgImage}
+        ogImageAlt={product.name}
+        ogType="product"
       />
       
       {/* Product Schema.org JSON-LD */}
@@ -335,23 +359,24 @@ export function RetailProductDetail({
           "@type": "Product",
           "name": product.name,
           "description": product.description || product.cardText || product.name,
-          "image": product.imageUrl,
+          "image": productOgImage ? [productOgImage] : product.imageUrl ? [product.imageUrl] : undefined,
           "brand": {
             "@type": "Brand",
             "name": "Кофе Нечай"
           },
           "offers": {
             "@type": "Offer",
-            "price": product.price,
+            "price": schemaOfferPrice,
             "priceCurrency": "RUB",
-            "availability": product.soldOut ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
-            "url": `https://coffeenechai.ru/product/${product.id}`,
+            "availability": isOutOfStock ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+            "url": productPageUrl,
             "seller": {
               "@type": "Organization",
               "name": "Кофе Нечай"
             }
           },
           "category": product.category || "Кофе в зернах",
+          "sku": product.id,
           "productID": product.id
         })}
       </script>
@@ -378,7 +403,7 @@ export function RetailProductDetail({
               "@type": "ListItem",
               "position": 3,
               "name": product.name,
-              "item": `https://coffeenechai.ru/product/${product.id}`
+              "item": productPageUrl
             }
           ]
         })}
@@ -486,7 +511,7 @@ export function RetailProductDetail({
                   {/* Weight Select */}
                   <div className="space-y-2 flex-1">
                     <label className="text-sm text-[#222222]">Вес</label>
-                    <Select value={selectedWeight} onValueChange={setSelectedWeight}>
+                    <Select value={selectedWeight} onValueChange={setSelectedWeight} disabled={isOutOfStock}>
                       <SelectTrigger className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222]">
                         <SelectValue placeholder="Выбрите вес" />
                       </SelectTrigger>
@@ -501,7 +526,7 @@ export function RetailProductDetail({
                   {/* Roast Select */}
                   <div className="space-y-2 flex-1">
                     <label className="text-sm text-[#222222]">Обжарка</label>
-                    <Select value={selectedRoast} onValueChange={setSelectedRoast}>
+                    <Select value={selectedRoast} onValueChange={setSelectedRoast} disabled={isOutOfStock}>
                       <SelectTrigger className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222]">
                         <SelectValue placeholder="Выберите обжарку" />
                       </SelectTrigger>
@@ -516,7 +541,7 @@ export function RetailProductDetail({
                   {/* Grind Select */}
                   <div className="space-y-2 flex-1">
                     <label className="text-sm text-[#222222]">Помол</label>
-                    <Select value={selectedGrind} onValueChange={setSelectedGrind}>
+                    <Select value={selectedGrind} onValueChange={setSelectedGrind} disabled={isOutOfStock}>
                       <SelectTrigger className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222]">
                         <SelectValue placeholder="Выберите помол" />
                       </SelectTrigger>
@@ -572,7 +597,15 @@ export function RetailProductDetail({
                 {/* Actions */}
                 <div className="flex items-center gap-4">
                   <div className="flex-1 max-w-[400px]">
-                    {quantityInCart > 0 ? (
+                    {isOutOfStock ? (
+                      <Button
+                        size="lg"
+                        disabled
+                        className="w-full bg-[#222222]/10 text-[#222222]/60 h-12 text-lg shadow-none border border-[#222222]/15 cursor-not-allowed"
+                      >
+                        Скоро появится
+                      </Button>
+                    ) : quantityInCart > 0 ? (
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-3">
                           <button 
@@ -700,7 +733,14 @@ export function RetailProductDetail({
 
           {/* Buttons */}
           <div className="flex-1">
-            {quantityInCart > 0 ? (
+            {isOutOfStock ? (
+              <Button
+                disabled
+                className="w-full bg-[#222222]/10 text-[#222222]/60 h-10 text-sm shadow-none border border-[#222222]/15 cursor-not-allowed"
+              >
+                Скоро появится
+              </Button>
+            ) : quantityInCart > 0 ? (
               <div className="flex items-center gap-2 w-full">
                 <button 
                   onClick={handleDecrement}

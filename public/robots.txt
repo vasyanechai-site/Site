@@ -31,6 +31,7 @@ Disallow: /tochka-diagnostics
 Disallow: /humans.txt
 
 Sitemap: https://coffeenechai.ru/sitemap.xml
+Sitemap: https://coffeenechai.ru/api/sitemap.xml
 
 # Яндекс: предпочтительное зеркало (www → без www)
 Host: https://coffeenechai.ru

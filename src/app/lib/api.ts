@@ -865,6 +865,8 @@ export interface RetailProduct {
   pricePack?: number;
   published?: boolean; // Флаг публикации (по умолчанию true)
   recommended?: boolean; // Флаг «Рекомендую»
+  /** Витрина: «Скоро появится», без добавления в корзину (карточка и страница товара открываются) */
+  outOfStock?: boolean;
   // СДЭК параметры (только для админки)
   packageLength?: number; // Длина в см
   packageHeight?: number; // Высота в см

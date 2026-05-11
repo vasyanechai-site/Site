@@ -30,6 +30,7 @@ interface DraggableRowProps {
   onEdit: (product: RetailProduct) => void;
   onDelete: (id: string) => void;
   onTogglePublished: (id: string, currentState: boolean) => void;
+  onToggleOutOfStock: (id: string, currentState: boolean) => void;
 }
 
 // ── Drag-and-drop для фото фермы ──────────────────────────────────────────────
@@ -102,7 +103,7 @@ const DraggableFarmPhoto = ({ url, index, total, onMove, onDelete }: DraggableFa
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DraggableRow = ({ product, index, category, moveProduct, onSaveOrder, onEdit, onDelete, onTogglePublished }: DraggableRowProps) => {
+const DraggableRow = ({ product, index, category, moveProduct, onSaveOrder, onEdit, onDelete, onTogglePublished, onToggleOutOfStock }: DraggableRowProps) => {
   const ref = useRef<HTMLTableRowElement>(null);
 
   const [{ handlerId }, drop] = useDrop({
@@ -199,6 +200,15 @@ const DraggableRow = ({ product, index, category, moveProduct, onSaveOrder, onEd
                 onCheckedChange={() => onTogglePublished(product.id, product.published !== false)}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {product.outOfStock ? 'Товар закончился' : 'В продаже'}
+              </span>
+              <Switch
+                checked={product.outOfStock === true}
+                onCheckedChange={() => onToggleOutOfStock(product.id, product.outOfStock === true)}
+              />
+            </div>
           </div>
           <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onEdit(product); }}>
             <Pencil className="w-4 h-4" />
@@ -243,7 +253,8 @@ export function RetailProductsManagement() {
     price200: '',
     price1000: '',
     pricePack: '',
-    recommended: false
+    recommended: false,
+    outOfStock: false
   });
   const [isUploading, setIsUploading] = useState(false);
   const [farmPhotos, setFarmPhotos] = useState<string[]>([]);
@@ -399,6 +410,7 @@ export function RetailProductsManagement() {
         pricePack: formData.type === 'drip' && formData.pricePack ? parseFloat(formData.pricePack) : undefined,
         farmPhotos: farmPhotos, // всегда передаём массив (пустой [] явно сбросит фото на сервере)
         recommended: formData.recommended,
+        outOfStock: formData.outOfStock,
         ...(editingId
           ? {}
           : {
@@ -437,7 +449,8 @@ export function RetailProductsManagement() {
         price200: '',
         price1000: '',
         pricePack: '',
-        recommended: false
+        recommended: false,
+        outOfStock: false
       });
       setFarmPhotos([]);
       setEditingId(null);
@@ -483,7 +496,8 @@ export function RetailProductsManagement() {
       price200: product.price200?.toString() || '',
       price1000: product.price1000?.toString() || '',
       pricePack: product.pricePack?.toString() || '',
-      recommended: product.recommended || false
+      recommended: product.recommended || false,
+      outOfStock: product.outOfStock === true
     });
     setFarmPhotos(product.farmPhotos || []);
     setIsCreating(true);
@@ -516,6 +530,20 @@ export function RetailProductsManagement() {
     }
   };
 
+  const handleToggleOutOfStock = async (id: string, currentState: boolean) => {
+    try {
+      await updateRetailProduct(id, { outOfStock: !currentState });
+      setProducts(prev => {
+        const updated = prev.map(p => (p.id === id ? { ...p, outOfStock: !currentState } : p));
+        productsRef.current = updated;
+        return updated;
+      });
+    } catch (error) {
+      console.error('Failed to toggle outOfStock:', error);
+      toast.error('Не удалось сохранить «Товар закончился»');
+    }
+  };
+
   const handleCancel = () => {
     setFormData({ 
       name: '', 
@@ -539,7 +567,8 @@ export function RetailProductsManagement() {
       price200: '',
       price1000: '',
       pricePack: '',
-      recommended: false
+      recommended: false,
+      outOfStock: false
     });
     setFarmPhotos([]);
     setEditingId(null);
@@ -1026,6 +1055,19 @@ export function RetailProductsManagement() {
               </div>
             </div>
 
+            <div className="border-t border-border pt-4">
+              <div className="flex items-center justify-between p-4 bg-muted/40 rounded-xl border border-border">
+                <div>
+                  <h4 className="text-sm font-medium text-foreground">Товар закончился</h4>
+                  <p className="text-xs text-muted-foreground mt-0.5">На сайте вместо цены и «+» — «Скоро появится», без добавления в корзину. Карточку и страницу товара открыть можно.</p>
+                </div>
+                <Switch
+                  checked={formData.outOfStock}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, outOfStock: checked }))}
+                />
+              </div>
+            </div>
+
             {/* СДЭК параметры упаковки */}
             <div className="border-t border-border pt-4">
               <h4 className="text-sm font-medium text-foreground mb-4">Параметры для доставки СДЭК</h4>
@@ -1192,6 +1234,7 @@ export function RetailProductsManagement() {
                             onEdit={handleEdit}
                             onDelete={handleDelete}
                             onTogglePublished={handleTogglePublished}
+                            onToggleOutOfStock={handleToggleOutOfStock}
                           />
                         ))}
                       </tbody>

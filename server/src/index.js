@@ -76,6 +76,7 @@ import {
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
 import { registerAgentRoutes } from "./agentsRoutes.js";
+import { transliterateProductName } from "./retailSlug.js";
 import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
@@ -781,6 +782,84 @@ app.put("/api/ticker-settings", async (req, res) => {
 app.get("/api/retail/products", async (_req, res) => {
   const products = await getRetailProducts();
   res.json(products.sort((a, b) => Number(a.displayOrder || 0) - Number(b.displayOrder || 0)));
+});
+
+/** Динамический sitemap: статические страницы + все опубликованные товары розницы (slug как на сайте). */
+function xmlEscapeLoc(loc) {
+  return String(loc)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+app.get("/api/sitemap.xml", async (_req, res) => {
+  try {
+    const base = String(process.env.FRONTEND_BASE_URL || "https://coffeenechai.ru").replace(/\/+$/, "");
+    const lastmod = new Date().toISOString().slice(0, 10);
+    const staticPaths = [
+      { path: "/", priority: "1.0", changefreq: "daily" },
+      { path: "/business", priority: "0.9", changefreq: "weekly" },
+      { path: "/locations", priority: "0.8", changefreq: "weekly" },
+      { path: "/harvest", priority: "0.7", changefreq: "weekly" },
+      { path: "/privacy", priority: "0.3", changefreq: "monthly" },
+      { path: "/agreement", priority: "0.3", changefreq: "monthly" },
+      { path: "/marketing-consent", priority: "0.2", changefreq: "monthly" },
+      { path: "/contacts", priority: "0.4", changefreq: "monthly" },
+    ];
+
+    const products = await getRetailProducts();
+    const seenSlugs = new Set();
+    const productUrls = [];
+
+    for (const p of products) {
+      if (!p || typeof p !== "object") continue;
+      if (p.published === false) continue;
+      const name = String(p.name || "").trim();
+      if (!name) continue;
+      let slug = transliterateProductName(name);
+      if (!slug) slug = `item-${String(p.id || "").replace(/[^a-z0-9-]/gi, "").slice(-12) || "x"}`;
+      if (seenSlugs.has(slug)) {
+        slug = `${slug}-${String(p.id || "").replace(/[^a-z0-9-]/gi, "").slice(-6) || "id"}`;
+      }
+      seenSlugs.add(slug);
+      productUrls.push({
+        loc: `${base}/${slug}`,
+        priority: "0.85",
+        changefreq: "weekly",
+      });
+    }
+
+    const urlNodes = [
+      ...staticPaths.map(({ path: p, priority, changefreq }) => ({
+        loc: p === "/" ? `${base}/` : `${base}${p}`,
+        priority,
+        changefreq,
+      })),
+      ...productUrls,
+    ];
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+      urlNodes
+        .map(
+          (u) =>
+            `  <url>\n    <loc>${xmlEscapeLoc(u.loc)}</loc>\n    <lastmod>${lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+        )
+        .join("\n") +
+      `\n</urlset>`;
+
+    res.setHeader("Content-Type", "application/xml; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.send(xml);
+  } catch (e) {
+    console.error("/api/sitemap.xml", e);
+    res
+      .status(500)
+      .type("application/xml; charset=utf-8")
+      .send('<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>');
+  }
 });
 
 app.post("/api/retail/products", async (req, res) => {

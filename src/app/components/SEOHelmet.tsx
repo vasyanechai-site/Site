@@ -9,10 +9,12 @@ interface SEOProps {
   /** Если true — title используется как есть, без добавления суффикса */
   rawTitle?: boolean;
   ogImage?: string;
+  /** Подпись к og:image (товар, статья и т.д.) */
+  ogImageAlt?: string;
   ogType?: string;
 }
 
-export function SEOHelmet({ title, description, keywords, canonical, rawTitle, ogImage, ogType }: SEOProps) {
+export function SEOHelmet({ title, description, keywords, canonical, rawTitle, ogImage, ogImageAlt, ogType }: SEOProps) {
   const location = useLocation();
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export function SEOHelmet({ title, description, keywords, canonical, rawTitle, o
       updateMetaTag('og:image:width', '1000');
       updateMetaTag('og:image:height', '1000');
     }
-    updateMetaTag('og:image:alt', 'Кофе Нечай — specialty кофе');
+    updateMetaTag('og:image:alt', ogImageAlt || (ogImage ? finalTitle : 'Кофе Нечай — specialty кофе'));
     updateMetaTag('og:locale', 'ru_RU');
 
     // Twitter / VK
@@ -72,7 +74,7 @@ export function SEOHelmet({ title, description, keywords, canonical, rawTitle, o
 
     // Язык
     document.documentElement.lang = 'ru';
-  }, [title, description, keywords, canonical, ogImage, ogType, location.pathname]);
+  }, [title, description, keywords, canonical, ogImage, ogImageAlt, ogType, location.pathname]);
 
   return null;
 }
