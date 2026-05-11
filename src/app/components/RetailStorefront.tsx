@@ -403,6 +403,10 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
         const orderA = catOrderMap[catA] ?? 998;
         const orderB = catOrderMap[catB] ?? 998;
         if (orderA !== orderB) return orderA - orderB;
+        // «Скоро в продаже» (outOfStock) — в конец категории; при снятии флага порядок снова по displayOrder
+        const tailA = a.outOfStock === true ? 1 : 0;
+        const tailB = b.outOfStock === true ? 1 : 0;
+        if (tailA !== tailB) return tailA - tailB;
         return (a.displayOrder || 0) - (b.displayOrder || 0);
       });
 
