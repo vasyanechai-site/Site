@@ -82,7 +82,7 @@ export function WholesaleAccessForm() {
           <CheckCircle2 className="w-16 h-16 text-[#FF90A1] mx-auto mb-6" />
           <h1 className="text-2xl font-normal text-[#222222] tracking-tight mb-4">Заявка отправлена</h1>
           <p className="text-gray-600 mb-8">
-            Мы пришлем вам логин и пароль от оптового кабинета в течение 15 минут.
+            Кабинет опта создан автоматически. Логин и пароль отправлены в Telegram администратору — вам их перешлют в выбранный канал связи (Telegram или WhatsApp).
           </p>
           <Button
             onClick={() => navigate('/loginopt')}

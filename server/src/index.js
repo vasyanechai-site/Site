@@ -68,6 +68,8 @@ import {
   formatWholesaleOrderMessage,
   formatRetailOrderMessage,
   formatWholesaleAccessRequest,
+  formatWholesaleBusinessLoginForwardMessage,
+  buildWholesaleAccessCopyKeyboard,
   formatBusinessRegistration,
   formatLocationRequest,
   formatPaymentReceived,
@@ -78,6 +80,11 @@ import { registerDebugRoutes } from "./debugRoutes.js";
 import { registerAgentRoutes } from "./agentsRoutes.js";
 import { transliterateProductName } from "./retailSlug.js";
 import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
+import {
+  normalizeWholesaleLoginPhone,
+  generateWholesaleAccessPassword6,
+  wholesaleLoginPhonesMatch,
+} from "./wholesaleAccessCredentials.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
 const __repoRoot = path.resolve(__apiDir, "../..");
@@ -474,16 +481,76 @@ app.get("/api/users/:id/loyalty", async (req, res) => {
 });
 
 app.post("/api/wholesale/request-access", async (req, res) => {
-  const requests = await getWholesaleAccessRequests();
-  const item = {
-    id: `wholesale-access-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    createdAt: new Date().toISOString(),
-    status: "pending",
-    ...(req.body || {}),
-  };
-  await setWholesaleAccessRequests([item, ...requests]);
-  await telegramNotify("wholesale_access", formatWholesaleAccessRequest(item));
-  res.status(201).json({ success: true, request: item });
+  try {
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const name = String(body.name || "").trim();
+    const company = String(body.company || "").trim();
+    const email = String(body.email || "").trim();
+    const channel = String(body.channel || "").trim() || "—";
+
+    const loginPhone = normalizeWholesaleLoginPhone(body.phone);
+    if (!loginPhone || loginPhone.length !== 11 || loginPhone[0] !== "8" || loginPhone[1] !== "9") {
+      return res.status(400).json({
+        error: "Укажите корректный мобильный телефон России в формате 89999999999",
+      });
+    }
+    if (!name || !company) {
+      return res.status(400).json({ error: "Укажите имя и название компании" });
+    }
+
+    const users = await getUsers();
+    if (users.some((u) => wholesaleLoginPhonesMatch(u.phone, loginPhone))) {
+      return res.status(400).json({
+        error:
+          "Пользователь с этим номером телефона уже зарегистрирован. Если у вас возникли проблемы со входом, свяжитесь с нами.",
+      });
+    }
+
+    const password = generateWholesaleAccessPassword6();
+    const user = {
+      id: `user-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      created_at: new Date().toISOString(),
+      phone: loginPhone,
+      password,
+      name,
+      company_name: company,
+      ...(email ? { email } : {}),
+      role: "wholesale",
+      loyaltyLevel: 0,
+      discount: 0,
+      totalKg: 0,
+    };
+    await setUsers([user, ...users]);
+
+    const item = {
+      id: `wholesale-access-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      createdAt: new Date().toISOString(),
+      status: "approved",
+      autoAccountCreated: true,
+      wholesaleUserId: user.id,
+      name,
+      company,
+      phone: loginPhone,
+      email: email || undefined,
+      channel,
+    };
+
+    const requests = await getWholesaleAccessRequests();
+    await setWholesaleAccessRequests([item, ...requests]);
+
+    const creds = { loginPhone, password };
+    const keyboard = buildWholesaleAccessCopyKeyboard(loginPhone, password);
+    const htmlMain = formatWholesaleAccessRequest(item, creds);
+    const htmlForward = formatWholesaleBusinessLoginForwardMessage(loginPhone, password);
+
+    await telegramNotify("wholesale_access", htmlMain, keyboard);
+    await telegramNotify("wholesale_access_forward", htmlForward, keyboard);
+
+    res.status(201).json({ success: true, request: item, accountCreated: true });
+  } catch (e) {
+    console.error("[wholesale/request-access]", e?.message || e);
+    res.status(500).json({ error: "Не удалось обработать заявку" });
+  }
 });
 
 app.post("/api/orders", async (req, res) => {

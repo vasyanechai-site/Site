@@ -41,20 +41,24 @@ function escapeHtml(s) {
 }
 
 /** Исходящий HTTPS к relay (Supabase Edge и т.п.); на заблокированном VPS до api.telegram.org не ходим. */
-async function sendTelegramViaRelay(html) {
+async function sendTelegramViaRelay({ text, reply_markup }) {
   const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
   const relaySecret = (process.env.TELEGRAM_RELAY_SECRET || "").trim();
   if (!relayUrl || !relaySecret) {
     return { ok: false, skipped: true, reason: "relay_misconfigured" };
   }
   try {
+    const body = { text: String(text).slice(0, 4090) };
+    if (reply_markup && typeof reply_markup === "object") {
+      body.reply_markup = reply_markup;
+    }
     const res = await fetch(relayUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${relaySecret}`,
       },
-      body: JSON.stringify({ text: String(html).slice(0, 4090) }),
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(30_000),
     });
     const data = await res.json().catch(() => ({}));
@@ -74,10 +78,10 @@ async function sendTelegramViaRelay(html) {
   }
 }
 
-export async function sendTelegramHtml(text) {
+export async function sendTelegramHtml(text, reply_markup) {
   const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
   if (relayUrl) {
-    return sendTelegramViaRelay(text);
+    return sendTelegramViaRelay({ text, reply_markup });
   }
 
   const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
@@ -88,15 +92,19 @@ export async function sendTelegramHtml(text) {
   }
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   try {
+    const payload = {
+      chat_id: chatId,
+      text: String(text).slice(0, 4090),
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (reply_markup && typeof reply_markup === "object") {
+      payload.reply_markup = reply_markup;
+    }
     const res = await ipv4HttpsRequest(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: String(text).slice(0, 4090),
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(payload),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -112,12 +120,40 @@ export async function sendTelegramHtml(text) {
 }
 
 /** Отправка в Telegram + лог при сбое (relay или TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). */
-export async function telegramNotify(context, html) {
-  const r = await sendTelegramHtml(html);
+export async function telegramNotify(context, html, reply_markup) {
+  const r = await sendTelegramHtml(html, reply_markup);
   if (!r.ok) {
     console.error(`[telegram] ${context}`, JSON.stringify(r).slice(0, 800));
   }
   return r;
+}
+
+/** Кнопки «копировать» логин/пароль (Bot API: InlineKeyboardButton.copy_text). */
+export function buildWholesaleAccessCopyKeyboard(loginPhone, password) {
+  return {
+    inline_keyboard: [
+      [
+        { text: "📋 Логин", copy_text: { text: String(loginPhone) } },
+        { text: "📋 Пароль", copy_text: { text: String(password) } },
+      ],
+    ],
+  };
+}
+
+/**
+ * Текст для пересылки клиенту (опт, вход по телефону).
+ * @param {string} loginPhone — 89999999999
+ * @param {string} password
+ */
+export function formatWholesaleBusinessLoginForwardMessage(loginPhone, password) {
+  const l = escapeHtml(loginPhone);
+  const p = escapeHtml(password);
+  return [
+    "Привет! Это ваши доступы к сайту Нечай кофе — coffeenechai.ru.",
+    "",
+    "Для входа нажмите на кнопку «Вход для бизнеса» в шапке сайта и введите логин",
+    `<code>${l}</code> и пароль <code>${p}</code>.`,
+  ].join("\n");
 }
 
 export function formatWholesaleOrderMessage(order) {
@@ -220,8 +256,12 @@ ${order.subtotal ? `💵 <b>Товары:</b> ${Number(order.subtotal).toLocaleS
 `.trim();
 }
 
-export function formatWholesaleAccessRequest(item) {
-  return `
+/**
+ * @param {Record<string, any>} item — заявка (поля формы)
+ * @param {{ loginPhone: string, password: string } | null} creds — если аккаунт создан автоматически
+ */
+export function formatWholesaleAccessRequest(item, creds = null) {
+  const base = `
 📩 <b>Заявка на доступ к опту — Кофе Нечай</b>
 
 👤 <b>Имя:</b> ${escapeHtml(item.name || "—")}
@@ -230,6 +270,18 @@ export function formatWholesaleAccessRequest(item) {
 📧 <b>Email:</b> ${escapeHtml(item.email || "—")}
 💬 <b>Канал:</b> ${escapeHtml(item.channel || "—")}
 `.trim();
+
+  if (!creds || !creds.loginPhone || !creds.password) return base;
+
+  const lp = escapeHtml(creds.loginPhone);
+  const pw = escapeHtml(creds.password);
+  return (
+    `${base}
+
+✅ <b>Аккаунт опта создан автоматически</b>
+📱 <b>Логин</b> (нажмите на код, чтобы скопировать): <code>${lp}</code>
+🔑 <b>Пароль</b>: <code>${pw}</code>`
+  ).trim();
 }
 
 export function formatBusinessRegistration(item) {

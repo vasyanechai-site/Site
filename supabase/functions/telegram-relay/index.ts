@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
     });
   }
 
-  let body: { text?: string };
+  let body: { text?: string; reply_markup?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -62,18 +62,23 @@ Deno.serve(async (req) => {
     });
   }
 
+  const tgPayload: Record<string, unknown> = {
+    chat_id: chatId,
+    text,
+    parse_mode: "HTML",
+    disable_web_page_preview: true,
+  };
+  if (body.reply_markup != null && typeof body.reply_markup === "object") {
+    tgPayload.reply_markup = body.reply_markup;
+  }
+
   const url = `https://api.telegram.org/bot${token}/sendMessage`;
   let tgRes: Response;
   try {
     tgRes = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: "HTML",
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify(tgPayload),
       signal: AbortSignal.timeout(25_000),
     });
   } catch (e) {
