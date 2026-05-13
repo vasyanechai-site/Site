@@ -176,7 +176,12 @@ export function RetailCartPage({
   // ── Рекомендации ────────────────────────────────────────────────
   const recommendations = React.useMemo(() => {
     const cartIds = new Set(items.map(i => i.product.id));
-    const published = allProducts.filter(p => p.published !== false && !cartIds.has(p.id));
+    const published = allProducts.filter(
+      (p) =>
+        p.published !== false &&
+        p.outOfStock !== true &&
+        !cartIds.has(p.id),
+    );
 
     const accessories = published.filter(p => p.type === 'accessory' || p.category === 'Аксессуары');
     const drips      = published.filter(p => p.type === 'drip'      || p.category === 'Дрип');
