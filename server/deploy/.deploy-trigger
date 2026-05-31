@@ -1,0 +1,3 @@
+# Triggers GitHub Actions «Deploy to Reg VPS» on push (paths: server/**).
+# Safe to update after VPS reboot / unpaid recovery.
+2026-05-31T18:15:00+03:00
