@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Order } from '../types/index';
 import { fetchOrdersAdmin } from '../lib/api';
+import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { format, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -230,10 +231,7 @@ export function AdminDashboard() {
     const totalRevenue = filteredOrders.reduce((s, o) => s + o.total, 0);
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalItems = filteredOrders.reduce((s, o) =>
-      s + o.items.reduce((is, i) => {
-        if ((i as any).type === 'coldbrew') return is; // Колд брю не учитывается в кг
-        return is + i.kg + (i.packs200 * 0.2);
-      }, 0), 0);
+      s + o.items.reduce((is, i) => is + wholesaleItemWeightKg(i as any), 0), 0);
     return { totalOrders, totalRevenue, avgOrderValue, totalItems };
   }, [filteredOrders]);
 

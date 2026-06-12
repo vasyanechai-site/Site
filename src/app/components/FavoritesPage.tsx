@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Ticker } from './Ticker';
 import type { CoffeeItem, OrderFormData, CartItem } from '../types';
 import { fetchCoffeeItems, fetchFavorites, removeFromFavorites, createOrder, fetchUserOrders } from '../lib/api';
+import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { GroupedCoffeeTable } from './GroupedCoffeeTable';
 import { CountryFilter } from './CountryFilter';
 import { CategorySelect } from './CategorySelect';
@@ -177,10 +178,7 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
   };
 
   const getTotalKg = (): number => {
-    return getCartItems().reduce((sum, item) => {
-      if (item.type === 'coldbrew') return sum; // Колд брю не учитывается в весе
-      return sum + item.kg + (item.packs200 * 0.2);
-    }, 0);
+    return getCartItems().reduce((sum, item) => sum + wholesaleItemWeightKg(item), 0);
   };
 
   const getDiscount = (amount: number): number => {

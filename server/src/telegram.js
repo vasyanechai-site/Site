@@ -177,6 +177,12 @@ export function formatWholesaleOrderMessage(order) {
       let quantity = "";
       if (type === "coldbrew") {
         quantity = `${Number(item.kg) || 0} × 5 л`;
+      } else if (type === "drip") {
+        // Для дрипов: kg = упаковки (10 шт), packs200 = одиночные штуки
+        const packText = item.kg > 0 ? `${item.kg} упак. (10 шт.)` : "";
+        const unitsText = item.packs200 > 0 ? `${item.packs200} шт.` : "";
+        const sep = packText && unitsText ? ", " : "";
+        quantity = `${packText}${sep}${unitsText}`;
       } else {
         const kgText = item.kg > 0 ? `${item.kg} кг` : "";
         const packsText = item.packs200 > 0 ? `${item.packs200} × 200 г` : "";
@@ -191,6 +197,10 @@ export function formatWholesaleOrderMessage(order) {
 
   const totalKg = items.reduce((sum, item) => {
     if (item.type === "coldbrew") return sum;
+    if (item.type === "drip") {
+      // Упаковка 10 шт × 12 г = 120 г, одиночный дрип — 12 г
+      return sum + (Number(item.kg) || 0) * 0.12 + (Number(item.packs200) || 0) * 0.012;
+    }
     return sum + (Number(item.kg) || 0) + (Number(item.packs200) || 0) * 0.2;
   }, 0);
 

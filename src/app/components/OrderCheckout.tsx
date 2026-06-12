@@ -1,4 +1,5 @@
 import { CartItem } from '../types';
+import { formatWholesaleItemQuantity } from '../lib/wholesaleUnits';
 import { Button } from './ui/button';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
 import { useState } from 'react';
@@ -69,14 +70,7 @@ export function OrderCheckout({
                   </div>
                   <div className="flex justify-between text-xs pr-6">
                     <span className="text-muted-foreground">
-                      {item.type === 'coldbrew'
-                        ? `${item.kg} × 5 л`
-                        : <>
-                            {item.kg > 0 && `${item.kg} кг`}
-                            {item.kg > 0 && item.packs200 > 0 && ', '}
-                            {item.packs200 > 0 && `${item.packs200} × 200 г`}
-                          </>
-                      }
+                      {formatWholesaleItemQuantity(item)}
                     </span>
                     <span className="text-foreground">{item.subtotal.toLocaleString('ru-RU')} ₽</span>
                   </div>
@@ -147,14 +141,7 @@ export function OrderCheckout({
               </div>
               <div className="flex justify-between text-sm pr-6">
                 <span className="text-muted-foreground">
-                  {item.type === 'coldbrew'
-                    ? `${item.kg} × 5 л`
-                    : <>
-                        {item.kg > 0 && `${item.kg} кг`}
-                        {item.kg > 0 && item.packs200 > 0 && ', '}
-                        {item.packs200 > 0 && `${item.packs200} × 200 г`}
-                      </>
-                  }
+                  {formatWholesaleItemQuantity(item)}
                 </span>
                 <span className="text-foreground">{item.subtotal.toLocaleString('ru-RU')} ₽</span>
               </div>

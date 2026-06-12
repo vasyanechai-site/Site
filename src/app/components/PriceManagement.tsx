@@ -539,6 +539,7 @@ export function PriceManagement() {
       )}
       {Array.from(groupedItems.entries()).map(([category, categoryItems]) => {
         const isColdBrewSection = categoryItems[0]?.type === 'coldbrew';
+        const isDripSection = categoryItems[0]?.type === 'drip';
         return (
         <div key={category} className="mb-6">
           <div className="flex items-center gap-2 mb-3">
@@ -582,13 +583,13 @@ export function PriceManagement() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Категория</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide">Статус</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {isColdBrewSection ? '$ / 5 л' : '$ / кг'}
+                      {isColdBrewSection ? '$ / 5 л' : isDripSection ? '$ / упак. (10 шт)' : '$ / кг'}
                     </th>
-                    {!isColdBrewSection && <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">$ / 200г</th>}
+                    {!isColdBrewSection && <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">{isDripSection ? '$ / шт' : '$ / 200г'}</th>}
                     <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                      {isColdBrewSection ? '₽ / 5 л' : '₽ / кг'}
+                      {isColdBrewSection ? '₽ / 5 л' : isDripSection ? '₽ / упак. (10 шт)' : '₽ / кг'}
                     </th>
-                    {!isColdBrewSection && <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">₽ / 200г</th>}
+                    {!isColdBrewSection && <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wide">{isDripSection ? '₽ / шт' : '₽ / 200г'}</th>}
                     <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wide">Действия</th>
                   </tr>
                 </thead>
@@ -826,7 +827,7 @@ export function PriceManagement() {
               {/* Цена за 5л / кг / упак */}
               <div className="space-y-2">
                 <Label htmlFor="add-price-kg" className="text-foreground">
-                  {formData.type === 'coldbrew' ? 'Цена за 5 л ($) *' : 'Цена за кг ($) *'}
+                  {formData.type === 'coldbrew' ? 'Цена за 5 л ($) *' : formData.type === 'drip' ? 'Цена за упаковку 10 шт ($) *' : 'Цена за кг ($) *'}
                 </Label>
                 <Input
                   id="add-price-kg"
@@ -1023,7 +1024,7 @@ export function PriceManagement() {
               {/* Цена за 5л / кг / упак */}
               <div className="space-y-2">
                 <Label htmlFor="edit-price-kg" className="text-foreground">
-                  {formData.type === 'coldbrew' ? 'Цена за 5 л ($) *' : 'Цена за кг ($) *'}
+                  {formData.type === 'coldbrew' ? 'Цена за 5 л ($) *' : formData.type === 'drip' ? 'Цена за упаковку 10 шт ($) *' : 'Цена за кг ($) *'}
                 </Label>
                 <Input
                   id="edit-price-kg"

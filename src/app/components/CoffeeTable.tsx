@@ -76,7 +76,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
   };
 
   // Получить названия колонок в зависимости от типа
-  const getPrice1Label = () => type === 'drip' ? 'Цена за упаковку (6 шт)' : type === 'coldbrew' ? 'Цена за 5 л' : 'Цена за кг';
+  const getPrice1Label = () => type === 'drip' ? 'Цена за упаковку (10 шт)' : type === 'coldbrew' ? 'Цена за 5 л' : 'Цена за кг';
   const getPrice2Label = () => type === 'drip' ? 'Цена за шт.' : 'Цена за 200 г';
   const getQty1Label = () => type === 'drip' ? 'Количество (упаковки)' : type === 'coldbrew' ? 'Количество (шт.)' : 'Количество (кг)';
   const getQty2Label = () => type === 'drip' ? 'Количество (шт.)' : 'Количество (200 г)';
@@ -287,7 +287,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
           const quantities = getQuantities(item.id);
           const inCart = isItemInCart(item.id);
           
-          const label1 = type === 'drip' ? 'Упаковка (6 шт.)' : type === 'coldbrew' ? '5 л' : '1 кг';
+          const label1 = type === 'drip' ? 'Упаковка (10 шт.)' : type === 'coldbrew' ? '5 л' : '1 кг';
           const label2 = type === 'drip' ? 'Шт.' : '200 г';
           
           return (

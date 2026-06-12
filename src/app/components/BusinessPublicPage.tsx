@@ -1,4 +1,5 @@
 import { FadeIn } from './ui/fade-in';
+import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { toast } from 'sonner';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
@@ -104,10 +105,7 @@ export function BusinessPublicPage({ onNavigateToRetail, onNavigateToLogin }: Bu
   };
 
   const getTotalKg = (): number => {
-    return getCartItems().reduce((sum, item) => {
-      // 1 кг + пачки по 200г (5 пачек = 1 кг)
-      return sum + item.kg + (item.packs200 * 0.2);
-    }, 0);
+    return getCartItems().reduce((sum, item) => sum + wholesaleItemWeightKg(item), 0);
   };
 
   const handleCheckoutClick = () => {

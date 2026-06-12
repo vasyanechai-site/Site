@@ -1,4 +1,5 @@
 import { FadeIn } from './ui/fade-in';
+import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { cn } from './ui/utils';
 
@@ -393,10 +394,7 @@ export function UserDashboard({ userId, currentDiscount }: UserDashboardProps) {
     const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalItems = filteredOrders.reduce((sum, order) => 
-      sum + order.items.reduce((is, i) => {
-        if ((i as any).type === 'coldbrew') return is; // Колд брю не учитывается в кг
-        return is + i.kg + (i.packs200 * 0.2);
-      }, 0), 0
+      sum + order.items.reduce((is, i) => is + wholesaleItemWeightKg(i as any), 0), 0
     );
 
     return {

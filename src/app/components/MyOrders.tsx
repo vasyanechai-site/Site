@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Order, CoffeeItem } from '../types';
 import { fetchUserOrders, fetchCoffeeItems } from '../lib/api';
+import { formatWholesaleItemQuantity } from '../lib/wholesaleUnits';
 import { Button } from './ui/button';
 import { ArrowLeft, Package, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
@@ -204,14 +205,7 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
                                     {category && <span className="text-muted-foreground text-xs ml-2">({category})</span>}
                                   </p>
                                   <p className="text-muted-foreground">
-                                    {item.type === 'coldbrew'
-                                      ? `${item.kg} × 5 л`
-                                      : <>
-                                          {item.kg > 0 && `${item.kg} кг`}
-                                          {item.kg > 0 && item.packs200 > 0 && ' + '}
-                                          {item.packs200 > 0 && `${item.packs200} × 200 г`}
-                                        </>
-                                    }
+                                    {formatWholesaleItemQuantity(item)}
                                   </p>
                                 </div>
                                 <p className="text-foreground">{item.subtotal.toLocaleString('ru-RU')} ₽</p>

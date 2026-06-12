@@ -33,7 +33,7 @@ export function formatTochkaPositions(items) {
       const priceKg = item.priceKg || item.subtotal / ((item.kg || 0) + (item.packs200 || 0));
       const kgSubtotal = Math.round(item.kg * priceKg);
       positions.push({
-        positionName: isDrip ? `${item.name} (упак. 6 шт.)` : `${item.name}${categorySuffix}`,
+        positionName: isDrip ? `${item.name} (упак. 10 шт.)` : `${item.name}${categorySuffix}`,
         unitCode: isDrip ? "шт." : "кг.",
         ndsKind: "without_nds",
         price: String(Math.round(priceKg)),
@@ -47,7 +47,7 @@ export function formatTochkaPositions(items) {
       const price200 = item.price200 || item.subtotal / ((item.kg || 0) + (item.packs200 || 0));
       const packs200Subtotal = Math.round(item.packs200 * price200);
       positions.push({
-        positionName: isDrip ? item.name : `${item.name}${categorySuffix} (упак. 200г)`,
+        positionName: isDrip ? `${item.name} (1 шт.)` : `${item.name}${categorySuffix} (упак. 200г)`,
         unitCode: "шт.",
         ndsKind: "without_nds",
         price: String(Math.round(price200)),

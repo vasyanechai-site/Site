@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { Button } from './ui/button';
 import { OrderDialog } from './OrderDialog';
 import { Logo } from './Logo';
@@ -329,10 +330,7 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
   };
 
   const getTotalKg = (): number => {
-    return getCartItems().reduce((sum, item) => {
-      if (item.type === 'coldbrew') return sum; // Колд брю не учитывается в весе
-      return sum + item.kg + (item.packs200 * 0.2);
-    }, 0);
+    return getCartItems().reduce((sum, item) => sum + wholesaleItemWeightKg(item), 0);
   };
 
   const getDiscount = (amount: number): number => {

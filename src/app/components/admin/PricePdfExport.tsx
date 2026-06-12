@@ -148,7 +148,7 @@ function buildHtml(items: CoffeeItem[], discount: number, categoryOrder: string[
       </table>
     </div>`;
 
-  const dripSection = renderSection('Дрипы', drip, discount, 'Цена за упак. (6\u00a0шт)', 'Цена за шт.');
+  const dripSection = renderSection('Дрипы', drip, discount, 'Цена за упак. (10\u00a0шт)', 'Цена за шт.');
 
   // Секция Колд брю — отдельная таблица с одной ценовой колонкой
   const coldBrewSection = coldBrew.length === 0 ? '' : (() => {

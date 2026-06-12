@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Order, CoffeeItem, User } from '../types';
 import { fetchOrdersAdmin, deleteOrder, fetchUsersAdmin } from '../lib/api';
 import { eventBus, EVENTS } from '../lib/events';
+import { formatWholesaleItemQuantity, DRIP_PACK_UNITS } from '../lib/wholesaleUnits';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from './ui/drawer';
 import { Eye, Copy, X, Trash2, Search, UserCheck, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
@@ -234,15 +235,17 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
     const coldBrewContainers = order.items
       .filter(item => (item as any).type === 'coldbrew')
       .reduce((sum, item) => sum + item.kg, 0);
-    const totalKg = order.items
-      .filter(item => (item as any).type !== 'coldbrew')
-      .reduce((sum, item) => sum + item.kg, 0);
-    const totalPacks = order.items
-      .filter(item => (item as any).type !== 'coldbrew')
-      .reduce((sum, item) => sum + item.packs200, 0);
+    const grainItems = order.items.filter(item => (item as any).type !== 'coldbrew' && (item as any).type !== 'drip');
+    const dripItems = order.items.filter(item => (item as any).type === 'drip');
+    const totalKg = grainItems.reduce((sum, item) => sum + item.kg, 0);
+    const totalPacks = grainItems.reduce((sum, item) => sum + item.packs200, 0);
+    const dripPacks = dripItems.reduce((sum, item) => sum + item.kg, 0);
+    const dripUnits = dripItems.reduce((sum, item) => sum + item.packs200, 0);
     const parts = [];
     if (totalKg > 0) parts.push(`${totalKg} кг`);
     if (totalPacks > 0) parts.push(`${totalPacks} × 200 г`);
+    if (dripPacks > 0) parts.push(`${dripPacks} упак. дрипов (${DRIP_PACK_UNITS} шт.)`);
+    if (dripUnits > 0) parts.push(`${dripUnits} шт. дрипов`);
     if (coldBrewContainers > 0) parts.push(`${coldBrewContainers} × 5 л`);
     return parts.join(', ');
   };
@@ -463,14 +466,7 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-center text-foreground text-sm whitespace-nowrap">
-                        {(item as any).type === 'coldbrew'
-                          ? `${item.kg} × 5 л`
-                          : <>
-                              {item.kg > 0 && `${item.kg} кг`}
-                              {item.kg > 0 && item.packs200 > 0 && ', '}
-                              {item.packs200 > 0 && `${item.packs200} × 200 г`}
-                            </>
-                        }
+                        {formatWholesaleItemQuantity(item)}
                       </td>
                       <td className="px-4 py-3 text-right text-foreground text-sm whitespace-nowrap">
                         {(item.subtotal || 0).toLocaleString('ru-RU')} ₽
