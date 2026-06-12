@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Order, CoffeeItem } from '../types';
+import { Order, CartItem, CoffeeItem } from '../types';
 import { fetchUserOrders, fetchCoffeeItems } from '../lib/api';
 import { formatWholesaleItemQuantity } from '../lib/wholesaleUnits';
 import { Button } from './ui/button';
@@ -93,6 +93,57 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
     if (coffeeByName) return coffeeByName.category;
     
     return undefined;
+  };
+
+  // Для дрипов с одновременным заказом упаковок и штук — разворачиваем в две строки
+  type DisplayRow = {
+    key: string;
+    item: CartItem;
+    displayName: string;
+    displayQuantity: string;
+    displaySubtotal: number;
+    category: string | undefined;
+  };
+
+  const getDisplayRows = (items: CartItem[]): DisplayRow[] => {
+    const rows: DisplayRow[] = [];
+    items.forEach((item, index) => {
+      const category = getCategoryForItem(item.id, item.name, item.category);
+      const kg = Number(item.kg) || 0;
+      const packs200 = Number(item.packs200) || 0;
+      if (item.type === 'drip' && kg > 0 && packs200 > 0) {
+        const packSubtotal = item.priceKg
+          ? Math.round(kg * item.priceKg)
+          : Math.round((item.subtotal || 0) * kg / (kg + packs200));
+        const unitSubtotal = (item.subtotal || 0) - packSubtotal;
+        rows.push({
+          key: `${index}-packs`,
+          item,
+          displayName: `${item.name} (упак. 10 шт.)`,
+          displayQuantity: `${kg} упак.`,
+          displaySubtotal: packSubtotal,
+          category,
+        });
+        rows.push({
+          key: `${index}-units`,
+          item,
+          displayName: `${item.name} (1 шт.)`,
+          displayQuantity: `${packs200} шт.`,
+          displaySubtotal: unitSubtotal,
+          category,
+        });
+      } else {
+        rows.push({
+          key: String(index),
+          item,
+          displayName: item.name,
+          displayQuantity: formatWholesaleItemQuantity(item),
+          displaySubtotal: item.subtotal || 0,
+          category,
+        });
+      }
+    });
+    return rows;
   };
 
   return (
@@ -195,23 +246,20 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
                       <div>
                         <h3 className="text-sm text-muted-foreground mb-2">Состав заказа</h3>
                         <div className="space-y-2">
-                          {order.items.map((item, index) => {
-                            const category = getCategoryForItem(item.id, item.name, item.category);
-                            return (
-                              <div key={index} className="flex justify-between text-sm">
-                                <div>
-                                  <p className="text-foreground">
-                                    {item.name}
-                                    {category && <span className="text-muted-foreground text-xs ml-2">({category})</span>}
-                                  </p>
-                                  <p className="text-muted-foreground">
-                                    {formatWholesaleItemQuantity(item)}
-                                  </p>
-                                </div>
-                                <p className="text-foreground">{item.subtotal.toLocaleString('ru-RU')} ₽</p>
+                          {getDisplayRows(order.items).map((row) => (
+                            <div key={row.key} className="flex justify-between text-sm">
+                              <div>
+                                <p className="text-foreground">
+                                  {row.displayName}
+                                  {row.category && <span className="text-muted-foreground text-xs ml-2">({row.category})</span>}
+                                </p>
+                                <p className="text-muted-foreground">
+                                  {row.displayQuantity}
+                                </p>
                               </div>
-                            );
-                          })}
+                              <p className="text-foreground">{row.displaySubtotal.toLocaleString('ru-RU')} ₽</p>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     </div>

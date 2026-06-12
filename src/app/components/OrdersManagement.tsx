@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Order, CoffeeItem, User } from '../types';
+import { Order, CartItem, CoffeeItem, User } from '../types';
 import { fetchOrdersAdmin, deleteOrder, fetchUsersAdmin } from '../lib/api';
 import { eventBus, EVENTS } from '../lib/events';
 import { formatWholesaleItemQuantity, DRIP_PACK_UNITS } from '../lib/wholesaleUnits';
@@ -259,6 +259,56 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
     return undefined;
   };
 
+  type DisplayRow = {
+    key: string;
+    item: CartItem;
+    displayName: string;
+    displayQuantity: string;
+    displaySubtotal: number;
+    category: string | undefined;
+  };
+
+  const getDisplayRows = (items: CartItem[]): DisplayRow[] => {
+    const rows: DisplayRow[] = [];
+    items.forEach((item, index) => {
+      const category = getCategoryForItem(item.id, item.name, item.category);
+      const kg = Number(item.kg) || 0;
+      const packs200 = Number(item.packs200) || 0;
+      if (item.type === 'drip' && kg > 0 && packs200 > 0) {
+        const packSubtotal = item.priceKg
+          ? Math.round(kg * item.priceKg)
+          : Math.round((item.subtotal || 0) * kg / (kg + packs200));
+        const unitSubtotal = (item.subtotal || 0) - packSubtotal;
+        rows.push({
+          key: `${index}-packs`,
+          item,
+          displayName: `${item.name} (упак. 10 шт.)`,
+          displayQuantity: `${kg} упак.`,
+          displaySubtotal: packSubtotal,
+          category,
+        });
+        rows.push({
+          key: `${index}-units`,
+          item,
+          displayName: `${item.name} (1 шт.)`,
+          displayQuantity: `${packs200} шт.`,
+          displaySubtotal: unitSubtotal,
+          category,
+        });
+      } else {
+        rows.push({
+          key: String(index),
+          item,
+          displayName: item.name,
+          displayQuantity: formatWholesaleItemQuantity(item),
+          displaySubtotal: item.subtotal || 0,
+          category,
+        });
+      }
+    });
+    return rows;
+  };
+
   // Компонент с деталями заказа (переиспользуемый)
   const OrderDetailsContent = ({ order }: { order: Order }) => (
     <div className="space-y-6 px-4 pb-6">
@@ -455,25 +505,22 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
                 </tr>
               </thead>
               <tbody>
-                {order.items.map((item, index) => {
-                  const category = getCategoryForItem(item.id, item.name, item.category);
-                  return (
-                    <tr key={`${order.orderId}-${item.id}-${index}`} className="border-b border-border last:border-0">
-                      <td className="px-4 py-3 text-foreground text-sm">
-                        <div className="break-words">
-                          {item.name}
-                          {category && <span className="text-muted-foreground text-xs block mt-0.5">({category})</span>}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-foreground text-sm whitespace-nowrap">
-                        {formatWholesaleItemQuantity(item)}
-                      </td>
-                      <td className="px-4 py-3 text-right text-foreground text-sm whitespace-nowrap">
-                        {(item.subtotal || 0).toLocaleString('ru-RU')} ₽
-                      </td>
-                    </tr>
-                  );
-                })}
+                {getDisplayRows(order.items).map((row) => (
+                  <tr key={`${order.orderId}-${row.key}`} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-foreground text-sm">
+                      <div className="break-words">
+                        {row.displayName}
+                        {row.category && <span className="text-muted-foreground text-xs block mt-0.5">({row.category})</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-center text-foreground text-sm whitespace-nowrap">
+                      {row.displayQuantity}
+                    </td>
+                    <td className="px-4 py-3 text-right text-foreground text-sm whitespace-nowrap">
+                      {row.displaySubtotal.toLocaleString('ru-RU')} ₽
+                    </td>
+                  </tr>
+                ))}
               </tbody>
               <tfoot className="bg-muted/50 border-t border-border">
                 <tr>
