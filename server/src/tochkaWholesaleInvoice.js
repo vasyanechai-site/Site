@@ -29,29 +29,37 @@ export function formatTochkaPositions(items) {
       continue;
     }
 
-    if (item.kg > 0) {
-      const priceKg = item.priceKg || item.subtotal / ((item.kg || 0) + (item.packs200 || 0));
-      const kgSubtotal = Math.round(item.kg * priceKg);
+    const kg = Number(item.kg) || 0;
+    const packs200 = Number(item.packs200) || 0;
+    const itemSubtotal = Number(item.subtotal) || 0;
+    const hasBoth = kg > 0 && packs200 > 0;
+
+    if (kg > 0) {
+      const priceKg = Number(item.priceKg) || itemSubtotal / kg;
+      // Когда есть и упаковки, и штуки — берём остаток чтобы сумма позиций точно совпадала с item.subtotal
+      const kgSubtotal = hasBoth ? Math.round(kg * priceKg) : itemSubtotal;
       positions.push({
         positionName: isDrip ? `${item.name} (упак. 10 шт.)` : `${item.name}${categorySuffix}`,
         unitCode: isDrip ? "шт." : "кг.",
         ndsKind: "without_nds",
         price: String(Math.round(priceKg)),
-        quantity: String(item.kg),
+        quantity: String(kg),
         totalAmount: String(kgSubtotal),
         totalNds: "0",
       });
     }
 
-    if (item.packs200 > 0) {
-      const price200 = item.price200 || item.subtotal / ((item.kg || 0) + (item.packs200 || 0));
-      const packs200Subtotal = Math.round(item.packs200 * price200);
+    if (packs200 > 0) {
+      const price200 = Number(item.price200) || itemSubtotal / packs200;
+      // Используем остаток от item.subtotal для точного совпадения суммы
+      const kgSubtotal = hasBoth ? Math.round((Number(item.priceKg) || itemSubtotal / kg) * kg) : 0;
+      const packs200Subtotal = hasBoth ? itemSubtotal - kgSubtotal : itemSubtotal;
       positions.push({
         positionName: isDrip ? `${item.name} (1 шт.)` : `${item.name}${categorySuffix} (упак. 200г)`,
         unitCode: "шт.",
         ndsKind: "without_nds",
         price: String(Math.round(price200)),
-        quantity: String(item.packs200),
+        quantity: String(packs200),
         totalAmount: String(packs200Subtotal),
         totalNds: "0",
       });

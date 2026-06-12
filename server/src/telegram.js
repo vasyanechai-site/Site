@@ -171,29 +171,41 @@ export function formatWholesaleBusinessLoginForwardMessage(loginPhone, password,
 
 export function formatWholesaleOrderMessage(order) {
   const items = Array.isArray(order.items) ? order.items : [];
-  const itemsList = items
-    .map((item) => {
-      const type = item.type;
-      let quantity = "";
-      if (type === "coldbrew") {
-        quantity = `${Number(item.kg) || 0} × 5 л`;
-      } else if (type === "drip") {
-        // Для дрипов: kg = упаковки (10 шт), packs200 = одиночные штуки
-        const packText = item.kg > 0 ? `${item.kg} упак. (10 шт.)` : "";
-        const unitsText = item.packs200 > 0 ? `${item.packs200} шт.` : "";
-        const sep = packText && unitsText ? ", " : "";
-        quantity = `${packText}${sep}${unitsText}`;
-      } else {
-        const kgText = item.kg > 0 ? `${item.kg} кг` : "";
-        const packsText = item.packs200 > 0 ? `${item.packs200} × 200 г` : "";
-        const sep = kgText && packsText ? ", " : "";
-        quantity = `${kgText}${sep}${packsText}`;
-      }
-      const cat = item.category ? ` (${escapeHtml(item.category)})` : "";
-      const sub = Number(item.subtotal) || 0;
-      return `• ${escapeHtml(item.name)}${cat} — ${quantity} — ${sub.toLocaleString("ru-RU")} ₽`;
-    })
-    .join("\n");
+  const itemLines = [];
+  for (const item of items) {
+    const type = item.type;
+    const cat = item.category ? ` (${escapeHtml(item.category)})` : "";
+    const kg = Number(item.kg) || 0;
+    const packs200 = Number(item.packs200) || 0;
+    const subtotal = Number(item.subtotal) || 0;
+
+    if (type === "coldbrew") {
+      const quantity = `${kg} × 5 л`;
+      itemLines.push(`• ${escapeHtml(item.name)}${cat} — ${quantity} — ${subtotal.toLocaleString("ru-RU")} ₽`);
+    } else if (type === "drip" && kg > 0 && packs200 > 0) {
+      // Дрип заказан и упаковками, и штуками — две отдельные строки
+      const packSubtotal = item.priceKg
+        ? Math.round(kg * Number(item.priceKg))
+        : Math.round(subtotal * kg / (kg + packs200));
+      const unitSubtotal = subtotal - packSubtotal;
+      itemLines.push(
+        `• ${escapeHtml(item.name)} (упак. 10 шт.)${cat} — ${kg} упак. — ${packSubtotal.toLocaleString("ru-RU")} ₽`,
+      );
+      itemLines.push(
+        `• ${escapeHtml(item.name)} (1 шт.)${cat} — ${packs200} шт. — ${unitSubtotal.toLocaleString("ru-RU")} ₽`,
+      );
+    } else if (type === "drip") {
+      const quantity = kg > 0 ? `${kg} упак. (10 шт.)` : `${packs200} шт.`;
+      itemLines.push(`• ${escapeHtml(item.name)}${cat} — ${quantity} — ${subtotal.toLocaleString("ru-RU")} ₽`);
+    } else {
+      const kgText = kg > 0 ? `${kg} кг` : "";
+      const packsText = packs200 > 0 ? `${packs200} × 200 г` : "";
+      const sep = kgText && packsText ? ", " : "";
+      const quantity = `${kgText}${sep}${packsText}`;
+      itemLines.push(`• ${escapeHtml(item.name)}${cat} — ${quantity} — ${subtotal.toLocaleString("ru-RU")} ₽`);
+    }
+  }
+  const itemsList = itemLines.join("\n");
 
   const totalKg = items.reduce((sum, item) => {
     if (item.type === "coldbrew") return sum;
