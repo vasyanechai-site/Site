@@ -4,6 +4,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
+import { parseRuMobile8Input } from '../lib/ruMobilePhoneMask';
 
 interface UserLoginProps {
   onLogin: (userId: string, phone: string, companyName: string, discount: number) => void;
@@ -23,7 +24,8 @@ export function UserLogin({ onLogin, onBack }: UserLoginProps) {
 
     try {
       const { loginUser } = await import('../lib/api');
-      const user = await loginUser(phone, password);
+      const normalizedPhone = parseRuMobile8Input(phone);
+      const user = await loginUser(normalizedPhone, password.trim());
       
       if (user) {
         // Сохраняем данные пользователя в localStorage

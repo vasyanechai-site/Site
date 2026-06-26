@@ -179,7 +179,7 @@ export function UserManagement() {
 
         await updateUser(editingUser.id, {
           phone: formData.phone,
-          password: formData.password,
+          ...(formData.password.trim() ? { password: formData.password.trim() } : {}),
           company_name: formData.company_name,
           email: formData.email || undefined,
           discount: getDiscountForLevel(level),

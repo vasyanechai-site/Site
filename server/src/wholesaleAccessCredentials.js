@@ -25,6 +25,18 @@ export function wholesaleLoginPhonesMatch(a, b) {
   return Boolean(na && nb && na === nb);
 }
 
+/** Поиск оптового пользователя по логину (телефон) и паролю. Телефон нормализуется, пароль — trim. */
+export function findWholesaleUserByCredentials(users, rawPhone, rawPassword) {
+  const phone = normalizeWholesaleLoginPhone(rawPhone);
+  const password = String(rawPassword ?? "").trim();
+  if (!phone || !password || !Array.isArray(users)) return null;
+  return (
+    users.find(
+      (u) => wholesaleLoginPhonesMatch(u.phone, phone) && String(u.password ?? "") === password,
+    ) ?? null
+  );
+}
+
 /**
  * Публичный @username Telegram: 5–32 символа, a–z, 0–9, _, с буквы (правила Telegram).
  * @returns {{ handle: string, display: string, url: string } | null}

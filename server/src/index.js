@@ -84,6 +84,7 @@ import {
   normalizeWholesaleLoginPhone,
   generateWholesaleAccessPassword6,
   wholesaleLoginPhonesMatch,
+  findWholesaleUserByCredentials,
   parseTelegramPublicUsername,
 } from "./wholesaleAccessCredentials.js";
 
@@ -352,7 +353,8 @@ app.get("/api/users", async (_req, res) => {
 app.post("/api/users", async (req, res) => {
   const body = req.body || {};
   const users = await getUsers();
-  if (body.phone && users.some((x) => x.phone === body.phone)) {
+  const loginPhone = body.phone ? normalizeWholesaleLoginPhone(body.phone) : "";
+  if (loginPhone && users.some((x) => wholesaleLoginPhonesMatch(x.phone, loginPhone))) {
     return res.status(409).json({ error: "User with this phone already exists" });
   }
   const user = {
@@ -362,6 +364,8 @@ app.post("/api/users", async (req, res) => {
     discount: 0,
     totalKg: 0,
     ...body,
+    ...(loginPhone ? { phone: loginPhone } : {}),
+    ...(body.password != null ? { password: String(body.password) } : {}),
   };
   await setUsers([user, ...users]);
   void telegramNotify("wholesale_user_created", formatNewWholesaleUserCreated(user)).catch((e) =>
@@ -431,7 +435,7 @@ app.get("/api/auth/retail/me", async (req, res) => {
 app.post("/api/users/login", async (req, res) => {
   const { phone, password } = req.body || {};
   const users = await getUsers();
-  const user = users.find((x) => x.phone === phone && x.password === password);
+  const user = findWholesaleUserByCredentials(users, phone, password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
   res.json(sanitizeUser(user));
 });
@@ -441,7 +445,18 @@ app.put("/api/users/:id", async (req, res) => {
   const users = await getUsers();
   const current = users.find((x) => x.id === id);
   if (!current) return res.status(404).json({ error: "User not found" });
-  const updated = { ...current, ...(req.body || {}), id };
+  const patch = { ...(req.body || {}) };
+  // Пустой пароль из админки не должен затирать сохранённый (API не отдаёт password клиенту)
+  if (patch.password === "" || patch.password === undefined || patch.password === null) {
+    delete patch.password;
+  } else {
+    patch.password = String(patch.password);
+  }
+  if (patch.phone != null) {
+    const normalized = normalizeWholesaleLoginPhone(patch.phone);
+    if (normalized) patch.phone = normalized;
+  }
+  const updated = { ...current, ...patch, id };
   await setUsers(users.map((x) => (x.id === id ? updated : x)));
   res.json(sanitizeUser(updated));
 });
