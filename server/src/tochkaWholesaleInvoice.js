@@ -2,6 +2,8 @@
  * Счёт в Точка Банк для оптовых заказов (uapi/invoice/v1.0/bills), как в legacy Supabase.
  */
 
+import { reserveNextWholesaleInvoiceNumber } from "./store.js";
+
 const TOCHKA_BILLS_URL = "https://enter.tochka.com/uapi/invoice/v1.0/bills";
 
 /** @param {any[]} items */
@@ -72,7 +74,7 @@ export function formatTochkaPositions(items) {
 /**
  * Создаёт счёт в Точка; при ошибке возвращает null (заказ уже сохранён).
  * @param {Record<string, any>} order
- * @returns {Promise<{ invoiceId: string, invoiceUrl: string } | null>}
+ * @returns {Promise<{ invoiceId: string, invoiceUrl: string, invoiceNumber: string } | null>}
  */
 export async function createWholesaleTochkaBill(order) {
   const jwtToken = process.env.TOCHKA_JWT_TOKEN;
@@ -109,6 +111,17 @@ export async function createWholesaleTochkaBill(order) {
   const today = new Date().toISOString().split("T")[0];
   const paymentExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
+  // Резервируем следующий порядковый номер счёта (например "1-1", "1-2", ...)
+  let invoiceNumber;
+  try {
+    const reserved = await reserveNextWholesaleInvoiceNumber();
+    invoiceNumber = reserved.number;
+  } catch (e) {
+    console.error("[tochka wholesale] reserve invoice number failed", e?.message || e);
+    // Фолбэк: если счётчик недоступен, используем orderId — счёт всё равно создадим
+    invoiceNumber = order.orderId;
+  }
+
   const invoiceBody = {
     Data: {
       accountId,
@@ -120,7 +133,7 @@ export async function createWholesaleTochkaBill(order) {
           date: today,
           totalAmount: String(order.total ?? ""),
           totalNds: "0",
-          number: order.orderId,
+          number: invoiceNumber,
           basedOn: `Заказ ${order.orderId} с сайта coffeenechai.ru`,
           comment: `Доставка: ${order.delivery_company || "—"} — ${order.delivery_method || "—"}. Контакт: ${order.contact || "—"}, ${order.phone || "—"}`,
           paymentExpiryDate: paymentExpiry,
@@ -150,7 +163,7 @@ export async function createWholesaleTochkaBill(order) {
     const d = invoiceData.Data || invoiceData;
     const invoiceId = d.id || d.bill_id || invoiceData.id || invoiceData.bill_id || order.orderId;
     const invoiceUrl = `https://enter.tochka.com/invoice/${invoiceId}`;
-    return { invoiceId, invoiceUrl };
+    return { invoiceId, invoiceUrl, invoiceNumber };
   } catch (e) {
     console.error("[tochka wholesale] bills error", e?.message || e);
     return null;

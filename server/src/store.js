@@ -304,6 +304,89 @@ export async function getPendingRetailOrders() {
   return orders.filter((order) => (order.paymentStatus || order.payment_status) === "pending");
 }
 
+/**
+ * Счётчик номеров счетов опта.
+ * Хранится в app_settings под ключом `wholesaleInvoiceCounter`:
+ *   { next: number, prefix: string }
+ * Дефолт: { next: 1, prefix: "1-" } → счета будут "1-1", "1-2", "1-3", ...
+ */
+const WHOLESALE_INVOICE_COUNTER_KEY = "wholesaleInvoiceCounter";
+const DEFAULT_WHOLESALE_INVOICE_COUNTER = { next: 1, prefix: "1-" };
+
+function normalizeCounter(raw) {
+  const next = Math.max(1, Math.floor(Number(raw?.next) || 1));
+  const prefix = typeof raw?.prefix === "string" ? raw.prefix : DEFAULT_WHOLESALE_INVOICE_COUNTER.prefix;
+  return { next, prefix };
+}
+
+export async function getWholesaleInvoiceCounter() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query(
+      "SELECT payload FROM app_settings WHERE key = $1 LIMIT 1",
+      [WHOLESALE_INVOICE_COUNTER_KEY],
+    );
+    return normalizeCounter(rows[0]?.payload);
+  }
+  const db = readDb();
+  return normalizeCounter(db[WHOLESALE_INVOICE_COUNTER_KEY]);
+}
+
+/** Перезаписать счётчик целиком (для админ-настройки). */
+export async function setWholesaleInvoiceCounter({ next, prefix } = {}) {
+  const current = await getWholesaleInvoiceCounter();
+  const payload = normalizeCounter({
+    next: next != null ? next : current.next,
+    prefix: prefix != null ? prefix : current.prefix,
+  });
+  if (pgPool) {
+    await ensurePgSchema();
+    await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [WHOLESALE_INVOICE_COUNTER_KEY, JSON.stringify(payload)],
+    );
+    return payload;
+  }
+  const db = readDb();
+  db[WHOLESALE_INVOICE_COUNTER_KEY] = payload;
+  writeDb(db);
+  return payload;
+}
+
+/**
+ * Атомарно резервирует следующий номер счёта: возвращает { number, prefix, next }.
+ * В PostgreSQL — одной командой UPDATE ... RETURNING (без гонок при параллельных заказах).
+ */
+export async function reserveNextWholesaleInvoiceNumber() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET
+         payload = jsonb_set(
+           app_settings.payload,
+           '{next}',
+           to_jsonb(COALESCE((app_settings.payload->>'next')::int, 0) + 1)
+         ),
+         updated_at = NOW()
+       RETURNING payload`,
+      [WHOLESALE_INVOICE_COUNTER_KEY, JSON.stringify({ ...DEFAULT_WHOLESALE_INVOICE_COUNTER, next: 2 })],
+    );
+    const after = normalizeCounter(rows[0]?.payload);
+    // `next` после инкремента указывает на следующий, значит резервируем (next - 1)
+    const reserved = Math.max(1, after.next - 1);
+    return { number: `${after.prefix}${reserved}`, prefix: after.prefix, value: reserved };
+  }
+  // JSON-fallback: одна нода / один процесс — простой read-modify-write
+  const current = await getWholesaleInvoiceCounter();
+  const reserved = current.next;
+  await setWholesaleInvoiceCounter({ next: reserved + 1, prefix: current.prefix });
+  return { number: `${current.prefix}${reserved}`, prefix: current.prefix, value: reserved };
+}
+
 export async function getExchangeRate() {
   if (pgPool) {
     await ensurePgSchema();

@@ -502,6 +502,34 @@ export const updateExchangeRate = async (rate: number): Promise<ExchangeRate> =>
   }
 };
 
+export interface WholesaleInvoiceCounter {
+  next: number;
+  prefix: string;
+}
+
+export const fetchWholesaleInvoiceCounter = async (): Promise<WholesaleInvoiceCounter> => {
+  const response = await fetch(`${API_URL}/admin/wholesale-invoice-counter`, { headers });
+  if (!response.ok) {
+    throw new Error(`Failed to fetch invoice counter: ${response.statusText}`);
+  }
+  return await response.json();
+};
+
+export const updateWholesaleInvoiceCounter = async (
+  payload: Partial<WholesaleInvoiceCounter>,
+): Promise<WholesaleInvoiceCounter> => {
+  const response = await fetch(`${API_URL}/admin/wholesale-invoice-counter`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => '');
+    throw new Error(`Failed to update invoice counter: ${response.statusText} ${errText}`);
+  }
+  return await response.json();
+};
+
 // ============================================================================
 // USERS API
 // ============================================================================

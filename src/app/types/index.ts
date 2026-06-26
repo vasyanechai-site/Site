@@ -50,6 +50,7 @@ export interface Order {
   invoiceId?: string;
   invoiceCreatedAt?: string;
   invoiceUrl?: string; // Ссылка на счет в Точка Банке
+  invoiceNumber?: string; // Порядковый номер счёта, например "1-1", "1-2", ...
 }
 
 export interface OrderFormData {

@@ -217,8 +217,9 @@ export function formatWholesaleOrderMessage(order) {
   }, 0);
 
   const invoiceUrl = order.invoiceUrl || order.tochka_payment_url || order.paymentLink;
+  const invoiceNumber = order.invoiceNumber ? `№ ${escapeHtml(String(order.invoiceNumber))} ` : "";
   const invoiceSection = invoiceUrl
-    ? `\n\n💳 <b>Счёт:</b> <a href="${escapeHtml(invoiceUrl)}">ссылка</a>`
+    ? `\n\n💳 <b>Счёт:</b> ${invoiceNumber}<a href="${escapeHtml(invoiceUrl)}">ссылка</a>`
     : "";
 
   return `
