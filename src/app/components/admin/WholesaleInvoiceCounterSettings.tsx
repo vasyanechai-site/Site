@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
 import { toast } from 'sonner';
 import { Loader2, Save } from 'lucide-react';
 import {
   fetchWholesaleInvoiceCounter,
   updateWholesaleInvoiceCounter,
   type WholesaleInvoiceCounter,
-} from '../lib/api';
+} from '../../lib/api';
 
 /**
  * Виджет для админа: настройка порядкового номера счёта в Точке.
