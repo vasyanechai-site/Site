@@ -24,6 +24,8 @@ import {
   deleteOrderById,
   deleteRetailOrderById,
   getExchangeRate,
+  getWholesaleInvoiceCounter,
+  setWholesaleInvoiceCounter,
   initStorage,
   getOrderById,
   getOrders,
@@ -600,6 +602,7 @@ app.post("/api/orders", async (req, res) => {
           invoiceId: bill.invoiceId,
           invoiceCreatedAt: new Date().toISOString(),
           invoiceUrl: bill.invoiceUrl,
+          invoiceNumber: bill.invoiceNumber,
         })) || saved;
     }
     await telegramNotify("wholesale_order", formatWholesaleOrderMessage(saved));
@@ -637,6 +640,35 @@ app.put("/api/exchange-rate", async (req, res) => {
     return res.status(400).json({ error: "usd_to_rub must be a positive number" });
   }
   res.json(await setExchangeRate(rate));
+});
+
+// Счётчик номеров оптовых счетов: формат "${prefix}${next}", например "1-1", "1-2", ...
+app.get("/api/admin/wholesale-invoice-counter", async (_req, res) => {
+  try {
+    res.json(await getWholesaleInvoiceCounter());
+  } catch (e) {
+    console.error("[admin] get wholesale-invoice-counter", e?.message || e);
+    res.status(500).json({ error: "Не удалось получить счётчик" });
+  }
+});
+
+app.put("/api/admin/wholesale-invoice-counter", async (req, res) => {
+  try {
+    const { next, prefix } = req.body || {};
+    if (next != null) {
+      const n = Number(next);
+      if (!Number.isFinite(n) || n < 1) {
+        return res.status(400).json({ error: "next должен быть положительным числом" });
+      }
+    }
+    if (prefix != null && typeof prefix !== "string") {
+      return res.status(400).json({ error: "prefix должен быть строкой" });
+    }
+    res.json(await setWholesaleInvoiceCounter({ next, prefix }));
+  } catch (e) {
+    console.error("[admin] put wholesale-invoice-counter", e?.message || e);
+    res.status(500).json({ error: "Не удалось обновить счётчик" });
+  }
 });
 
 app.post("/api/retail/orders", async (req, res) => {

@@ -26,6 +26,7 @@ import { fetchAgents } from '../lib/agentApi';
 import type { Agent } from '../types/agent';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { WholesaleInvoiceCounterSettings } from './admin/WholesaleInvoiceCounterSettings';
 
 // Компонент заголовка с сортировкой
 function SortHeader({
@@ -478,7 +479,7 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
                   rel="noopener noreferrer"
                   className="text-primary hover:underline break-all"
                 >
-                  Открыть счет №{order.invoiceId}
+                  Открыть счёт {order.invoiceNumber ? `№ ${order.invoiceNumber}` : `№${order.invoiceId}`}
                 </a>
                 {order.invoiceCreatedAt && (
                   <p className="text-muted-foreground text-xs mt-1">
@@ -594,6 +595,8 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
           </Button>
         </div>
       </FadeIn>
+
+      <WholesaleInvoiceCounterSettings />
 
       {/* ── Панель фильтров ── */}
       <div className="mb-4 space-y-3">

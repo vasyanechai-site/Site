@@ -213,6 +213,9 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex-1">
                           <p className="text-foreground">Заказ {order.orderId}</p>
+                          {order.invoiceNumber && (
+                            <p className="text-sm text-muted-foreground">Счёт № {order.invoiceNumber}</p>
+                          )}
                           <p className="text-sm text-muted-foreground">{formatDate(order.date)}</p>
                         </div>
                         <div className="flex items-center gap-3">
