@@ -54,14 +54,14 @@ function RouletteModalBody({
   const Title = layout === 'sheet' ? DrawerTitle : DialogTitle;
   const Header = layout === 'sheet' ? DrawerHeader : DialogHeader;
 
-  return (
+  const body = (
     <>
       <FireworksOverlay active={showFireworks} onComplete={onFireworksComplete} />
 
       <Header
         className={
           layout === 'sheet'
-            ? 'relative shrink-0 space-y-0 px-0 pb-2 pt-0 text-center'
+            ? 'relative shrink-0 space-y-0 px-0 pb-2 pt-1 text-center'
             : 'relative shrink-0 space-y-0 pb-2 pt-0 text-center sm:text-center'
         }
       >
@@ -92,12 +92,18 @@ function RouletteModalBody({
         type="button"
         disabled={isSpinning}
         onClick={onSpin}
-        className={`mt-4 shrink-0 ${DRIP_ROULETTE_BUTTON_CLASS}`}
+        className={`shrink-0 ${layout === 'sheet' ? 'mt-3' : 'mt-4'} ${DRIP_ROULETTE_BUTTON_CLASS}`}
       >
         {isSpinning ? 'Крутится…' : spinToken > 0 ? 'Крутить ещё' : 'Крутить'}
       </Button>
     </>
   );
+
+  if (layout === 'sheet') {
+    return <div className="flex h-full min-h-0 flex-col">{body}</div>;
+  }
+
+  return body;
 }
 
 function useIosScrollLock(active: boolean) {
@@ -191,12 +197,12 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
         onOpenChange={onOpenChange}
         dismissible
         direction="bottom"
-        snapPoints={[0.88]}
-        fadeFromIndex={0}
         noBodyStyles
       >
         <DrawerContent
-          className="!mt-0 !bottom-0 !inset-x-0 flex max-h-[88dvh] min-h-0 flex-col overflow-hidden overscroll-none border-[#222222]/15 bg-[#FFF4E5] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2"
+          hideHandle
+          overlayClassName="z-[100]"
+          className="!mt-0 !bottom-0 !inset-x-0 !z-[101] flex !h-[92dvh] !max-h-[92dvh] flex-col overflow-hidden overscroll-none rounded-t-[20px] border-[#222222]/15 bg-[#FFF4E5] px-5 pb-[max(1.25rem,calc(env(safe-area-inset-bottom)+0.75rem))] pt-3"
           onOpenAutoFocus={(event) => event.preventDefault()}
         >
           <RouletteModalBody {...bodyProps} layout="sheet" />
