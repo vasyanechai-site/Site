@@ -1,32 +1,36 @@
 import { useState } from 'react';
 import { Button } from '../ui/button';
 import { RouletteModal } from './RouletteModal';
+import { DRIP_ROULETTE_BUTTON_CLASS } from '../../lib/dripRoulette';
+import { cn } from '../ui/utils';
 
 interface DripRouletteTriggerProps {
   className?: string;
-  /** compact — для карточки в сетке; default — для страницы товара */
-  size?: 'compact' | 'default';
+  /** overlay — по центру обложки товара */
+  variant?: 'default' | 'overlay';
 }
 
-export function DripRouletteTrigger({ className = '', size = 'default' }: DripRouletteTriggerProps) {
+export function DripRouletteTrigger({
+  className = '',
+  variant = 'default',
+}: DripRouletteTriggerProps) {
   const [open, setOpen] = useState(false);
-
-  const sizeClasses =
-    size === 'compact'
-      ? 'h-10 w-full text-sm rounded-lg'
-      : 'h-12 w-full text-base sm:text-lg rounded-xl';
 
   return (
     <>
       <Button
         type="button"
-        variant="outline"
+        size="sm"
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
           setOpen(true);
         }}
-        className={`border-[#222222]/10 bg-[#FFE500] font-medium text-[#222222] shadow-sm transition-all hover:bg-[#FFD700] hover:shadow-md active:scale-[0.98] active:bg-[#F5C400] ${sizeClasses} ${className}`}
+        className={cn(
+          DRIP_ROULETTE_BUTTON_CLASS,
+          variant === 'overlay' && 'shadow-md',
+          className,
+        )}
       >
         Крути ДРИП
       </Button>

@@ -2,6 +2,8 @@ export type DripLetter = 'Д' | 'Р' | 'И' | 'П';
 
 export const DRIP_LETTERS: DripLetter[] = ['Д', 'Р', 'И', 'П'];
 
+export const PIDR_WORD: DripLetter[] = ['П', 'И', 'Д', 'Р'];
+
 export const DRIP_LETTER_IMAGES: Record<DripLetter, string> = {
   Д: '/drip-roulette/d.png',
   Р: '/drip-roulette/r.png',
@@ -9,10 +11,11 @@ export const DRIP_LETTER_IMAGES: Record<DripLetter, string> = {
   П: '/drip-roulette/p.png',
 };
 
-export const SPIN_DURATION_MS = 5000;
+/** Чуть дольше прежних 5 с */
+export const SPIN_DURATION_MS = 6800;
 
-/** cubic-bezier: ускорение в начале, замедление и лёгкий overshoot в конце */
-export const SPIN_EASING = 'cubic-bezier(0.22, 1, 0.36, 1.05)';
+/** Быстрый старт, длинное замедление, лёгкий overshoot в конце */
+export const SPIN_EASING = 'cubic-bezier(0.08, 0.82, 0.12, 1.04)';
 
 export function randomDripLetter(): DripLetter {
   return DRIP_LETTERS[Math.floor(Math.random() * DRIP_LETTERS.length)]!;
@@ -22,12 +25,18 @@ export function randomDripWord(): DripLetter[] {
   return Array.from({ length: 4 }, () => randomDripLetter());
 }
 
+export function isPidrWord(letters: DripLetter[]): boolean {
+  return (
+    letters.length === 4 &&
+    letters.every((letter, index) => letter === PIDR_WORD[index])
+  );
+}
+
 export function isDripCategory(category?: string | null): boolean {
   if (!category) return false;
   return category === 'Дрип' || category === 'Дрип кофе';
 }
 
-/** Лента плиток со случайным порядком; targetLetter окажется на targetIndex. */
 export function buildRouletteStrip(targetLetter: DripLetter, targetIndex: number): DripLetter[] {
   const strip: DripLetter[] = [];
   for (let i = 0; i < targetIndex; i += 1) {
@@ -39,3 +48,6 @@ export function buildRouletteStrip(targetLetter: DripLetter, targetIndex: number
   }
   return strip;
 }
+
+/** Стиль кнопки как «Вход для бизнеса» в шапке */
+export const DRIP_ROULETTE_BUTTON_CLASS = 'text-xs sm:text-sm';

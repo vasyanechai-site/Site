@@ -1309,6 +1309,14 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
                               alt={product.name}
                               className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-300"
                             />
+                            {isDripCategory(category) && (
+                              <div
+                                className="absolute inset-0 z-20 flex items-center justify-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <DripRouletteTrigger variant="overlay" />
+                              </div>
+                            )}
                             {/* Recommended sticker — slowly rotates */}
                             {product.recommended && (
                               <motion.img
@@ -1336,9 +1344,6 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
 
                           {/* Quick Add Button — stops propagation so it doesn't navigate to product */}
                           <div className="mt-[14px] flex w-full flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                            {isDripCategory(category) && (
-                              <DripRouletteTrigger size="compact" className="max-w-[200px]" />
-                            )}
                             <QuickAddButton
                               product={product}
                               cartItems={cartItems}

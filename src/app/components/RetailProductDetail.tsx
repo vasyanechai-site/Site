@@ -441,6 +441,11 @@ export function RetailProductDetail({
                 alt={product.name}
                 className="max-h-full w-auto object-contain"
               />
+              {productType === 'drip' && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center">
+                  <DripRouletteTrigger variant="overlay" />
+                </div>
+              )}
             </div>
           </div>
 
@@ -563,7 +568,6 @@ export function RetailProductDetail({
                   <div className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222] flex items-center">
                     Упаковка (10 шт.)
                   </div>
-                  <DripRouletteTrigger className="mt-3" />
                 </div>
               )}
               
