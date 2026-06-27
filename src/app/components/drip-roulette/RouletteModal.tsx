@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '../ui/drawer';
+import { useIsMobile } from '../ui/use-mobile';
 import { RouletteBoard } from './RouletteBoard';
 import { FireworksOverlay } from './FireworksOverlay';
 import {
@@ -16,7 +28,113 @@ interface RouletteModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+interface RouletteModalBodyProps {
+  isSpinning: boolean;
+  spinToken: number;
+  result: DripLetter[];
+  showFireworks: boolean;
+  onSpin: () => void;
+  onSpinComplete: () => void;
+  onFireworksComplete: () => void;
+  onClose: () => void;
+  layout: 'sheet' | 'dialog';
+}
+
+function RouletteModalBody({
+  isSpinning,
+  spinToken,
+  result,
+  showFireworks,
+  onSpin,
+  onSpinComplete,
+  onFireworksComplete,
+  onClose,
+  layout,
+}: RouletteModalBodyProps) {
+  const Title = layout === 'sheet' ? DrawerTitle : DialogTitle;
+  const Header = layout === 'sheet' ? DrawerHeader : DialogHeader;
+
+  return (
+    <>
+      <FireworksOverlay active={showFireworks} onComplete={onFireworksComplete} />
+
+      <Header
+        className={
+          layout === 'sheet'
+            ? 'relative shrink-0 space-y-0 px-0 pb-2 pt-0 text-center'
+            : 'relative shrink-0 space-y-0 pb-2 pt-0 text-center sm:text-center'
+        }
+      >
+        <Title className="text-xl font-normal text-[#222222] sm:text-2xl">
+          Рулетка ДРИП
+        </Title>
+        {layout === 'sheet' && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded-full text-[#222222]/60 transition-colors hover:bg-[#222222]/8"
+            aria-label="Закрыть"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </Header>
+
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden">
+        <RouletteBoard
+          letters={result}
+          spinToken={spinToken}
+          onComplete={onSpinComplete}
+        />
+      </div>
+
+      <Button
+        type="button"
+        disabled={isSpinning}
+        onClick={onSpin}
+        className={`mt-4 shrink-0 ${DRIP_ROULETTE_BUTTON_CLASS}`}
+      >
+        {isSpinning ? 'Крутится…' : spinToken > 0 ? 'Крутить ещё' : 'Крутить'}
+      </Button>
+    </>
+  );
+}
+
+function useIosScrollLock(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+
+    const scrollY = window.scrollY;
+    const { style: htmlStyle } = document.documentElement;
+    const { style: bodyStyle } = document.body;
+
+    htmlStyle.overflow = 'hidden';
+    htmlStyle.overscrollBehavior = 'none';
+    bodyStyle.overflow = 'hidden';
+    bodyStyle.overscrollBehavior = 'none';
+    bodyStyle.position = 'fixed';
+    bodyStyle.top = `-${scrollY}px`;
+    bodyStyle.left = '0';
+    bodyStyle.right = '0';
+    bodyStyle.width = '100%';
+
+    return () => {
+      htmlStyle.overflow = '';
+      htmlStyle.overscrollBehavior = '';
+      bodyStyle.overflow = '';
+      bodyStyle.overscrollBehavior = '';
+      bodyStyle.position = '';
+      bodyStyle.top = '';
+      bodyStyle.left = '';
+      bodyStyle.right = '';
+      bodyStyle.width = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [active]);
+}
+
 export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
+  const isMobile = useIsMobile();
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinToken, setSpinToken] = useState(0);
   const [result, setResult] = useState<DripLetter[]>(() => randomDripWord());
@@ -36,22 +154,7 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
     }
   }, [open, resetSpinState]);
 
-  useEffect(() => {
-    if (!open) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onOpenChange(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [open, onOpenChange]);
+  useIosScrollLock(open && isMobile);
 
   const handleSpin = () => {
     if (isSpinning) return;
@@ -70,66 +173,46 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
     }
   };
 
-  if (!open || typeof document === 'undefined') return null;
+  const bodyProps = {
+    isSpinning,
+    spinToken,
+    result,
+    showFireworks,
+    onSpin: handleSpin,
+    onSpinComplete: handleSpinComplete,
+    onFireworksComplete: () => setShowFireworks(false),
+    onClose: () => onOpenChange(false),
+  };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-end justify-center">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/50"
-        aria-label="Закрыть"
-        onClick={() => onOpenChange(false)}
-      />
-
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="drip-roulette-title"
-        className="relative z-[101] flex h-[88vh] max-h-[88vh] w-full max-w-none flex-col overflow-hidden rounded-t-[20px] border border-[#222222]/15 bg-[#FFF4E5] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 shadow-2xl animate-in slide-in-from-bottom duration-300"
-        onClick={(event) => event.stopPropagation()}
+  if (isMobile) {
+    return (
+      <Drawer
+        open={open}
+        onOpenChange={onOpenChange}
+        dismissible
+        direction="bottom"
+        snapPoints={[0.88]}
+        fadeFromIndex={0}
+        noBodyStyles
       >
-        <FireworksOverlay
-          active={showFireworks}
-          onComplete={() => setShowFireworks(false)}
-        />
-
-        <div className="mx-auto mb-1 h-1.5 w-12 shrink-0 rounded-full bg-[#222222]/15" />
-
-        <div className="relative shrink-0 pb-2 pt-1 text-center">
-          <h2
-            id="drip-roulette-title"
-            className="text-xl font-normal text-[#222222] sm:text-2xl"
-          >
-            Рулетка ДРИП
-          </h2>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="absolute top-0 right-0 flex h-8 w-8 items-center justify-center rounded-full text-[#222222]/60 transition-colors hover:bg-[#222222]/8"
-            aria-label="Закрыть"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
-          <RouletteBoard
-            letters={result}
-            spinToken={spinToken}
-            onComplete={handleSpinComplete}
-          />
-        </div>
-
-        <Button
-          type="button"
-          disabled={isSpinning}
-          onClick={handleSpin}
-          className={`mt-4 shrink-0 ${DRIP_ROULETTE_BUTTON_CLASS}`}
+        <DrawerContent
+          className="!mt-0 !bottom-0 !inset-x-0 flex max-h-[88dvh] min-h-0 flex-col overflow-hidden overscroll-none border-[#222222]/15 bg-[#FFF4E5] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2"
+          onOpenAutoFocus={(event) => event.preventDefault()}
         >
-          {isSpinning ? 'Крутится…' : spinToken > 0 ? 'Крутить ещё' : 'Крутить'}
-        </Button>
-      </div>
-    </div>,
-    document.body,
+          <RouletteModalBody {...bodyProps} layout="sheet" />
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="relative flex max-h-[min(88vh,720px)] max-w-[min(100%,420px)] flex-col overflow-hidden gap-0 border-[#222222]/15 bg-[#FFF4E5] p-5 sm:max-w-md sm:p-8"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        <RouletteModalBody {...bodyProps} layout="dialog" />
+      </DialogContent>
+    </Dialog>
   );
 }

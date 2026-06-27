@@ -23,8 +23,6 @@ import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import svgPaths from '../imports/svg-39dxhf3pmz';
 import recommendedStickerSrc from 'figma:asset/a2fc853b075f8b77543327aa0e2eedb50e131ffe.png';
-import { isDripCategory } from '../lib/dripRoulette';
-import { DripRouletteTrigger } from './drip-roulette/DripRouletteTrigger';
 
 // ── QuickAddButton ─────────────────────────────────────────────────────────────
 interface QuickAddButtonProps {
@@ -1309,14 +1307,6 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
                               alt={product.name}
                               className="h-full w-auto object-contain group-hover:scale-105 transition-transform duration-300"
                             />
-                            {isDripCategory(category) && (
-                              <div
-                                className="absolute inset-0 z-20 flex items-center justify-center"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <DripRouletteTrigger variant="overlay" />
-                              </div>
-                            )}
                             {/* Recommended sticker — slowly rotates */}
                             {product.recommended && (
                               <motion.img
