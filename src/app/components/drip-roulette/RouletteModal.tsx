@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
 import { Button } from '../ui/button';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from '../ui/drawer';
 import { RouletteBoard } from './RouletteBoard';
 import { FireworksOverlay } from './FireworksOverlay';
 import {
@@ -58,9 +58,9 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="relative max-w-[min(100%,420px)] overflow-hidden border-[#222222]/15 bg-[#FFF4E5] p-5 sm:max-w-md sm:p-8"
+    <Drawer open={open} onOpenChange={onOpenChange} shouldScaleBackground>
+      <DrawerContent
+        className="relative mx-auto flex h-[88vh] max-h-[88vh] w-full max-w-none flex-col overflow-hidden rounded-t-[20px] border-[#222222]/15 bg-[#FFF4E5] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-2"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
         <FireworksOverlay
@@ -68,28 +68,29 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
           onComplete={() => setShowFireworks(false)}
         />
 
-        <DialogHeader className="text-center sm:text-center">
-          <DialogTitle className="text-xl font-normal text-[#222222] sm:text-2xl">
+        <DrawerHeader className="shrink-0 pb-2 pt-1 text-center">
+          <DrawerTitle className="text-xl font-normal text-[#222222] sm:text-2xl">
             Рулетка ДРИП
-          </DialogTitle>
-        </DialogHeader>
+          </DrawerTitle>
+        </DrawerHeader>
 
-        <RouletteBoard
-          letters={result}
-          spinToken={spinToken}
-          onComplete={handleSpinComplete}
-        />
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
+          <RouletteBoard
+            letters={result}
+            spinToken={spinToken}
+            onComplete={handleSpinComplete}
+          />
+        </div>
 
         <Button
           type="button"
-          size="sm"
           disabled={isSpinning}
           onClick={handleSpin}
-          className={`mt-2 h-10 w-full sm:h-9 ${DRIP_ROULETTE_BUTTON_CLASS}`}
+          className={`mt-4 shrink-0 ${DRIP_ROULETTE_BUTTON_CLASS}`}
         >
           {isSpinning ? 'Крутится…' : spinToken > 0 ? 'Крутить ещё' : 'Крутить'}
         </Button>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 }

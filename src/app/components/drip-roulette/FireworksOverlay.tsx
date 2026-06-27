@@ -162,7 +162,7 @@ export function FireworksOverlay({ active, onComplete }: FireworksOverlayProps) 
   return (
     <canvas
       ref={canvasRef}
-      className="pointer-events-none absolute inset-0 z-50 h-full w-full rounded-lg"
+      className="pointer-events-none absolute inset-0 z-50 h-full w-full rounded-t-[20px]"
       aria-hidden
     />
   );

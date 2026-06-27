@@ -59,5 +59,6 @@ export function buildRouletteStrip(targetLetter: DripLetter, targetIndex: number
   return strip;
 }
 
-/** Стиль кнопки как «Вход для бизнеса» в шапке */
-export const DRIP_ROULETTE_BUTTON_CLASS = 'text-xs sm:text-sm';
+/** Крупная кнопка рулетки (≈2× «Вход для бизнеса») */
+export const DRIP_ROULETTE_BUTTON_CLASS =
+  'h-16 w-full px-8 text-base sm:text-lg sm:h-16';

@@ -20,7 +20,6 @@ export function DripRouletteTrigger({
     <>
       <Button
         type="button"
-        size="sm"
         onClick={(e) => {
           e.stopPropagation();
           e.preventDefault();
@@ -28,7 +27,8 @@ export function DripRouletteTrigger({
         }}
         className={cn(
           DRIP_ROULETTE_BUTTON_CLASS,
-          variant === 'overlay' && 'shadow-md',
+          variant === 'overlay' && 'w-auto shadow-md',
+          variant === 'default' && 'w-full',
           className,
         )}
       >
