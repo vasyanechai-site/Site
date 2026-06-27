@@ -23,6 +23,8 @@ import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import svgPaths from '../imports/svg-39dxhf3pmz';
 import recommendedStickerSrc from 'figma:asset/a2fc853b075f8b77543327aa0e2eedb50e131ffe.png';
+import { isDripCategory } from '../lib/dripRoulette';
+import { DripRouletteTrigger } from './drip-roulette/DripRouletteTrigger';
 
 // ── QuickAddButton ─────────────────────────────────────────────────────────────
 interface QuickAddButtonProps {
@@ -1333,7 +1335,10 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
                           </div>
 
                           {/* Quick Add Button — stops propagation so it doesn't navigate to product */}
-                          <div className="mt-[14px] flex justify-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="mt-[14px] flex w-full flex-col items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            {isDripCategory(category) && (
+                              <DripRouletteTrigger size="compact" className="max-w-[200px]" />
+                            )}
                             <QuickAddButton
                               product={product}
                               cartItems={cartItems}

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 
 import { FarmGallery } from './FarmGallery';
+import { DripRouletteTrigger } from './drip-roulette/DripRouletteTrigger';
 
 interface RetailProductDetailProps {
   productId: string;
@@ -562,6 +563,7 @@ export function RetailProductDetail({
                   <div className="w-full bg-[#FFF4E5] border border-[#222222]/20 rounded-lg h-10 px-3 text-[#222222] flex items-center">
                     Упаковка (10 шт.)
                   </div>
+                  <DripRouletteTrigger className="mt-3" />
                 </div>
               )}
               
