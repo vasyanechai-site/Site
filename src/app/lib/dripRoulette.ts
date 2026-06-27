@@ -4,6 +4,9 @@ export const DRIP_LETTERS: DripLetter[] = ['Д', 'Р', 'И', 'П'];
 
 export const PIDR_WORD: DripLetter[] = ['П', 'И', 'Д', 'Р'];
 
+/** Вероятность выпадения «П И Д Р» за один спин */
+export const PIDR_WORD_CHANCE = 0.1;
+
 export const DRIP_LETTER_IMAGES: Record<DripLetter, string> = {
   Д: '/drip-roulette/d.png',
   Р: '/drip-roulette/r.png',
@@ -22,7 +25,14 @@ export function randomDripLetter(): DripLetter {
 }
 
 export function randomDripWord(): DripLetter[] {
-  return Array.from({ length: 4 }, () => randomDripLetter());
+  if (Math.random() < PIDR_WORD_CHANCE) {
+    return [...PIDR_WORD];
+  }
+  let word: DripLetter[];
+  do {
+    word = Array.from({ length: 4 }, () => randomDripLetter());
+  } while (isPidrWord(word));
+  return word;
 }
 
 export function isPidrWord(letters: DripLetter[]): boolean {
