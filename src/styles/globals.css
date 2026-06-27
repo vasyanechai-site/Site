@@ -330,3 +330,31 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation: marquee 30s linear infinite;
   display: inline-flex;
 }
+
+/* Кнопка «Крути ДРИП» — перелив и мягкое свечение */
+@keyframes drip-button-shimmer {
+  0% {
+    transform: translateX(-120%) skewX(-16deg);
+  }
+  100% {
+    transform: translateX(220%) skewX(-16deg);
+  }
+}
+
+@keyframes drip-button-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.animate-drip-button-shimmer {
+  animation: drip-button-shimmer 2.6s ease-in-out infinite;
+}
+
+.animate-drip-button-glow {
+  animation: drip-button-glow 3.2s ease-in-out infinite;
+}
