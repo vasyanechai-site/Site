@@ -208,7 +208,7 @@ export function RouletteModal({ open, onOpenChange }: RouletteModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="relative flex max-h-[min(88vh,720px)] max-w-[min(100%,420px)] flex-col overflow-hidden gap-0 border-[#222222]/15 bg-[#FFF4E5] p-5 sm:max-w-md sm:p-8"
+        className="!fixed !top-1/2 !left-1/2 !z-[100] flex max-h-[min(88vh,720px)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden gap-0 border-[#222222]/15 bg-[#FFF4E5] p-5 sm:p-8"
         onOpenAutoFocus={(event) => event.preventDefault()}
       >
         <RouletteModalBody {...bodyProps} layout="dialog" />

@@ -39,16 +39,12 @@ export function DripRouletteTrigger({
       >
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-0 animate-drip-button-glow bg-gradient-to-br from-[#FFE500]/30 via-white/10 to-[#FF90A1]/25"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 animate-drip-button-shimmer bg-gradient-to-r from-transparent via-white to-transparent opacity-90 mix-blend-overlay"
-        />
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 -left-1/2 w-2/5 animate-drip-button-shimmer bg-gradient-to-r from-transparent via-[#FF90A1]/35 to-transparent opacity-70 [animation-delay:0.8s]"
-        />
+          className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
+        >
+          <span className="absolute inset-0 animate-drip-button-glow bg-gradient-to-br from-[#FFE500]/30 via-white/10 to-[#FF90A1]/25" />
+          <span className="absolute inset-y-0 -left-1/2 w-1/2 animate-drip-button-shimmer bg-gradient-to-r from-transparent via-white to-transparent opacity-90 mix-blend-overlay" />
+          <span className="absolute inset-y-0 -left-1/2 w-2/5 animate-drip-button-shimmer bg-gradient-to-r from-transparent via-[#FF90A1]/35 to-transparent opacity-70 [animation-delay:0.8s]" />
+        </span>
 
         <span className="relative">Крути ДРИП</span>
       </button>
