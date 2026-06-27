@@ -4,6 +4,9 @@ export const DRIP_LETTERS: DripLetter[] = ['Д', 'Р', 'И', 'П'];
 
 export const PIDR_WORD: DripLetter[] = ['П', 'И', 'Д', 'Р'];
 
+/** Временно скрыть кнопку «Крути ДРИП» на карточках */
+export const DRIP_ROULETTE_ENABLED = false;
+
 /** Вероятность выпадения «П И Д Р» за один спин */
 export const PIDR_WORD_CHANCE = 0.1;
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { DRIP_ROULETTE_ENABLED } from '../../lib/dripRoulette';
 import { RouletteModal } from './RouletteModal';
 import { cn } from '../ui/utils';
 
@@ -13,6 +14,8 @@ export function DripRouletteTrigger({
   variant = 'default',
 }: DripRouletteTriggerProps) {
   const [open, setOpen] = useState(false);
+
+  if (!DRIP_ROULETTE_ENABLED) return null;
 
   return (
     <>
