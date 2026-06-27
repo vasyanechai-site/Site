@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
 import { RouletteModal } from './RouletteModal';
 import { cn } from '../ui/utils';
 
@@ -51,12 +50,7 @@ export function DripRouletteTrigger({
           className="pointer-events-none absolute inset-y-0 -left-1/2 w-2/5 animate-drip-button-shimmer bg-gradient-to-r from-transparent via-[#FF90A1]/35 to-transparent opacity-70 [animation-delay:0.8s]"
         />
 
-        <span className="relative flex items-center justify-center gap-2.5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#FFF4E5] to-white shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_2px_6px_rgba(34,34,34,0.12)] transition-transform duration-300 group-hover:rotate-12 group-hover:scale-105">
-            <Sparkles className="h-[18px] w-[18px] text-[#FF90A1]" strokeWidth={2.25} />
-          </span>
-          Крути ДРИП
-        </span>
+        <span className="relative">Крути ДРИП</span>
       </button>
       <RouletteModal open={open} onOpenChange={setOpen} />
     </>
