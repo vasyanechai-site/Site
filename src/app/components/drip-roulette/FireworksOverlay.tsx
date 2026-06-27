@@ -62,7 +62,7 @@ export function FireworksOverlay({ active, onComplete }: FireworksOverlayProps) 
     const particles: Particle[] = [];
     const rockets: Rocket[] = [];
     let frame = 0;
-    const maxFrames = 220;
+    const maxFrames = 440;
     let lastLaunch = 0;
 
     const launchRocket = () => {
@@ -87,7 +87,7 @@ export function FireworksOverlay({ active, onComplete }: FireworksOverlayProps) 
           vx: Math.cos(angle) * speed,
           vy: Math.sin(angle) * speed,
           life: 0,
-          maxLife: rand(45, 75),
+          maxLife: rand(90, 150),
           color,
           size: rand(1.5, 3.2),
         });
@@ -101,7 +101,7 @@ export function FireworksOverlay({ active, onComplete }: FireworksOverlayProps) 
       frame += 1;
       ctx.clearRect(0, 0, w(), h());
 
-      if (frame - lastLaunch > 18 && frame < maxFrames - 40) {
+      if (frame - lastLaunch > 18 && frame < maxFrames - 80) {
         launchRocket();
         lastLaunch = frame;
       }

@@ -36,7 +36,7 @@ function buildSpinReel(letter: DripLetter, direction: RouletteDirection): ReelVi
   const startY =
     direction === 'down'
       ? translateForIndex(0)
-      : endY - (18 + Math.floor(Math.random() * 8)) * TILE_SIZE_PX;
+      : endY + (18 + Math.floor(Math.random() * 8)) * TILE_SIZE_PX;
 
   return {
     strip,
