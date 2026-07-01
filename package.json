@@ -18,7 +18,8 @@
     "wholesale:merge:local": "node server/scripts/merge-wholesale-from-pdf.mjs --local",
     "wholesale:merge:dry": "node server/scripts/merge-wholesale-from-pdf.mjs --dry-run",
     "wholesale:merge:local:dry": "node server/scripts/merge-wholesale-from-pdf.mjs --local --dry-run",
-    "wholesale:sync:local": "npm run wholesale:seed && npm run wholesale:merge:local && npm run wholesale:audit:local"
+    "wholesale:sync:local": "npm run wholesale:seed && npm run wholesale:merge:local && npm run wholesale:audit:local",
+    "test:orders": "node server/scripts/test-order-numbering.mjs && node server/scripts/test-wholesale-discount.mjs && node server/scripts/test-api-integration.mjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

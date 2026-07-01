@@ -1,9 +1,23 @@
+import { useState, useEffect } from 'react';
 import { FadeIn } from './ui/fade-in';
 import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { toast } from 'sonner';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { getDisplayOrderNumber } from '../lib/orderNumbers';
+import { Button } from './ui/button';
+import { Logo } from './Logo';
+import { Ticker } from './Ticker';
+import { Badge } from './ui/badge';
+import { CountryFilter } from './CountryFilter';
+import { CategorySelect } from './CategorySelect';
+import { PriceSort } from './PriceSort';
+import { OrderCheckout } from './OrderCheckout';
+import { OrderDialog } from './OrderDialog';
+import { GroupedCoffeeTable } from './GroupedCoffeeTable';
+import { BusinessRegistration } from './BusinessRegistration';
+import type { CoffeeItem, OrderFormData, CartItem } from '../types';
+import { fetchCoffeeItems, createOrder } from '../lib/api';
 
 interface BusinessPublicPageProps {
   onNavigateToRetail: () => void;
