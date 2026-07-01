@@ -3,6 +3,7 @@ import { Order, CartItem, CoffeeItem, User } from '../types';
 import { fetchOrdersAdmin, deleteOrder, fetchUsersAdmin } from '../lib/api';
 import { eventBus, EVENTS } from '../lib/events';
 import { formatWholesaleItemQuantity, DRIP_PACK_UNITS } from '../lib/wholesaleUnits';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from './ui/drawer';
 import { Eye, Copy, X, Trash2, Search, UserCheck, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
@@ -545,6 +546,8 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
         const q = searchQuery.toLowerCase();
         const match =
           (order.orderId || '').toLowerCase().includes(q) ||
+          (getDisplayOrderNumber(order) || '').toLowerCase().includes(q) ||
+          (order.invoiceNumber || '').toLowerCase().includes(q) ||
           (order.company || '').toLowerCase().includes(q) ||
           (order.phone || '').toLowerCase().includes(q) ||
           (order.contact || '').toLowerCase().includes(q);
@@ -702,7 +705,7 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
                       className="border-b border-border hover:bg-muted/50 cursor-pointer"
                       onClick={() => setSelectedOrder(order)}
                     >
-                      <td className="px-6 py-4 text-foreground text-sm">{order.orderId}</td>
+                      <td className="px-6 py-4 text-foreground text-sm">{getDisplayOrderNumber(order)}</td>
                       <td className="px-6 py-4 text-foreground text-sm">{formatDate(order.date)}</td>
                       <td className="px-6 py-4 text-sm">
                         <div className="text-foreground">{order.company}</div>
@@ -760,7 +763,7 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
               <>
                 <DialogHeader>
                   <DialogTitle className="text-foreground">
-                    Заказ {selectedOrder.orderId}
+                    Заказ {getDisplayOrderNumber(selectedOrder)}
                   </DialogTitle>
                   <DialogDescription className="text-muted-foreground">
                     Подробная информация о заказе от {formatDate(selectedOrder.date)}
@@ -782,7 +785,7 @@ export function OrdersManagement({ coffeeItems }: OrdersManagementProps) {
                 <div className="sticky top-0 bg-background border-b border-border z-10">
                   <DrawerHeader className="relative">
                     <DrawerTitle className="text-foreground text-left pr-8">
-                      Заказ {selectedOrder.orderId}
+                      Заказ {getDisplayOrderNumber(selectedOrder)}
                     </DrawerTitle>
                     <DrawerDescription className="text-muted-foreground text-left">
                       Подробная информация о заказе от {formatDate(selectedOrder.date)}

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { XCircle, ArrowLeft, RotateCcw } from 'lucide-react';
 import { Button } from './ui/button';
+import { useDisplayOrderNumber } from '../lib/useDisplayOrderNumber';
 
 export function RetailPaymentFail() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('order_id') || searchParams.get('orderId');
+  const technicalOrderId = searchParams.get('order_id') || searchParams.get('orderId');
+  const { displayNumber } = useDisplayOrderNumber(technicalOrderId);
   const [countdown, setCountdown] = useState(15);
 
   useEffect(() => {
@@ -44,10 +46,10 @@ export function RetailPaymentFail() {
         </p>
 
         {/* Order Number */}
-        {orderId && (
+        {technicalOrderId && (
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <p className="text-sm text-gray-600">
-              Заказ №<span className="font-mono">{orderId}</span> не был оплачен
+              Заказ №<span className="font-mono">{displayNumber}</span> не был оплачен
             </p>
           </div>
         )}

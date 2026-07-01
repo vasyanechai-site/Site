@@ -16,9 +16,9 @@ import {
 export function WholesaleInvoiceCounterSettings() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [counter, setCounter] = useState<WholesaleInvoiceCounter>({ next: 1, prefix: '1-' });
+  const [counter, setCounter] = useState<WholesaleInvoiceCounter>({ next: 1, prefix: '01-' });
   const [nextInput, setNextInput] = useState('1');
-  const [prefixInput, setPrefixInput] = useState('1-');
+  const [prefixInput, setPrefixInput] = useState('01-');
 
   useEffect(() => {
     let active = true;

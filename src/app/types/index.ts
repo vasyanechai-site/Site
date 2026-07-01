@@ -31,6 +31,7 @@ export interface CartItem {
 
 export interface Order {
   orderId: string;
+  orderNumber?: string;
   date: string;
   orderType?: 'wholesale' | 'retail'; // Тип заказа: опт или розница
   company: string;
@@ -50,7 +51,7 @@ export interface Order {
   invoiceId?: string;
   invoiceCreatedAt?: string;
   invoiceUrl?: string; // Ссылка на счет в Точка Банке
-  invoiceNumber?: string; // Порядковый номер счёта, например "1-1", "1-2", ...
+  invoiceNumber?: string; // Порядковый номер счёта, например "01-1", "01-2", ...
 }
 
 export interface OrderFormData {
@@ -70,6 +71,7 @@ export interface OrderFormData {
 // Интерфейс для розничных заказов
 export interface RetailOrder {
   orderId: string;
+  orderNumber?: string;
   date: string;
   orderType: 'retail';
   contact: string;

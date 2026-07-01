@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { transliterate } from '../lib/transliterate';
 import { Footer } from './Footer';
 import { getRetailSessionUser } from '../lib/retailAuth';
-import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
 import svgPaths from '../imports/svg-39dxhf3pmz';
@@ -772,7 +772,7 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
 
       const result = await response.json();
       console.log('Order submitted successfully:', result);
-      addLog('success', '✅ Заказ создан успешно. ID: ' + result.orderId);
+      addLog('success', '✅ Заказ создан успешно. Номер: ' + getDisplayOrderNumber(result));
       
       const orderId = result.orderId;
 

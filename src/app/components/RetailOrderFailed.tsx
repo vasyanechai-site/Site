@@ -2,13 +2,15 @@ import { useSearchParams, useNavigate } from 'react-router';
 import { Button } from './ui/button';
 import { FadeIn } from './ui/fade-in';
 import { XCircle } from 'lucide-react';
+import { useDisplayOrderNumber } from '../lib/useDisplayOrderNumber';
  
 export function RetailOrderFailed() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const orderId = searchParams.get('order_id');
+  const technicalOrderId = searchParams.get('order_id');
+  const { displayNumber } = useDisplayOrderNumber(technicalOrderId);
 
-  if (!orderId) {
+  if (!technicalOrderId) {
     return (
       <div className="min-h-screen bg-[#FFF4E5] flex items-center justify-center p-4">
         <div className="text-center">
@@ -30,7 +32,7 @@ export function RetailOrderFailed() {
           
           <h1 className="text-2xl font-bold text-[#222222] mb-2">Оплата не прошла</h1>
           <p className="text-[#222222]/70 mb-6">
-            К сожалению, при оплате заказа #{orderId} возникла ошибка.<br />
+            К сожалению, при оплате заказа #{displayNumber} возникла ошибка.<br />
             Вы можете попробовать еще раз или связаться с нами для уточнения деталей.
           </p>
           

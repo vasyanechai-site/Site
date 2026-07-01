@@ -13,6 +13,7 @@ interface OrderCheckoutProps {
   totalKg?: number;
   minOrderError?: boolean;
   discountPercent?: number;
+  discountAmount?: number;
   finalTotal?: number;
   onRemoveItem?: (itemId: string) => void;
 }
@@ -26,12 +27,14 @@ export function OrderCheckout({
   totalKg = 0, 
   minOrderError = false,
   discountPercent = 0,
+  discountAmount,
   finalTotal = 0,
   onRemoveItem
 }: OrderCheckoutProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const hasDiscount = discountPercent > 0;
-  const discountAmount = Math.round(total * discountPercent / 100);
+  const resolvedDiscountAmount =
+    discountAmount ?? Math.round(total * discountPercent / 100);
   const displayTotal = hasDiscount ? finalTotal : total;
 
   if (isMobile) {
@@ -95,7 +98,7 @@ export function OrderCheckout({
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-muted-foreground">Скидка {discountPercent}%:</span>
-                  <span className="text-muted-foreground">–{discountAmount.toLocaleString('ru-RU')} ₽</span>
+                  <span className="text-muted-foreground">–{resolvedDiscountAmount.toLocaleString('ru-RU')} ₽</span>
                 </div>
               </div>
             )}
@@ -168,7 +171,7 @@ export function OrderCheckout({
             </div>
             <div className="flex justify-between items-center text-sm">
               <span className="text-muted-foreground">Скидка {discountPercent}%:</span>
-              <span className="text-muted-foreground">–{discountAmount.toLocaleString('ru-RU')} ₽</span>
+              <span className="text-muted-foreground">–{resolvedDiscountAmount.toLocaleString('ru-RU')} ₽</span>
             </div>
             <div className="border-t border-border pt-3"></div>
           </div>

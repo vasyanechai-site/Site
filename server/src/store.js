@@ -308,10 +308,14 @@ export async function getPendingRetailOrders() {
  * Счётчик номеров счетов опта.
  * Хранится в app_settings под ключом `wholesaleInvoiceCounter`:
  *   { next: number, prefix: string }
- * Дефолт: { next: 1, prefix: "1-" } → счета будут "1-1", "1-2", "1-3", ...
+ * Дефолт: { next: 1, prefix: "01-" } → счета и заказы опта "01-1", "01-2", ...
  */
 const WHOLESALE_INVOICE_COUNTER_KEY = "wholesaleInvoiceCounter";
-const DEFAULT_WHOLESALE_INVOICE_COUNTER = { next: 1, prefix: "1-" };
+const DEFAULT_WHOLESALE_INVOICE_COUNTER = { next: 1, prefix: "01-" };
+
+/** Счётчик публичных номеров розничных заказов: "02-1", "02-2", ... */
+const RETAIL_ORDER_COUNTER_KEY = "retailOrderCounter";
+const DEFAULT_RETAIL_ORDER_COUNTER = { next: 1, prefix: "02-" };
 
 function normalizeCounter(raw) {
   const next = Math.max(1, Math.floor(Number(raw?.next) || 1));
@@ -384,6 +388,68 @@ export async function reserveNextWholesaleInvoiceNumber() {
   const current = await getWholesaleInvoiceCounter();
   const reserved = current.next;
   await setWholesaleInvoiceCounter({ next: reserved + 1, prefix: current.prefix });
+  return { number: `${current.prefix}${reserved}`, prefix: current.prefix, value: reserved };
+}
+
+async function getRetailOrderCounter() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query(
+      "SELECT payload FROM app_settings WHERE key = $1 LIMIT 1",
+      [RETAIL_ORDER_COUNTER_KEY],
+    );
+    return normalizeCounter(rows[0]?.payload || DEFAULT_RETAIL_ORDER_COUNTER);
+  }
+  const db = readDb();
+  return normalizeCounter(db[RETAIL_ORDER_COUNTER_KEY] || DEFAULT_RETAIL_ORDER_COUNTER);
+}
+
+async function setRetailOrderCounter({ next, prefix } = {}) {
+  const current = await getRetailOrderCounter();
+  const payload = normalizeCounter({
+    next: next != null ? next : current.next,
+    prefix: prefix != null ? prefix : current.prefix,
+  });
+  if (pgPool) {
+    await ensurePgSchema();
+    await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET payload = EXCLUDED.payload, updated_at = NOW()`,
+      [RETAIL_ORDER_COUNTER_KEY, JSON.stringify(payload)],
+    );
+    return payload;
+  }
+  const db = readDb();
+  db[RETAIL_ORDER_COUNTER_KEY] = payload;
+  writeDb(db);
+  return payload;
+}
+
+/** Атомарно резервирует следующий публичный номер розничного заказа. */
+export async function reserveNextRetailOrderNumber() {
+  if (pgPool) {
+    await ensurePgSchema();
+    const { rows } = await pgPool.query(
+      `INSERT INTO app_settings (key, payload, updated_at)
+       VALUES ($1, $2::jsonb, NOW())
+       ON CONFLICT (key) DO UPDATE SET
+         payload = jsonb_set(
+           app_settings.payload,
+           '{next}',
+           to_jsonb(COALESCE((app_settings.payload->>'next')::int, 0) + 1)
+         ),
+         updated_at = NOW()
+       RETURNING payload`,
+      [RETAIL_ORDER_COUNTER_KEY, JSON.stringify({ ...DEFAULT_RETAIL_ORDER_COUNTER, next: 2 })],
+    );
+    const after = normalizeCounter(rows[0]?.payload);
+    const reserved = Math.max(1, after.next - 1);
+    return { number: `${after.prefix}${reserved}`, prefix: after.prefix, value: reserved };
+  }
+  const current = await getRetailOrderCounter();
+  const reserved = current.next;
+  await setRetailOrderCounter({ next: reserved + 1, prefix: current.prefix });
   return { number: `${current.prefix}${reserved}`, prefix: current.prefix, value: reserved };
 }
 

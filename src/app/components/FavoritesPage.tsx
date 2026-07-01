@@ -7,6 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Ticker } from './Ticker';
 import type { CoffeeItem, OrderFormData, CartItem } from '../types';
 import { fetchCoffeeItems, fetchFavorites, removeFromFavorites, createOrder, fetchUserOrders } from '../lib/api';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { GroupedCoffeeTable } from './GroupedCoffeeTable';
 import { CountryFilter } from './CountryFilter';
@@ -192,16 +193,23 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
     return 0;
   };
 
-  const getTotalWithDiscount = (): { subtotal: number; discount: number; total: number } => {
+  const getTotalWithDiscount = (): {
+    subtotal: number;
+    discount: number;
+    total: number;
+    discountAmount: number;
+  } => {
     const subtotal = getTotalAmount();
     const volumeDiscount = getDiscount(subtotal);
-    if (volumeDiscount === 0) return { subtotal, discount: 0, total: subtotal };
+    if (volumeDiscount === 0) {
+      return { subtotal, discount: 0, total: subtotal, discountAmount: 0 };
+    }
     // Скидка применяется только к позициям без флага no_discount
     const items = getCartItems();
     const discountableAmount = items.reduce((sum, item) => sum + (item.no_discount ? 0 : item.subtotal), 0);
     const discountAmount = Math.round(discountableAmount * volumeDiscount / 100);
     const total = subtotal - discountAmount;
-    return { subtotal, discount: volumeDiscount, total };
+    return { subtotal, discount: volumeDiscount, total, discountAmount };
   };
 
   const handleCheckoutClick = () => {
@@ -246,18 +254,12 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
         userId
       };
       
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      const orderId = `ORD-${timestamp}-${random}`;
-      
       setCart(new Map());
       setIsOrderDialogOpen(false);
       toast.success('Заказ успешно оформлен!');
-      
-      createOrder(orderData).catch(err => {
-        console.error('Failed to create order:', err);
-      });
-      onOrderSuccess(orderId);
+
+      const saved = await createOrder(orderData);
+      onOrderSuccess(getDisplayOrderNumber(saved));
     } catch (err) {
       console.error('Failed to create order:', err);
     }
@@ -266,7 +268,8 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
   const cartItems = getCartItems();
   const totalAmount = getTotalAmount();
   const hasItems = cartItems.length > 0;
-  const { subtotal, discount, total } = getTotalWithDiscount();
+  const { subtotal, discount, total, discountAmount } = getTotalWithDiscount();
+  const showFirstOrderNoDiscountMark = isFirstOrder && !isOrdersLoading;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -359,6 +362,7 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
                 onQuantityChange={handleCartChange}
                 sortOrder={sortOrder}
                 userDiscount={userDiscount}
+                showFirstOrderNoDiscountMark={showFirstOrderNoDiscountMark}
                 favoriteIds={favoriteIds}
                 onToggleFavorite={(itemId) => handleRemoveFromFavorites(itemId)}
                 userId={userId}
@@ -375,6 +379,7 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
                 totalKg={getTotalKg()}
                 minOrderError={showMinOrderError}
                 discountPercent={discount}
+                discountAmount={discountAmount}
                 finalTotal={total}
                 onRemoveItem={handleRemoveFromCart}
               />
@@ -395,6 +400,7 @@ export function FavoritesPage({ userId, userDiscount, onBack, cart, setCart, onO
             totalKg={getTotalKg()}
             minOrderError={showMinOrderError}
             discountPercent={discount}
+            discountAmount={discountAmount}
             finalTotal={total}
             onRemoveItem={handleRemoveFromCart}
           />

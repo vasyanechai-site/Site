@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { RetailOrder } from '../types';
 import { fetchRetailOrdersAdmin, deleteRetailOrder } from '../lib/api';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from './ui/drawer';
@@ -81,9 +82,9 @@ export function RetailOrdersManagement() {
         <div>
           <div className="text-sm text-muted-foreground mb-1">Номер заказа</div>
           <div className="flex items-center gap-2">
-            <span className="text-foreground">{order.orderId}</span>
+            <span className="text-foreground">{getDisplayOrderNumber(order)}</span>
             <button
-              onClick={() => copyToClipboard(order.orderId)}
+              onClick={() => copyToClipboard(getDisplayOrderNumber(order))}
               className="p-1 hover:bg-muted rounded transition-colors"
             >
               <Copy className="w-3 h-3 text-muted-foreground" />
@@ -247,7 +248,7 @@ export function RetailOrdersManagement() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.3, delay: index * 0.05 }}
                     >
-                      <td className="px-4 py-3 text-foreground text-sm whitespace-nowrap">{order.orderId}</td>
+                      <td className="px-4 py-3 text-foreground text-sm whitespace-nowrap">{getDisplayOrderNumber(order)}</td>
                       <td className="px-4 py-3 text-foreground text-sm whitespace-nowrap">
                         {new Date(order.date).toLocaleDateString('ru-RU')}
                       </td>
@@ -292,7 +293,7 @@ export function RetailOrdersManagement() {
             <DialogHeader>
               <DialogTitle>Детали заказа</DialogTitle>
               <DialogDescription>
-                Информация о розничном заказе {selectedOrder.orderId}
+                Информация о розничном заказе {getDisplayOrderNumber(selectedOrder)}
               </DialogDescription>
             </DialogHeader>
             <OrderDetailsContent order={selectedOrder} />
@@ -307,7 +308,7 @@ export function RetailOrdersManagement() {
             <DrawerHeader>
               <DrawerTitle>Детали заказа</DrawerTitle>
               <DrawerDescription>
-                Информация о розничном заказе {selectedOrder.orderId}
+                Информация о розничном заказе {getDisplayOrderNumber(selectedOrder)}
               </DrawerDescription>
               <DrawerClose className="absolute right-4 top-4">
                 <X className="h-4 w-4" />

@@ -3,6 +3,7 @@ import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
 import { toast } from 'sonner';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 
 interface BusinessPublicPageProps {
   onNavigateToRetail: () => void;
@@ -131,21 +132,13 @@ export function BusinessPublicPage({ onNavigateToRetail, onNavigateToLogin }: Bu
         userId: undefined // Гостевой заказ
       };
       
-      // Генерируем orderId
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      const orderId = `ORD-${timestamp}-${random}`;
-      
-      // Показываем страницу успеха
+      // Показываем страницу успеха после ответа сервера (короткий номер заказа)
       setCart(new Map());
       setIsOrderDialogOpen(false);
-      setSuccessOrderId(orderId);
+
+      const saved = await createOrder(orderData);
+      setSuccessOrderId(getDisplayOrderNumber(saved));
       setOrderSuccess(true);
-      
-      // Создаем заказ в фоне
-      createOrder(orderData).catch(err => {
-        console.error('Failed to create order:', err);
-      });
     } catch (err) {
       console.error('Failed to create order:', err);
     }

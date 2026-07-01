@@ -9,6 +9,7 @@ interface GroupedCoffeeTableProps {
   onQuantityChange: (id: string, kg: number, packs200: number) => void;
   sortOrder: string;
   userDiscount?: number;
+  showFirstOrderNoDiscountMark?: boolean;
   favoriteIds?: string[];
   onToggleFavorite?: (itemId: string) => void;
   onRemoveFromFavorites?: (itemId: string) => void;
@@ -60,7 +61,7 @@ const DEFAULT_STYLE = {
   border: 'border-slate-300 dark:border-slate-700',
 };
 
-export function GroupedCoffeeTable({ items, cart, onQuantityChange, sortOrder, userDiscount = 0, favoriteIds = [], onToggleFavorite, onRemoveFromFavorites, showRemoveButton, userId }: GroupedCoffeeTableProps) {
+export function GroupedCoffeeTable({ items, cart, onQuantityChange, sortOrder, userDiscount = 0, showFirstOrderNoDiscountMark = false, favoriteIds = [], onToggleFavorite, onRemoveFromFavorites, showRemoveButton, userId }: GroupedCoffeeTableProps) {
   // Функция сортировки
   const sortItems = (items: CoffeeItem[]) => {
     if (sortOrder === 'asc') {
@@ -141,6 +142,7 @@ export function GroupedCoffeeTable({ items, cart, onQuantityChange, sortOrder, u
                   onQuantityChange={onQuantityChange}
                   type="grain"
                   userDiscount={userDiscount}
+                  showFirstOrderNoDiscountMark={showFirstOrderNoDiscountMark}
                   favoriteIds={favoriteIds}
                   onToggleFavorite={onToggleFavorite}
                   onRemoveFromFavorites={onRemoveFromFavorites}
@@ -169,6 +171,7 @@ export function GroupedCoffeeTable({ items, cart, onQuantityChange, sortOrder, u
                   onQuantityChange={onQuantityChange}
                   type="drip"
                   userDiscount={userDiscount}
+                  showFirstOrderNoDiscountMark={showFirstOrderNoDiscountMark}
                   favoriteIds={favoriteIds}
                   onToggleFavorite={onToggleFavorite}
                   onRemoveFromFavorites={onRemoveFromFavorites}
@@ -195,6 +198,7 @@ export function GroupedCoffeeTable({ items, cart, onQuantityChange, sortOrder, u
                   onQuantityChange={onQuantityChange}
                   type="coldbrew"
                   userDiscount={userDiscount}
+                  showFirstOrderNoDiscountMark={showFirstOrderNoDiscountMark}
                   favoriteIds={favoriteIds}
                   onToggleFavorite={onToggleFavorite}
                   onRemoveFromFavorites={onRemoveFromFavorites}

@@ -64,7 +64,9 @@ import {
   getWholesaleAccessRequests,
   setWholesaleAccessRequests,
   getFullDatabaseSnapshot,
+  reserveNextWholesaleInvoiceNumber,
 } from "./store.js";
+import { getDisplayOrderNumber } from "./orderNumbers.js";
 import {
   telegramNotify,
   formatWholesaleOrderMessage,
@@ -588,21 +590,36 @@ app.post("/api/wholesale/request-access", async (req, res) => {
 app.post("/api/orders", async (req, res) => {
   try {
     const body = req.body || {};
+    const technicalOrderId =
+      body.orderId || `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+    let orderNumber;
+    try {
+      const reserved = await reserveNextWholesaleInvoiceNumber();
+      orderNumber = reserved.number;
+    } catch (e) {
+      console.error("[orders] reserve wholesale order number failed", e?.message || e);
+      orderNumber = undefined;
+    }
+
     const order = {
-      orderId: body.orderId || `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ...body,
+      orderId: technicalOrderId,
+      orderNumber,
       date: body.date || new Date().toISOString(),
       orderType: "wholesale",
-      ...body,
     };
     let saved = await addOrder(order);
-    const bill = await createWholesaleTochkaBill(saved);
+    const bill = await createWholesaleTochkaBill(saved, { invoiceNumber: orderNumber });
     if (bill) {
+      const invoiceNumber = bill.invoiceNumber || orderNumber;
       saved =
         (await updateOrderById(saved.orderId, {
           invoiceId: bill.invoiceId,
           invoiceCreatedAt: new Date().toISOString(),
           invoiceUrl: bill.invoiceUrl,
-          invoiceNumber: bill.invoiceNumber,
+          invoiceNumber,
+          orderNumber: invoiceNumber || saved.orderNumber,
         })) || saved;
     }
     await telegramNotify("wholesale_order", formatWholesaleOrderMessage(saved));
@@ -1146,6 +1163,7 @@ app.get("/api/retail/order-payment-info/:orderId", async (req, res) => {
   if (!order) return res.status(404).json({ error: "Order not found" });
   res.json({
     orderId: order.orderId,
+    orderNumber: order.orderNumber || getDisplayOrderNumber(order),
     total: order.total,
     paymentStatus: order.paymentStatus || order.payment_status || "pending",
     paymentLink: order.paymentLink || order.tochka_payment_url,

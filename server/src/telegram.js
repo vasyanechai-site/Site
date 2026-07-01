@@ -5,6 +5,7 @@
  */
 
 import { ipv4HttpsRequest } from "./ipv4Https.js";
+import { getDisplayOrderNumber } from "./orderNumbers.js";
 
 /** Разбор цепочки cause у TypeError fetch failed (Node / undici). */
 export function serializeFetchError(e) {
@@ -225,7 +226,7 @@ export function formatWholesaleOrderMessage(order) {
   return `
 🔔 <b>Новый оптовый заказ — Кофе Нечай</b>
 
-📦 <b>Заказ:</b> <code>${escapeHtml(order.orderId)}</code>
+📦 <b>Заказ:</b> <code>${escapeHtml(getDisplayOrderNumber(order))}</code>
 📅 <b>Дата:</b> ${escapeHtml(new Date(order.date || Date.now()).toLocaleString("ru-RU"))}
 
 🏢 <b>Компания:</b> ${escapeHtml(order.company || "—")}
@@ -277,7 +278,7 @@ export function formatRetailOrderMessage(order) {
   return `
 🛍 <b>Новый розничный заказ — Кофе Нечай</b>
 
-📦 <b>Заказ:</b> <code>${escapeHtml(order.orderId)}</code>
+📦 <b>Заказ:</b> <code>${escapeHtml(getDisplayOrderNumber(order))}</code>
 📅 <b>Дата:</b> ${escapeHtml(new Date(order.date || Date.now()).toLocaleString("ru-RU"))}
 
 👤 <b>Клиент:</b> ${escapeHtml(order.contact || "—")}
@@ -422,7 +423,7 @@ export function formatPaymentReceived(order) {
   return `
 🎉 <b>Оплата получена — Кофе Нечай</b>
 
-📦 <b>Заказ:</b> <code>${escapeHtml(order.orderId)}</code>
+📦 <b>Заказ:</b> <code>${escapeHtml(getDisplayOrderNumber(order))}</code>
 💰 <b>Сумма:</b> ${Number(order.total || 0).toLocaleString("ru-RU")} ₽
 👤 <b>Клиент:</b> ${escapeHtml(order.contact || "—")}
 📧 <b>Email:</b> ${escapeHtml(order.email || "—")}

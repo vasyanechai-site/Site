@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Order, CartItem, CoffeeItem } from '../types';
 import { fetchUserOrders, fetchCoffeeItems } from '../lib/api';
 import { formatWholesaleItemQuantity } from '../lib/wholesaleUnits';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { Button } from './ui/button';
 import { ArrowLeft, Package, Loader2 } from 'lucide-react';
 import { Logo } from './Logo';
@@ -212,7 +213,7 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
                     <div className="bg-muted/50 px-6 py-4 border-b border-border">
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex-1">
-                          <p className="text-foreground">Заказ {order.orderId}</p>
+                          <p className="text-foreground">Заказ {getDisplayOrderNumber(order)}</p>
                           {order.invoiceNumber && (
                             <p className="text-sm text-muted-foreground">Счёт № {order.invoiceNumber}</p>
                           )}

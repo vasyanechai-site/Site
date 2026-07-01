@@ -10,6 +10,8 @@ interface CoffeeTableProps {
   onQuantityChange: (id: string, kg: number, packs200: number) => void;
   type?: 'grain' | 'drip' | 'coldbrew'; // Тип таблицы
   userDiscount?: number;
+  /** Оптовик без заказов — пометка * у названий с no_discount */
+  showFirstOrderNoDiscountMark?: boolean;
   favoriteIds?: string[];
   onToggleFavorite?: (itemId: string) => void;
   onRemoveFromFavorites?: (itemId: string) => void;
@@ -17,14 +19,65 @@ interface CoffeeTableProps {
   userId?: string;
 }
 
-export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', userDiscount = 0, favoriteIds = [], onToggleFavorite, onRemoveFromFavorites, showRemoveButton, userId }: CoffeeTableProps) {
+export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', userDiscount = 0, showFirstOrderNoDiscountMark = false, favoriteIds = [], onToggleFavorite, onRemoveFromFavorites, showRemoveButton, userId }: CoffeeTableProps) {
   const getQuantities = (id: string) => {
     return cart.get(id) || { kg: 0, packs200: 0 };
   };
 
   const calculatePrice = (price: number, noDiscount?: boolean) => {
-      if (!userDiscount || noDiscount) return price;
-      return Math.round(price * (1 - userDiscount / 100));
+    if (!userDiscount || noDiscount) return price;
+    return Math.round(price * (1 - userDiscount / 100));
+  };
+
+  const renderNoDiscountMark = (item: CoffeeItem) => {
+    if (!showFirstOrderNoDiscountMark || !item.no_discount) return null;
+    return (
+      <sup className="ml-0.5 text-[10px] leading-none text-muted-foreground" aria-hidden>
+        *
+      </sup>
+    );
+  };
+
+  const renderPrice = (basePrice: number, noDiscount?: boolean) => {
+    if (userDiscount > 0 && !noDiscount) {
+      return (
+        <div className="flex flex-col items-end">
+          <span className="text-xs line-through text-muted-foreground whitespace-nowrap">
+            {basePrice.toLocaleString('ru-RU')} ₽
+          </span>
+          <span className="whitespace-nowrap">
+            {calculatePrice(basePrice, noDiscount).toLocaleString('ru-RU')} ₽
+          </span>
+        </div>
+      );
+    }
+    return (
+      <span className="whitespace-nowrap">
+        {basePrice.toLocaleString('ru-RU')} ₽
+        {!showFirstOrderNoDiscountMark && userDiscount > 0 && noDiscount ? (
+          <sup className="text-muted-foreground ml-0.5">*</sup>
+        ) : null}
+      </span>
+    );
+  };
+
+  const renderMobilePrice = (basePrice: number, noDiscount?: boolean) => {
+    if (userDiscount > 0 && !noDiscount) {
+      return (
+        <span className="flex gap-2">
+          <span className="line-through text-muted-foreground">{basePrice.toLocaleString('ru-RU')}</span>
+          <span>{calculatePrice(basePrice, noDiscount).toLocaleString('ru-RU')} ₽</span>
+        </span>
+      );
+    }
+    return (
+      <span>
+        {basePrice.toLocaleString('ru-RU')} ₽
+        {!showFirstOrderNoDiscountMark && userDiscount > 0 && noDiscount ? (
+          <sup className="text-muted-foreground ml-0.5">*</sup>
+        ) : null}
+      </span>
+    );
   };
 
   const getBadgeStyles = (badge?: 'new' | 'hit' | 'rare' | 'favorite' | 'soldout' | 'comingsoon') => {
@@ -137,7 +190,10 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                             </div>
                           ) : null;
                         })()}
-                        <div className="text-foreground text-sm">{item.name}</div>
+                        <div className="text-foreground text-sm">
+                          {item.name}
+                          {renderNoDiscountMark(item)}
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-5 text-foreground text-sm w-[100px]">{item.process}</td>
@@ -145,14 +201,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                     <td className="px-4 py-5 text-center text-foreground text-sm w-[90px]">{item.qScore || '—'}</td>
                     <td className="px-4 py-5 text-right w-[160px]">
                       <div className="text-foreground text-sm whitespace-nowrap">
-                        {userDiscount > 0 && !item.no_discount ? (
-                            <div className="flex flex-col items-end">
-                                <span className="text-xs line-through text-muted-foreground whitespace-nowrap">{item.price_kg.toLocaleString('ru-RU')} ₽</span>
-                                <span className="whitespace-nowrap">{calculatePrice(item.price_kg, item.no_discount).toLocaleString('ru-RU')} ₽</span>
-                            </div>
-                        ) : (
-                            <span className="whitespace-nowrap">{item.price_kg.toLocaleString('ru-RU')} ₽{item.no_discount && userDiscount > 0 ? <sup className="text-muted-foreground ml-0.5">*</sup> : ''}</span>
-                        )}
+                        {renderPrice(item.price_kg, item.no_discount)}
                       </div>
                     </td>
                     <td className="px-4 py-5">
@@ -188,14 +237,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                     {type !== 'coldbrew' && (
                       <td className="px-4 py-5 text-right w-[160px]">
                         <div className="text-foreground text-sm whitespace-nowrap">
-                           {userDiscount > 0 && !item.no_discount ? (
-                              <div className="flex flex-col items-end">
-                                  <span className="text-xs line-through text-muted-foreground whitespace-nowrap">{item.price_200.toLocaleString('ru-RU')} ₽</span>
-                                  <span className="whitespace-nowrap">{calculatePrice(item.price_200, item.no_discount).toLocaleString('ru-RU')} ₽</span>
-                              </div>
-                          ) : (
-                              <span className="whitespace-nowrap">{item.price_200.toLocaleString('ru-RU')} ₽{item.no_discount && userDiscount > 0 ? <sup className="text-muted-foreground ml-0.5">*</sup> : ''}</span>
-                          )}
+                          {renderPrice(item.price_200, item.no_discount)}
                         </div>
                       </td>
                     )}
@@ -319,7 +361,10 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                         </div>
                       ) : null;
                     })()}
-                    <div className="text-sm font-medium text-foreground mb-1">{item.name}</div>
+                    <div className="text-sm font-medium text-foreground mb-1">
+                      {item.name}
+                      {renderNoDiscountMark(item)}
+                    </div>
                   </div>
                   {userId && !showRemoveButton && (
                     <Button
@@ -378,14 +423,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">{label1}</span>
                     <span className="text-xs text-foreground">
-                         {userDiscount > 0 && !item.no_discount ? (
-                            <span className="flex gap-2">
-                                <span className="line-through text-muted-foreground">{item.price_kg.toLocaleString('ru-RU')}</span>
-                                <span>{calculatePrice(item.price_kg, item.no_discount).toLocaleString('ru-RU')} ₽</span>
-                            </span>
-                        ) : (
-                            <span>{item.price_kg.toLocaleString('ru-RU')} ₽{item.no_discount && userDiscount > 0 ? <sup className="text-muted-foreground ml-0.5">*</sup> : ''}</span>
-                        )}
+                      {renderMobilePrice(item.price_kg, item.no_discount)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -423,14 +461,7 @@ export function CoffeeTable({ items, cart, onQuantityChange, type = 'grain', use
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-muted-foreground">{label2}</span>
                     <span className="text-xs text-foreground">
-                         {userDiscount > 0 && !item.no_discount ? (
-                            <span className="flex gap-2">
-                                <span className="line-through text-muted-foreground">{item.price_200.toLocaleString('ru-RU')}</span>
-                                <span>{calculatePrice(item.price_200, item.no_discount).toLocaleString('ru-RU')} ₽</span>
-                            </span>
-                        ) : (
-                            <span>{item.price_200.toLocaleString('ru-RU')} ₽{item.no_discount && userDiscount > 0 ? <sup className="text-muted-foreground ml-0.5">*</sup> : ''}</span>
-                        )}
+                      {renderMobilePrice(item.price_200, item.no_discount)}
                     </span>
                   </div>
                   <div className="flex items-center gap-1">

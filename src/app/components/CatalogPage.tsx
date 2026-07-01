@@ -23,6 +23,7 @@ import {
   fetchUserLoyalty,
 } from '../lib/api';
 import { FadeIn } from './ui/fade-in';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { ChevronRight } from 'lucide-react';
@@ -344,16 +345,23 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
     return 0;
   };
 
-  const getTotalWithDiscount = (): { subtotal: number; discount: number; total: number } => {
+  const getTotalWithDiscount = (): {
+    subtotal: number;
+    discount: number;
+    total: number;
+    discountAmount: number;
+  } => {
     const subtotal = getTotalAmount();
     const volumeDiscount = getDiscount(subtotal); // порог — по всей сумме заказа
-    if (volumeDiscount === 0) return { subtotal, discount: 0, total: subtotal };
+    if (volumeDiscount === 0) {
+      return { subtotal, discount: 0, total: subtotal, discountAmount: 0 };
+    }
     // Скидка применяется только к позициям без флага no_discount
     const items = getCartItems();
     const discountableAmount = items.reduce((sum, item) => sum + (item.no_discount ? 0 : item.subtotal), 0);
     const discountAmount = Math.round(discountableAmount * volumeDiscount / 100);
     const total = subtotal - discountAmount;
-    return { subtotal, discount: volumeDiscount, total };
+    return { subtotal, discount: volumeDiscount, total, discountAmount };
   };
 
   const handleCheckoutClick = () => {
@@ -391,27 +399,18 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
         });
       }
 
-      const timestamp = Date.now();
-      const random = Math.floor(Math.random() * 1000);
-      const orderId = `ORD-${timestamp}-${random}`;
-
       const orderData = {
         ...formData,
         items: orderItems,
         total: finalTotal,
         userId: isUserAuthenticated ? userId : undefined,
-        orderId
       };
 
-      // Сразу переходим на страницу успеха
       setCart(new Map());
       setIsOrderDialogOpen(false);
-      onOrderSuccess(orderId);
 
-      // Создаем заказ в фоне (тот же orderId уйдёт на сервер)
-      createOrder(orderData).catch(err => {
-        console.error('Failed to create order:', err);
-      });
+      const saved = await createOrder(orderData);
+      onOrderSuccess(getDisplayOrderNumber(saved));
     } catch (err) {
       console.error('Failed to create order:', err);
     }
@@ -420,7 +419,8 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
   const cartItems = getCartItems();
   const totalAmount = getTotalAmount();
   const hasItems = cartItems.length > 0;
-  const { subtotal, discount, total } = getTotalWithDiscount();
+  const { subtotal, discount, total, discountAmount } = getTotalWithDiscount();
+  const showFirstOrderNoDiscountMark = isUserAuthenticated && isFirstOrder && !isOrdersLoading;
 
   // Авторитетная скидка: с сервера (учитывает ручной override), пока не загрузилась — из localStorage
   const effectiveDiscount = loyaltyData?.discount ?? userDiscount;
@@ -663,10 +663,11 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
                   </div>
                 </div>
               </div>
-              {/* Сноска для позиций без скидки */}
-              <p className="text-xs text-muted-foreground mt-4">
-                <sup>*</sup> Цена на которую не распространяется скидка
-              </p>
+              {showFirstOrderNoDiscountMark && (
+                <p className="text-xs text-muted-foreground mt-4">
+                  <sup>*</sup> Товары со звёздочкой не участвуют в скидке на первый заказ.
+                </p>
+              )}
             </div>
           </FadeIn>
           )}
@@ -710,6 +711,7 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
                 onQuantityChange={handleCartChange}
                 sortOrder={sortOrder}
                 userDiscount={userDiscount}
+                showFirstOrderNoDiscountMark={showFirstOrderNoDiscountMark}
                 favoriteIds={favoriteIds}
                 onToggleFavorite={(itemId) => {
                   const item = coffeeItems.find(i => i.id === itemId);
@@ -729,6 +731,7 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
                 totalKg={getTotalKg()}
                 minOrderError={showMinOrderError}
                 discountPercent={discount}
+                discountAmount={discountAmount}
                 finalTotal={total}
                 onRemoveItem={handleRemoveFromCart}
               />
@@ -749,6 +752,7 @@ export function CatalogPage({ onOrderSuccess, onNavigateToAdmin, onNavigateToUse
             totalKg={getTotalKg()}
             minOrderError={showMinOrderError}
             discountPercent={discount}
+            discountAmount={discountAmount}
             finalTotal={total}
             onRemoveItem={handleRemoveFromCart}
           />

@@ -3,11 +3,13 @@ import { useNavigate, useSearchParams } from 'react-router';
 import { CheckCircle, Package, ArrowLeft } from 'lucide-react';
 import { Button } from './ui/button';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
+import { useDisplayOrderNumber } from '../lib/useDisplayOrderNumber';
 
 export function RetailPaymentSuccess() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const orderId = searchParams.get('order_id') || searchParams.get('orderId');
+  const technicalOrderId = searchParams.get('order_id') || searchParams.get('orderId');
+  const { displayNumber } = useDisplayOrderNumber(technicalOrderId);
   const [countdown, setCountdown] = useState(10);
 
   useEffect(() => {
@@ -52,12 +54,12 @@ export function RetailPaymentSuccess() {
         </p>
 
         {/* Order Number */}
-        {orderId && (
+        {technicalOrderId && (
           <div className="bg-gray-50 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-center gap-2 text-gray-700">
               <Package className="w-5 h-5" />
               <span>Номер заказа:</span>
-              <span className="font-mono">{orderId}</span>
+              <span className="font-mono">{displayNumber}</span>
             </div>
           </div>
         )}

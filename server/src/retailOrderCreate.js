@@ -1,4 +1,4 @@
-import { addRetailOrder, updateRetailOrderById, getRetailLoyalty, setRetailLoyalty } from "./store.js";
+import { addRetailOrder, updateRetailOrderById, getRetailLoyalty, setRetailLoyalty, reserveNextRetailOrderNumber } from "./store.js";
 import { createCdekOrder } from "./cdekOrderCreate.js";
 import {
   buildPaymentsWithReceiptData,
@@ -120,10 +120,21 @@ export async function createRetailOrderFromCheckout(body) {
     }
   }
 
-  const orderId = body.orderId || `RETAIL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  const technicalOrderId =
+    body.orderId || `RETAIL-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+
+  let orderNumber;
+  try {
+    const reserved = await reserveNextRetailOrderNumber();
+    orderNumber = reserved.number;
+  } catch (e) {
+    console.error("[retail] reserve order number failed", e?.message || e);
+    orderNumber = undefined;
+  }
 
   const order = {
-    orderId,
+    orderId: technicalOrderId,
+    orderNumber,
     date: new Date().toISOString(),
     orderType: "retail",
     contact: customerName,
@@ -159,7 +170,7 @@ export async function createRetailOrderFromCheckout(body) {
     });
 
     const cdekResult = await createCdekOrder(
-      orderId,
+      technicalOrderId,
       customerName,
       customerPhone,
       deliveryInfo,
@@ -184,7 +195,7 @@ export async function createRetailOrderFromCheckout(body) {
     tochkaStatusRaw = r?.tochkaStatusRaw ?? null;
     if (r?.paymentLink) {
       tochkaPaymentUrl = r.paymentLink;
-      await updateRetailOrderById(orderId, {
+      await updateRetailOrderById(technicalOrderId, {
         paymentLink: tochkaPaymentUrl,
         invoiceId: r.invoiceId,
         invoiceCreatedAt: new Date().toISOString(),
@@ -194,7 +205,7 @@ export async function createRetailOrderFromCheckout(body) {
       });
     } else if (r?.error) {
       tochkaPaymentError = r.error;
-      await updateRetailOrderById(orderId, {
+      await updateRetailOrderById(technicalOrderId, {
         tochkaStatusRaw: r.tochkaStatusRaw,
         tochka_payment_error: r.error,
       }).catch(() => {});

@@ -6,6 +6,8 @@ import { Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { WooshIcon } from './WooshIcon';
 import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
+import { getDisplayOrderNumber } from '../lib/orderNumbers';
+import { useDisplayOrderNumber } from '../lib/useDisplayOrderNumber';
 
 function getWooshDeclension(number: number) {
   const cases = [2, 0, 1, 1, 1, 2];
@@ -16,18 +18,22 @@ function getWooshDeclension(number: number) {
 export function RetailOrderSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const orderId = searchParams.get('order_id');
+  const technicalOrderId = searchParams.get('order_id');
+  const { displayNumber, loading: displayLoading } = useDisplayOrderNumber(technicalOrderId);
   const [orderInfo, setOrderInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
 
   useEffect(() => {
     const fetchOrderInfo = async () => {
-      if (!orderId) return;
+      if (!technicalOrderId) {
+        setLoading(false);
+        return;
+      }
 
       try {
         const response = await fetch(
-          `${API_BASE_URL}/retail/order-payment-info/${orderId}`,
+          `${API_BASE_URL}/retail/order-payment-info/${technicalOrderId}`,
           {
             method: 'GET',
             headers: {
@@ -43,13 +49,15 @@ export function RetailOrderSuccess() {
         }
       } catch (error) {
         console.error('Failed to fetch order info:', error);
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchOrderInfo();
-  }, [orderId]);
+  }, [technicalOrderId]);
 
-  if (!orderId) {
+  if (!technicalOrderId) {
     return (
       <div className="min-h-screen bg-[#FFF4E5] flex items-center justify-center p-4">
         <div className="text-center">
@@ -61,7 +69,13 @@ export function RetailOrderSuccess() {
     );
   }
 
-  if (loading) {
+  const publicOrderNumber =
+    orderInfo?.orderNumber ||
+    getDisplayOrderNumber(orderInfo) ||
+    displayNumber ||
+    technicalOrderId;
+
+  if (loading || displayLoading) {
     return (
       <div className="min-h-screen bg-[#FFF4E5] flex items-center justify-center p-4">
         <FadeIn>
@@ -100,12 +114,12 @@ export function RetailOrderSuccess() {
               <>Ждем подтверждения от банка...</>
             ) : isPaid ? (
               <>
-                Спасибо за покупку! Ваш заказ #{orderId.split('-').pop()} оплачен.<br />
+                Спасибо за покупку! Ваш заказ #{publicOrderNumber} оплачен.<br />
                 Мы уже начали собирать ваш заказ и свяжемся с вами в ближайшее время.
               </>
             ) : (
               <>
-                Спасибо за покупку! Ваш заказ #{orderId.split('-').pop()} создан.<br />
+                Спасибо за покупку! Ваш заказ #{publicOrderNumber} создан.<br />
                 Мы свяжемся с вами в ближайшее время.
               </>
             )}

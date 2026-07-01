@@ -28,6 +28,7 @@ import { motion } from 'motion/react';
 import { ImageWithFallback } from '../figma/ImageWithFallback';
 import { transliterate } from '../../lib/transliterate';
 import { API_BASE_URL } from '../../lib/backendConfig';
+import { getDisplayOrderNumber } from '../../lib/orderNumbers';
 
 import { RetailMobileTabBar, type TabId } from '../RetailMobileTabBar';
 
@@ -477,7 +478,7 @@ function OrderCard({ order, expanded = false }: { order: RetailOrder, expanded?:
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
-             <span className="font-medium text-lg">Заказ №{order.orderId ? order.orderId.split('-').pop() : 'N/A'}</span>
+             <span className="font-medium text-lg">Заказ №{getDisplayOrderNumber(order) || 'N/A'}</span>
           </div>
           <div className="flex items-center gap-4 text-sm text-[#222222]/60">
              <div className="flex items-center gap-1.5">

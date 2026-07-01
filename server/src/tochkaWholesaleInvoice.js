@@ -74,9 +74,10 @@ export function formatTochkaPositions(items) {
 /**
  * Создаёт счёт в Точка; при ошибке возвращает null (заказ уже сохранён).
  * @param {Record<string, any>} order
+ * @param {{ invoiceNumber?: string }} [options] — если номер уже зарезервирован для заказа
  * @returns {Promise<{ invoiceId: string, invoiceUrl: string, invoiceNumber: string } | null>}
  */
-export async function createWholesaleTochkaBill(order) {
+export async function createWholesaleTochkaBill(order, options = {}) {
   const jwtToken = process.env.TOCHKA_JWT_TOKEN;
   if (!jwtToken) {
     console.log("[tochka wholesale] пропуск счёта: нет TOCHKA_JWT_TOKEN");
@@ -111,15 +112,16 @@ export async function createWholesaleTochkaBill(order) {
   const today = new Date().toISOString().split("T")[0];
   const paymentExpiry = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-  // Резервируем следующий порядковый номер счёта (например "1-1", "1-2", ...)
-  let invoiceNumber;
-  try {
-    const reserved = await reserveNextWholesaleInvoiceNumber();
-    invoiceNumber = reserved.number;
-  } catch (e) {
-    console.error("[tochka wholesale] reserve invoice number failed", e?.message || e);
-    // Фолбэк: если счётчик недоступен, используем orderId — счёт всё равно создадим
-    invoiceNumber = order.orderId;
+  // Номер счёта = публичный номер заказа (уже зарезервирован на этапе создания заказа)
+  let invoiceNumber = options.invoiceNumber || order.orderNumber || order.invoiceNumber;
+  if (!invoiceNumber) {
+    try {
+      const reserved = await reserveNextWholesaleInvoiceNumber();
+      invoiceNumber = reserved.number;
+    } catch (e) {
+      console.error("[tochka wholesale] reserve invoice number failed", e?.message || e);
+      invoiceNumber = order.orderId;
+    }
   }
 
   const invoiceBody = {
@@ -134,7 +136,7 @@ export async function createWholesaleTochkaBill(order) {
           totalAmount: String(order.total ?? ""),
           totalNds: "0",
           number: invoiceNumber,
-          basedOn: `Заказ ${order.orderId} с сайта coffeenechai.ru`,
+          basedOn: `Заказ ${order.orderNumber || order.orderId} с сайта coffeenechai.ru`,
           comment: `Доставка: ${order.delivery_company || "—"} — ${order.delivery_method || "—"}. Контакт: ${order.contact || "—"}, ${order.phone || "—"}`,
           paymentExpiryDate: paymentExpiry,
         },
