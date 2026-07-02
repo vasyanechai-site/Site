@@ -129,10 +129,15 @@ export function registerDebugRoutes(app) {
     const relayConfigured = Boolean(relayUrl && relaySecret);
 
     let getMe = null;
-    if (token) {
+    if (token && !relayConfigured) {
       try {
         const url = `https://api.telegram.org/bot${token}/getMe`;
-        const gr = await ipv4HttpsRequest(url, { method: "GET" });
+        const gr = await Promise.race([
+          ipv4HttpsRequest(url, { method: "GET" }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error("getMe timeout 8s")), 8000),
+          ),
+        ]);
         const gj = await gr.json();
         getMe = {
           http: gr.status,
@@ -144,6 +149,12 @@ export function registerDebugRoutes(app) {
       } catch (e) {
         getMe = { ok: false, ...serializeFetchError(e) };
       }
+    } else if (token && relayConfigured) {
+      getMe = {
+        ok: null,
+        skipped: true,
+        note: "getMe не вызывается при настроенном relay — проверка send через POST /api/debug/telegram/ping",
+      };
     }
 
     const hints = [];
@@ -158,6 +169,15 @@ export function registerDebugRoutes(app) {
       hints.push(
         "Настроен TELEGRAM_RELAY_URL: реальная отправка идёт через relay (например Supabase Edge), не напрямую с VPS. Поле getMe ниже проверяет только прямой доступ с VPS к api.telegram.org — при работающем relay оно может оставаться с ошибкой.",
       );
+      try {
+        const relayHost = new URL(relayUrl).hostname;
+        const v4 = await resolve4(relayHost);
+        hints.push(`Relay DNS OK: ${relayHost} → ${v4.slice(0, 2).join(", ")}`);
+      } catch (e) {
+        hints.push(
+          `КРИТИЧНО: relay-хост не резолвится (${String(e?.message || e)}). Обновите TELEGRAM_RELAY_URL в GitHub Secrets / .env на рабочий Supabase project-ref и задеплойте functions/telegram-relay.`,
+        );
+      }
     }
 
     if (!token || !chatId) {

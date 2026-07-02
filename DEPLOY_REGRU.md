@@ -22,7 +22,7 @@
 - `TOCHKA_CUSTOMER_CODE`, `TOCHKA_MERCHANT_ID`, `TOCHKA_TERMINAL_ID`, `TOCHKA_CLIENT_ID` — как в `.env.example` (для розничной оплаты через эквайринг обычно нужен и **`TOCHKA_TERMINAL_ID`**)
 - `TOCHKA_INVOICE_ACCOUNT_ID` — р/с для выставления счетов (если не задан, в коде остаётся fallback как в старом Supabase)
 - `TELEGRAM_HTTPS_PROXY` / `HTTPS_PROXY` — если хостинг блокирует прямой доступ к `api.telegram.org` (ETIMEDOUT)
-- `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — отправка через **Supabase Edge Function** `telegram-relay`: URL вида `https://<project-ref>.supabase.co/functions/v1/telegram-relay` и тот же секрет, что в Secrets функции в Supabase; на VPS при заданном `TELEGRAM_RELAY_URL` прямой вызов Telegram не используется
+- `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET` — обход блокировки Telegram с VPS в РФ. **Рекомендуется:** [Cloudflare Worker](../docs/TELEGRAM_RELAY.md) `https://telegram-relay.<account>.workers.dev`. Устаревший вариант: Supabase Edge `https://<project-ref>.supabase.co/functions/v1/telegram-relay`. При заданном `TELEGRAM_RELAY_URL` токен и chat_id могут храниться только в worker, не на VPS.
 - **Бэкап БД на почту (опционально):** `BACKUP_EMAIL_TO`, `BACKUP_SMTP_HOST`, `BACKUP_SMTP_PORT`, `BACKUP_SMTP_USER`, `BACKUP_SMTP_PASS`, `BACKUP_SMTP_SECURE` — для [еженедельного workflow](.github/workflows/weekly-database-email-backup.yml); получатель по умолчанию в коде `dakolosovs@mail.ru`, если `BACKUP_EMAIL_TO` не задан
 
 ### Еженедельный бэкап БД на почту
@@ -33,7 +33,7 @@ Workflow [`.github/workflows/weekly-database-email-backup.yml`](.github/workflow
 
 ### Telegram relay (опционально)
 
-GitHub Actions для автодеплоя **Supabase** `telegram-relay` / **keepalive** удалены — сайт и API на вашем VPS. Если исходящий HTTPS к `api.telegram.org` с VPS по-прежнему недоступен, можно вручную держать relay где угодно (в т.ч. старый Edge) и задать на VPS в `.env`: `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET`, затем `pm2 restart site-api --update-env`.
+GitHub Actions: workflow **Deploy telegram-relay (Cloudflare)** — ручной деплой worker. Подробно: [docs/TELEGRAM_RELAY.md](docs/TELEGRAM_RELAY.md). На VPS в Secrets / `.env`: `TELEGRAM_RELAY_URL`, `TELEGRAM_RELAY_SECRET`, затем деплой бэкенда или `pm2 restart site-api --update-env`.
 
 **DNS (you do once in ISP / Reg.ru):** create `A` record `api` → your VPS IP (same as `VPS_HOST` if it is the IP).
 

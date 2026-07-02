@@ -1,7 +1,9 @@
 /**
  * Telegram уведомления (Node API).
  * Переменные окружения: TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID (числовой id чата или @channelusername).
- * Обход блокировки api.telegram.org: TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET → Supabase Edge `telegram-relay`.
+ * Обход блокировки api.telegram.org (РФ): TELEGRAM_RELAY_URL + TELEGRAM_RELAY_SECRET
+ * → Cloudflare Worker (рекомендуется, бесплатно) или Supabase Edge `telegram-relay`.
+ * См. docs/TELEGRAM_RELAY.md
  */
 
 import { ipv4HttpsRequest } from "./ipv4Https.js";
@@ -41,6 +43,42 @@ function escapeHtml(s) {
     .replace(/>/g, "&gt;");
 }
 
+/** Прямой вызов Bot API (IPv4 / прокси). */
+async function sendTelegramDirect({ text, reply_markup }) {
+  const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
+  const chatId = String(process.env.TELEGRAM_CHAT_ID || "").trim();
+  if (!token || !chatId) {
+    return { ok: false, skipped: true, reason: "missing_env" };
+  }
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  try {
+    const payload = {
+      chat_id: chatId,
+      text: String(text).slice(0, 4090),
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+    };
+    if (reply_markup && typeof reply_markup === "object") {
+      payload.reply_markup = reply_markup;
+    }
+    const res = await ipv4HttpsRequest(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error("[telegram] sendMessage HTTP", res.status, data);
+      return { ok: false, httpStatus: res.status, data, via: "direct" };
+    }
+    return { ok: true, data, via: "direct" };
+  } catch (e) {
+    const detail = serializeFetchError(e);
+    console.error("[telegram] sendMessage error", detail.errorSummary, detail.codes);
+    return { ok: false, ...detail, via: "direct" };
+  }
+}
+
 /** Исходящий HTTPS к relay (Supabase Edge и т.п.); на заблокированном VPS до api.telegram.org не ходим. */
 async function sendTelegramViaRelay({ text, reply_markup }) {
   const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
@@ -65,59 +103,61 @@ async function sendTelegramViaRelay({ text, reply_markup }) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       console.error("[telegram] relay HTTP", res.status, data);
-      return { ok: false, httpStatus: res.status, data };
+      return { ok: false, httpStatus: res.status, data, via: "relay" };
     }
     if (!data.ok) {
       console.error("[telegram] relay ответ", data);
-      return { ok: false, data };
+      return { ok: false, data, via: "relay" };
     }
-    return { ok: true, data: data.result };
+    return { ok: true, data: data.result, via: "relay" };
   } catch (e) {
     const detail = serializeFetchError(e);
     console.error("[telegram] relay error", detail.errorSummary, detail.codes);
-    return { ok: false, ...detail };
+    return { ok: false, ...detail, via: "relay" };
   }
+}
+
+function shouldFallbackToDirect(relayResult) {
+  if (!relayResult || relayResult.ok) return false;
+  if (relayResult.skipped && relayResult.reason === "relay_misconfigured") return true;
+  const codes = relayResult.codes || [];
+  const summary = String(relayResult.errorSummary || "");
+  return (
+    codes.some((c) => ["ENOTFOUND", "EAI_AGAIN", "ETIMEDOUT", "ECONNREFUSED"].includes(c)) ||
+    summary.includes("ENOTFOUND") ||
+    summary.includes("ETIMEDOUT") ||
+    summary.includes("fetch failed") ||
+    (relayResult.httpStatus != null && relayResult.httpStatus >= 500)
+  );
 }
 
 export async function sendTelegramHtml(text, reply_markup) {
   const relayUrl = (process.env.TELEGRAM_RELAY_URL || "").trim();
   if (relayUrl) {
-    return sendTelegramViaRelay({ text, reply_markup });
+    const relayResult = await sendTelegramViaRelay({ text, reply_markup });
+    if (relayResult.ok) return relayResult;
+    if (shouldFallbackToDirect(relayResult)) {
+      console.warn(
+        "[telegram] relay недоступен, пробуем прямой Bot API:",
+        relayResult.errorSummary || relayResult.reason || relayResult.data,
+      );
+      const directResult = await sendTelegramDirect({ text, reply_markup });
+      if (directResult.ok) return directResult;
+      return {
+        ok: false,
+        relay: relayResult,
+        direct: directResult,
+        errorSummary: "relay и прямой Bot API не сработали",
+      };
+    }
+    return relayResult;
   }
 
-  const token = (process.env.TELEGRAM_BOT_TOKEN || "").trim();
-  const chatId = String(process.env.TELEGRAM_CHAT_ID || "").trim();
-  if (!token || !chatId) {
+  const directResult = await sendTelegramDirect({ text, reply_markup });
+  if (!directResult.ok && directResult.reason === "missing_env") {
     console.log("[telegram] пропуск: нет TELEGRAM_BOT_TOKEN или TELEGRAM_CHAT_ID");
-    return { ok: false, skipped: true, reason: "missing_env" };
   }
-  const url = `https://api.telegram.org/bot${token}/sendMessage`;
-  try {
-    const payload = {
-      chat_id: chatId,
-      text: String(text).slice(0, 4090),
-      parse_mode: "HTML",
-      disable_web_page_preview: true,
-    };
-    if (reply_markup && typeof reply_markup === "object") {
-      payload.reply_markup = reply_markup;
-    }
-    const res = await ipv4HttpsRequest(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      console.error("[telegram] sendMessage HTTP", res.status, data);
-      return { ok: false, httpStatus: res.status, data };
-    }
-    return { ok: true, data };
-  } catch (e) {
-    const detail = serializeFetchError(e);
-    console.error("[telegram] sendMessage error", detail.errorSummary, detail.codes);
-    return { ok: false, ...detail };
-  }
+  return directResult;
 }
 
 /** Отправка в Telegram + лог при сбое (relay или TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID). */
