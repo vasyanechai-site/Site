@@ -2,7 +2,7 @@ import { Component, ReactNode, useCallback, useEffect, useMemo, useRef, useState
 import { DayPicker } from "react-day-picker";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Loader2, MessageCircle, Search, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, MoreHorizontal, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
 import {
@@ -12,6 +12,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import {
@@ -24,7 +30,6 @@ import {
   fetchAnnaSettings,
   fetchAnnaSlots,
   fetchAnnaStats,
-  fetchAnnaSyncStatus,
   getAnnaToken,
   updateAnnaBooking,
   updateAnnaSettings,
@@ -49,7 +54,11 @@ import {
 } from "./types";
 import "react-day-picker/dist/style.css";
 
-const SECTION = "border border-zinc-200 bg-white p-5";
+const R = "rounded-md";
+const SECTION = `border border-zinc-200 bg-white p-5 ${R}`;
+const SELECT =
+  `h-9 w-full min-w-[9.5rem] appearance-none border border-zinc-200 bg-white pl-3 pr-9 text-sm ${R} bg-[length:1rem] bg-[right_0.65rem_center] bg-no-repeat` +
+  ` bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%2716%27 height=%2716%27 viewBox=%270 0 24 24%27 fill=%27none%27 stroke=%27%2371717a%27 stroke-width=%272%27%3E%3Cpath d=%27m6 9 6 6 6-6%27/%3E%3C/svg%3E')]`;
 
 function dateToDigits(d: Date): string {
   return format(d, "ddMMyyyy");
@@ -58,7 +67,7 @@ function dateToDigits(d: Date): string {
 function StatusBadge({ status, label }: { status: string; label: string }) {
   return (
     <span
-      className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[status] || STATUS_COLORS.cancelled}`}
+      className={`inline-flex shrink-0 items-center rounded-md border px-2 py-0.5 text-[11px] font-medium leading-none ${STATUS_COLORS[status] || STATUS_COLORS.cancelled}`}
     >
       {label}
     </span>
@@ -67,10 +76,18 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 
 function StatCard({ title, value }: { title: string; value: number | string }) {
   return (
-    <div className={`${SECTION} flex h-full min-h-[5.5rem] flex-col justify-between`}>
-      <p className="text-xs text-zinc-500">{title}</p>
-      <p className="text-2xl font-semibold tracking-tight text-zinc-900">{value}</p>
+    <div className={`${SECTION} flex h-[5.5rem] flex-col justify-between`}>
+      <p className="text-xs leading-snug text-zinc-500">{title}</p>
+      <p className="text-xl font-semibold tabular-nums tracking-tight text-zinc-900">{value}</p>
     </div>
+  );
+}
+
+function TelegramIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M9.78 15.28 9.5 19.5c.46 0 .66-.2.9-.44l2.16-2.07 4.48 3.28c.82.45 1.41.21 1.62-.74l2.94-13.82h.01c.26-1.22-.44-1.7-1.24-1.4L2.2 9.74c-1.2.47-1.18 1.14-.22 1.44l4.98 1.55L18.5 6.5c.56-.37 1.07-.17.65.21" />
+    </svg>
   );
 }
 
@@ -94,7 +111,7 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4">
-      <div className="w-full max-w-sm border border-zinc-200 bg-white p-6">
+      <div className={`w-full max-w-sm border border-zinc-200 bg-white p-6 ${R}`}>
         <h1 className="text-lg font-semibold text-zinc-900">Вход</h1>
         <form onSubmit={submit} className="mt-4 space-y-3">
           <Input
@@ -197,7 +214,6 @@ function AnnaAdminPageInner() {
   const [modalDateDigits, setModalDateDigits] = useState("");
   const [modalTimeDigits, setModalTimeDigits] = useState("");
   const [savingSlot, setSavingSlot] = useState(false);
-  const [syncHint, setSyncHint] = useState<string | null>(null);
   const selectedDayRef = useRef(selectedDay);
   selectedDayRef.current = selectedDay;
 
@@ -286,30 +302,6 @@ function AnnaAdminPageInner() {
     }
   }, []);
 
-  const loadSyncStatus = useCallback(async () => {
-    if (!getAnnaToken()) return;
-    try {
-      const data = await fetchAnnaSyncStatus();
-      const issues: string[] = [];
-      if (!data.relay?.configured) {
-        issues.push("Неверный Telegram relay (нужен telegram-relay.coffeenechai.workers.dev)");
-      }
-      if (data.slots?.available === 0 && (data.slots?.total ?? 0) > 0) {
-        issues.push("Все слоты заняты или в прошлом");
-      }
-      if (data.slots?.available === 0 && (data.slots?.total ?? 0) === 0) {
-        issues.push("В БД нет слотов — добавьте через «Добавить слот»");
-      }
-      if (issues.length) {
-        setSyncHint(`${issues.join(". ")}. ${data.hint || ""}`.trim());
-      } else {
-        setSyncHint(data.hint || null);
-      }
-    } catch {
-      setSyncHint(null);
-    }
-  }, []);
-
   const refreshAll = useCallback(
     async (silent = false) => {
       if (!getAnnaToken()) return;
@@ -319,7 +311,6 @@ function AnnaAdminPageInner() {
           loadStatsAndSettings(),
           loadCalendarMonth(monthKey),
           loadBookings(),
-          loadSyncStatus(),
         ]);
         await loadDaySlots(selectedDayRef.current, true);
       } catch (e) {
@@ -337,7 +328,7 @@ function AnnaAdminPageInner() {
         if (!silent) setRefreshing(false);
       }
     },
-    [loadStatsAndSettings, loadCalendarMonth, loadBookings, loadDaySlots, loadSyncStatus, monthKey]
+    [loadStatsAndSettings, loadCalendarMonth, loadBookings, loadDaySlots, monthKey]
   );
 
   useEffect(() => {
@@ -350,7 +341,6 @@ function AnnaAdminPageInner() {
           loadStatsAndSettings(),
           loadCalendarMonth(monthKey),
           loadBookings(),
-          loadSyncStatus(),
         ]);
         if (!cancelled) await loadDaySlots(selectedDay, true);
       } catch (e) {
@@ -538,45 +528,40 @@ function AnnaAdminPageInner() {
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-end gap-2 px-4 py-3 sm:px-6">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refreshAll()}
-            disabled={refreshing}
-          >
-            {refreshing ? "Обновление..." : "Обновить"}
-          </Button>
-          <Button size="sm" onClick={openAddModal}>
-            Добавить слот
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              clearAnnaToken();
-              setAuthed(false);
-            }}
-          >
-            Выйти
-          </Button>
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <span className="text-sm font-semibold tracking-tight text-zinc-900">Админка</span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className={R}
+              onClick={() => refreshAll()}
+              disabled={refreshing}
+            >
+              {refreshing ? "Обновление..." : "Обновить"}
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                clearAnnaToken();
+                setAuthed(false);
+              }}
+            >
+              Выйти
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl space-y-6 px-4 py-6 sm:px-6">
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6">
         {initialLoading ? (
           <div className="flex h-48 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
           </div>
         ) : (
           <>
-            {syncHint ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                {syncHint}
-              </div>
-            ) : null}
-
-            <section className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+            <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <StatCard title="Будущие слоты" value={stats?.counts.totalFuture ?? 0} />
               <StatCard title="Свободные" value={stats?.counts.available ?? 0} />
               <StatCard title="Забронированы" value={stats?.counts.reserved ?? 0} />
@@ -588,86 +573,90 @@ function AnnaAdminPageInner() {
             </section>
 
             <section className={SECTION}>
-              <h2 className="mb-4 text-sm font-semibold text-zinc-900">Календарь</h2>
-              <DayPicker
-                mode="single"
-                selected={selectedDay}
-                onSelect={(day) => day && setSelectedDay(day)}
-                locale={ru}
-                month={calendarMonth}
-                onMonthChange={setCalendarMonth}
-                modifiers={{
-                  hasFree: (date) => {
-                    const key = format(date, "yyyy-MM-dd");
-                    return (calendarDays[key]?.available || 0) > 0;
-                  },
-                  hasBusy: (date) => {
-                    const key = format(date, "yyyy-MM-dd");
-                    return (calendarDays[key]?.occupied || 0) > 0;
-                  },
-                }}
-                modifiersClassNames={{
-                  hasFree: "rdp-day_has-free",
-                  hasBusy: "rdp-day_has-busy",
-                }}
-                className="mx-auto"
-              />
-              <style>{`
-                .rdp-day_has-free:not(.rdp-day_selected) { background: #f0fdf4; border-radius: 6px; }
-                .rdp-day_has-busy:not(.rdp-day_selected) { box-shadow: inset 0 0 0 1px #fdba74; border-radius: 6px; }
-                .rdp-day_selected { background: #18181b !important; color: white; border-radius: 6px; }
-              `}</style>
-
-              <div className="mt-5 border-t border-zinc-100 pt-4">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <Button variant="outline" size="sm" onClick={openAddModal}>
-                    Добавить слот
-                  </Button>
-                  {daySlotsLoading && (
-                    <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
-                  )}
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
+                <div className="shrink-0">
+                  <DayPicker
+                    mode="single"
+                    selected={selectedDay}
+                    onSelect={(day) => day && setSelectedDay(day)}
+                    locale={ru}
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    modifiers={{
+                      hasFree: (date) => {
+                        const key = format(date, "yyyy-MM-dd");
+                        return (calendarDays[key]?.available || 0) > 0;
+                      },
+                      hasBusy: (date) => {
+                        const key = format(date, "yyyy-MM-dd");
+                        return (calendarDays[key]?.occupied || 0) > 0;
+                      },
+                    }}
+                    modifiersClassNames={{
+                      hasFree: "rdp-day_has-free",
+                      hasBusy: "rdp-day_has-busy",
+                    }}
+                  />
+                  <style>{`
+                    .rdp-day_has-free:not(.rdp-day_selected) { background: #f0fdf4; border-radius: 6px; }
+                    .rdp-day_has-busy:not(.rdp-day_selected) { box-shadow: inset 0 0 0 1px #fdba74; border-radius: 6px; }
+                    .rdp-day_selected { background: #18181b !important; color: white; border-radius: 6px; }
+                  `}</style>
                 </div>
 
-                {daySlots.length === 0 && !daySlotsLoading ? (
-                  <p className="py-6 text-center text-sm text-zinc-500">
-                    На этот день слотов нет
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-zinc-100">
-                    {daySlots.map((slot) => (
-                      <li
-                        key={slot.id}
-                        className="flex items-center gap-3 py-2 text-sm"
-                      >
-                        <span className="w-12 shrink-0 font-medium tabular-nums text-zinc-900">
-                          {slot.time}
-                        </span>
-                        <span className="text-zinc-300">|</span>
-                        <StatusBadge status={slot.status} label={slot.statusLabel} />
-                        {slot.booking?.telegramUsername && (
-                          <>
-                            <span className="text-zinc-300">|</span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium text-zinc-900">
+                      {format(selectedDay, "d MMMM yyyy", { locale: ru })}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      {daySlotsLoading && (
+                        <Loader2 className="h-4 w-4 animate-spin text-zinc-400" />
+                      )}
+                      <Button size="sm" className={R} onClick={openAddModal}>
+                        Добавить слот
+                      </Button>
+                    </div>
+                  </div>
+
+                  {daySlots.length === 0 && !daySlotsLoading ? (
+                    <p className="py-8 text-center text-sm text-zinc-500">
+                      На этот день слотов нет
+                    </p>
+                  ) : (
+                    <ul className={`divide-y divide-zinc-100 border border-zinc-100 ${R}`}>
+                      {daySlots.map((slot) => (
+                        <li
+                          key={slot.id}
+                          className="flex items-center gap-3 px-3 py-2.5 text-sm"
+                        >
+                          <span className="w-12 shrink-0 font-medium tabular-nums text-zinc-900">
+                            {slot.time}
+                          </span>
+                          <StatusBadge status={slot.status} label={slot.statusLabel} />
+                          {slot.booking?.telegramUsername ? (
                             <span className="truncate text-zinc-500">
                               @{slot.booking.telegramUsername}
                             </span>
-                          </>
-                        )}
-                        <span className="flex-1" />
-                        {slot.status === "available" ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 px-2 text-zinc-500 hover:text-red-600"
-                            onClick={() => handleDeleteSlot(slot)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                            <span className="sr-only">Удалить</span>
-                          </Button>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                          ) : (
+                            <span className="flex-1" />
+                          )}
+                          {slot.status === "available" ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={`h-8 w-8 p-0 ${R}`}
+                              onClick={() => handleDeleteSlot(slot)}
+                            >
+                              <Trash2 className="h-4 w-4 text-zinc-500" />
+                              <span className="sr-only">Удалить</span>
+                            </Button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </section>
 
@@ -681,13 +670,13 @@ function AnnaAdminPageInner() {
                       placeholder="Поиск..."
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      className="h-9 pl-9"
+                      className={`h-9 pl-9 ${R}`}
                     />
                   </div>
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="h-9 border border-zinc-200 bg-white px-3 text-sm"
+                    className={SELECT}
                   >
                     <option value="">Все статусы</option>
                     {BOOKING_STATUS_OPTIONS.map((o) => (
@@ -699,7 +688,7 @@ function AnnaAdminPageInner() {
                   <select
                     value={timeFilter}
                     onChange={(e) => setTimeFilter(e.target.value as typeof timeFilter)}
-                    className="h-9 border border-zinc-200 bg-white px-3 text-sm"
+                    className={SELECT}
                   >
                     <option value="all">Все даты</option>
                     <option value="future">Будущие</option>
@@ -711,17 +700,12 @@ function AnnaAdminPageInner() {
               {filteredBookings.length === 0 ? (
                 <p className="py-10 text-center text-sm text-zinc-500">Записей пока нет</p>
               ) : (
-                <div className="space-y-4">
-                  {filteredBookings.map((booking) => (
-                    <BookingCard
-                      key={booking.id}
-                      booking={booking}
-                      pricing={pricing}
-                      onStatusChange={handleStatusChange}
-                      onCommentSave={handleCommentSave}
-                    />
-                  ))}
-                </div>
+                <BookingsTable
+                  bookings={filteredBookings}
+                  pricing={pricing}
+                  onStatusChange={handleStatusChange}
+                  onCommentSave={handleCommentSave}
+                />
               )}
             </section>
 
@@ -735,6 +719,7 @@ function AnnaAdminPageInner() {
                   <Input
                     type="number"
                     min={1}
+                    className={R}
                     value={pricingDraft.fullPrice}
                     onChange={(e) =>
                       setPricingDraft((s) => ({ ...s, fullPrice: e.target.value }))
@@ -747,6 +732,7 @@ function AnnaAdminPageInner() {
                     type="number"
                     min={1}
                     max={99}
+                    className={R}
                     value={pricingDraft.prepayPercent}
                     onChange={(e) =>
                       setPricingDraft((s) => ({ ...s, prepayPercent: e.target.value }))
@@ -755,12 +741,12 @@ function AnnaAdminPageInner() {
                 </div>
                 <div>
                   <label className="mb-1 block text-xs text-zinc-500">Сумма предоплаты</label>
-                  <div className="flex h-9 items-center border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium">
+                  <div className={`flex h-9 items-center border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium ${R}`}>
                     {draftPrepayAmount} ₽
                   </div>
                 </div>
               </div>
-              <Button className="mt-4" onClick={handleSavePricing} disabled={savingPricing}>
+              <Button className={`mt-4 ${R}`} onClick={handleSavePricing} disabled={savingPricing}>
                 {savingPricing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
@@ -773,7 +759,7 @@ function AnnaAdminPageInner() {
       </main>
 
       <Dialog open={addModalOpen} onOpenChange={setAddModalOpen}>
-        <DialogContent className="border-zinc-200 shadow-none sm:max-w-md">
+        <DialogContent className={`border-zinc-200 shadow-none sm:max-w-md ${R}`}>
           <DialogHeader>
             <DialogTitle>Добавить слот</DialogTitle>
           </DialogHeader>
@@ -817,78 +803,165 @@ function AnnaAdminPageInner() {
   );
 }
 
-function BookingCard({
-  booking,
+function BookingsTable({
+  bookings,
   pricing,
   onStatusChange,
   onCommentSave,
 }: {
-  booking: AnnaBooking;
+  bookings: AnnaBooking[];
   pricing: { prepayAmount: number; fullPrice: number };
   onStatusChange: (b: AnnaBooking, status: string) => void;
   onCommentSave: (b: AnnaBooking, comment: string) => void;
 }) {
-  const [comment, setComment] = useState(booking.adminComment || "");
-  const name = [booking.telegramFirstName, booking.telegramLastName].filter(Boolean).join(" ");
+  const [commentBooking, setCommentBooking] = useState<AnnaBooking | null>(null);
+  const [commentText, setCommentText] = useState("");
+
+  const openComment = (booking: AnnaBooking) => {
+    setCommentBooking(booking);
+    setCommentText(booking.adminComment || "");
+  };
 
   return (
-    <div className="border border-zinc-100 bg-zinc-50/50 p-5">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-semibold">
-              {booking.date} · {booking.time}
+    <>
+      <div className={`overflow-x-auto border border-zinc-200 ${R}`}>
+        <table className="w-full min-w-[920px] text-left text-xs">
+          <thead className="border-b border-zinc-200 bg-zinc-50/90 text-zinc-500">
+            <tr>
+              <th className="px-3 py-2.5 font-medium">Дата</th>
+              <th className="px-3 py-2.5 font-medium">Время</th>
+              <th className="px-3 py-2.5 font-medium">Имя</th>
+              <th className="px-3 py-2.5 font-medium">Username</th>
+              <th className="px-3 py-2.5 font-medium">Статус</th>
+              <th className="px-3 py-2.5 font-medium">Оплата</th>
+              <th className="px-3 py-2.5 font-medium text-center">TG</th>
+              <th className="px-3 py-2.5 font-medium text-center">Комм.</th>
+              <th className="px-3 py-2.5 font-medium text-right">Действия</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-100 bg-white">
+            {bookings.map((booking) => {
+              const name = [booking.telegramFirstName, booking.telegramLastName]
+                .filter(Boolean)
+                .join(" ");
+              const prepay = booking.prepaymentAmount || pricing.prepayAmount;
+              const total = booking.totalAmount || pricing.fullPrice;
+              const tgHref = booking.telegramUsername
+                ? `https://t.me/${booking.telegramUsername}`
+                : `tg://user?id=${booking.telegramUserId}`;
+
+              return (
+                <tr key={booking.id} className="hover:bg-zinc-50/60">
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-900">
+                    {booking.date}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-900">
+                    {booking.time}
+                  </td>
+                  <td className="max-w-[8rem] truncate px-3 py-2.5 text-zinc-700">
+                    {name || "—"}
+                  </td>
+                  <td className="max-w-[6rem] truncate px-3 py-2.5 text-zinc-500">
+                    {booking.telegramUsername ? `@${booking.telegramUsername}` : "—"}
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <StatusBadge status={booking.status} label={booking.statusLabel} />
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-zinc-600">
+                    {prepay} / {total} ₽
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <a
+                      href={tgHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`inline-flex h-7 w-7 items-center justify-center text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 ${R}`}
+                      title="Открыть в Telegram"
+                    >
+                      <TelegramIcon className="h-4 w-4" />
+                    </a>
+                  </td>
+                  <td className="px-3 py-2.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => openComment(booking)}
+                      className={`inline-flex h-7 w-7 items-center justify-center text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-900 ${R} ${booking.adminComment ? "text-zinc-900" : ""}`}
+                      title={booking.adminComment || "Комментарий"}
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </button>
+                  </td>
+                  <td className="px-3 py-2.5 text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-7 w-7 p-0 ${R}`}
+                          aria-label="Действия"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className={R}>
+                        {BOOKING_STATUS_OPTIONS.map((o) => (
+                          <DropdownMenuItem
+                            key={o.value}
+                            onClick={() => onStatusChange(booking, o.value)}
+                          >
+                            {o.label}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      <Dialog
+        open={!!commentBooking}
+        onOpenChange={(open) => !open && setCommentBooking(null)}
+      >
+        <DialogContent className={`border-zinc-200 shadow-none sm:max-w-md ${R}`}>
+          <DialogHeader>
+            <DialogTitle>Комментарий</DialogTitle>
+          </DialogHeader>
+          {commentBooking ? (
+            <p className="text-xs text-zinc-500">
+              {commentBooking.date} {commentBooking.time}
+              {commentBooking.telegramUsername
+                ? ` · @${commentBooking.telegramUsername}`
+                : ""}
             </p>
-            <StatusBadge status={booking.status} label={booking.statusLabel} />
-          </div>
-          <p className="text-sm text-zinc-600">{name || "—"}</p>
-          <p className="text-sm text-zinc-500">
-            {booking.telegramUsername
-              ? `@${booking.telegramUsername}`
-              : `Telegram ID: ${booking.telegramUserId}`}
-          </p>
-          <p className="text-sm text-zinc-500">
-            Предоплата {booking.prepaymentAmount || pricing.prepayAmount} ₽ · Полная{" "}
-            {booking.totalAmount || pricing.fullPrice} ₽
-          </p>
-          <p className="text-xs text-zinc-400">
-            Создано: {safeFormatIso(booking.createdAt, "d MMM yyyy, HH:mm")}
-          </p>
-          {booking.telegramUsername && (
-            <a
-              href={`https://t.me/${booking.telegramUsername}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-800"
-            >
-              <MessageCircle className="h-4 w-4" />
-              Написать в Telegram
-            </a>
-          )}
-        </div>
-        <div className="w-full max-w-sm space-y-3">
-          <select
-            value={booking.status}
-            onChange={(e) => onStatusChange(booking, e.target.value)}
-            className="h-10 w-full border border-zinc-200 bg-white px-3 text-sm"
-          >
-            {BOOKING_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          ) : null}
           <Textarea
             placeholder="Комментарий администратора..."
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="min-h-[80px]"
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            className={`min-h-[100px] ${R}`}
           />
-          <Button variant="outline" size="sm" onClick={() => onCommentSave(booking, comment)}>
-            Сохранить комментарий
-          </Button>
-        </div>
-      </div>
-    </div>
+          <DialogFooter>
+            <Button variant="outline" className={R} onClick={() => setCommentBooking(null)}>
+              Отмена
+            </Button>
+            <Button
+              className={R}
+              onClick={() => {
+                if (commentBooking) {
+                  onCommentSave(commentBooking, commentText);
+                  setCommentBooking(null);
+                }
+              }}
+            >
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
