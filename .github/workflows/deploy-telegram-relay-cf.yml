@@ -1,6 +1,11 @@
 name: Deploy telegram-relay (Cloudflare)
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "workers/telegram-relay/**"
+      - ".github/workflows/deploy-telegram-relay-cf.yml"
   workflow_dispatch:
 
 jobs:
@@ -9,6 +14,9 @@ jobs:
     defaults:
       run:
         working-directory: workers/telegram-relay
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,23 +27,31 @@ jobs:
       - name: Install
         run: npm install
 
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy
-          secrets: |
-            TELEGRAM_BOT_TOKEN
-            TELEGRAM_CHAT_ID
-            TELEGRAM_RELAY_SECRET
+      - name: Deploy Worker (code)
+        run: npx wrangler deploy
+
+      - name: Upload worker secrets
+        run: |
+          upload_secret() {
+            KEY="$1"
+            VAL="$2"
+            if [ -n "$VAL" ]; then
+              printf '%s' "$VAL" | npx wrangler secret put "$KEY"
+            fi
+          }
+          upload_secret TELEGRAM_BOT_TOKEN "$TELEGRAM_BOT_TOKEN"
+          upload_secret TELEGRAM_CHAT_ID "$TELEGRAM_CHAT_ID"
+          upload_secret TELEGRAM_RELAY_SECRET "$TELEGRAM_RELAY_SECRET"
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           TELEGRAM_RELAY_SECRET: ${{ secrets.TELEGRAM_RELAY_SECRET }}
 
+      - name: Verify worker
+        run: |
+          curl -fsS "https://telegram-relay.coffeenechai.workers.dev/" | grep -q bot-api-proxy && echo "Relay updated OK"
+
       - name: Print VPS env hint
         run: |
-          echo "На VPS / в deploy-reg-vps secrets задайте:"
-          echo "TELEGRAM_RELAY_URL=https://telegram-relay.<account>.workers.dev"
-          echo "TELEGRAM_RELAY_SECRET=(тот же секрет)"
+          echo "TELEGRAM_RELAY_URL=https://telegram-relay.coffeenechai.workers.dev"
+          echo "Photo bot: TELEGRAM_BOT_PROXY_URL=<тот же URL>"

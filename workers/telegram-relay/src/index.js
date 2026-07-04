@@ -1,12 +1,20 @@
 /**
  * Cloudflare Worker: VPS (РФ) → Worker → api.telegram.org
  *
+ * Два режима:
+ * 1) POST / + Bearer — уведомления о заказах (sendMessage)
+ * 2) /{TELEGRAM_RELAY_SECRET}/bot<token>/<method> — полный Bot API для aiogram
+ *
  * Секреты (wrangler secret put):
  *   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_RELAY_SECRET
  *
- * На VPS:
+ * На VPS (site-api):
  *   TELEGRAM_RELAY_URL=https://telegram-relay.<ваш>.workers.dev
  *   TELEGRAM_RELAY_SECRET=<тот же>
+ *
+ * На VPS (photo-booking-bot):
+ *   TELEGRAM_BOT_PROXY_URL=https://telegram-relay.<ваш>.workers.dev
+ *   TELEGRAM_BOT_PROXY_SECRET=<тот же TELEGRAM_RELAY_SECRET>
  */
 
 function timingSafeEqualString(a, b) {
@@ -26,21 +34,55 @@ function json(data, status = 200) {
   });
 }
 
+async function proxyBotApi(request, tgPath, search) {
+  const tgUrl = `https://api.telegram.org${tgPath}${search}`;
+  const headers = new Headers();
+  const contentType = request.headers.get("content-type");
+  if (contentType) headers.set("Content-Type", contentType);
+
+  const init = { method: request.method, headers };
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+  }
+
+  try {
+    return await fetch(tgUrl, init);
+  } catch (e) {
+    return json(
+      { ok: false, error: "telegram_fetch_failed", message: e?.message || String(e) },
+      502,
+    );
+  }
+}
+
 export default {
   async fetch(request, env) {
-    if (request.method === "GET") {
+    const url = new URL(request.url);
+    const relaySecret = String(env.TELEGRAM_RELAY_SECRET || "").trim();
+    const parts = url.pathname.split("/").filter(Boolean);
+
+    // Bot API proxy: /{secret}/bot<token>/<method>
+    if (parts.length >= 2 && parts[1]?.startsWith("bot")) {
+      if (!relaySecret || !timingSafeEqualString(parts[0], relaySecret)) {
+        return json({ ok: false, error: "unauthorized" }, 401);
+      }
+      const tgPath = `/${parts.slice(1).join("/")}`;
+      return proxyBotApi(request, tgPath, url.search);
+    }
+
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "")) {
       return json({
         ok: true,
         service: "telegram-relay",
-        hint: "POST JSON { text, reply_markup? } with Authorization: Bearer <TELEGRAM_RELAY_SECRET>",
+        features: ["order-relay", "bot-api-proxy"],
+        hint: "POST / with Bearer for orders; /{SECRET}/bot<token>/<method> for Bot API",
       });
     }
 
-    if (request.method !== "POST") {
+    if (request.method !== "POST" || url.pathname !== "/") {
       return json({ ok: false, error: "method_not_allowed" }, 405);
     }
 
-    const relaySecret = String(env.TELEGRAM_RELAY_SECRET || "").trim();
     const auth = request.headers.get("authorization") || "";
     const m = /^Bearer\s+(.+)$/i.exec(auth);
     const provided = m ? m[1].trim() : "";

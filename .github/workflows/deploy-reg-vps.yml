@@ -146,8 +146,9 @@ jobs:
             if [ -n "${{ secrets.TELEGRAM_BOT_PROXY_URL }}" ]; then
               patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_BOT_PROXY_URL }}"
             elif [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
-              DERIVED_PROXY_URL=$(echo "${{ secrets.TELEGRAM_RELAY_URL }}" | sed 's/telegram-relay/telegram-bot-proxy/')
-              patch_bot_env TELEGRAM_BOT_PROXY_URL "$DERIVED_PROXY_URL"
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_RELAY_URL }}"
+            else
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "https://telegram-relay.coffeenechai.workers.dev"
             fi
             BOT_PROXY_SECRET="${{ secrets.TELEGRAM_BOT_PROXY_SECRET }}"
             if [ -z "$BOT_PROXY_SECRET" ]; then

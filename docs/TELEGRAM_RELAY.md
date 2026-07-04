@@ -132,10 +132,12 @@ URL: `https://telegram-bot-proxy.<ваш>.workers.dev`
 
 | Secret | Значение |
 |--------|----------|
-| `TELEGRAM_BOT_PROXY_URL` | URL worker |
-| `TELEGRAM_BOT_PROXY_SECRET` | тот же секрет (не нужен, если уже задан `TELEGRAM_RELAY_SECRET`) |
+| `TELEGRAM_BOT_PROXY_URL` | тот же URL, что `TELEGRAM_RELAY_URL` (например `https://telegram-relay.coffeenechai.workers.dev`) |
+| `TELEGRAM_BOT_PROXY_SECRET` | опционально — тот же `TELEGRAM_RELAY_SECRET` |
 
-Деплой: **Deploy photo booking bot** или push в `photo-booking-bot/**`.
+Отдельный worker `telegram-bot-proxy` **не нужен**: Bot API проксируется через уже работающий `telegram-relay`.
+
+Деплой relay: Actions → **Deploy telegram-relay (Cloudflare)**. Затем **Deploy photo booking bot**.
 
 В логах PM2 должно быть: `Telegram API via Cloudflare proxy`.
 
