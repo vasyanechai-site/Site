@@ -1,0 +1,645 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { DayPicker } from "react-day-picker";
+import { format, parseISO, startOfMonth } from "date-fns";
+import { ru } from "date-fns/locale";
+import { motion, AnimatePresence } from "motion/react";
+import {
+  CalendarDays,
+  Camera,
+  Loader2,
+  LogOut,
+  MessageCircle,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+  User,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
+import { FadeIn } from "../ui/fade-in";
+import {
+  annaLogin,
+  clearAnnaToken,
+  createAnnaSlot,
+  createAnnaSlotsBulk,
+  deleteAnnaSlot,
+  fetchAnnaBookings,
+  fetchAnnaCalendar,
+  fetchAnnaConfig,
+  fetchAnnaSlots,
+  fetchAnnaStats,
+  getAnnaToken,
+  updateAnnaBooking,
+} from "../../lib/annaApi";
+import {
+  AnnaBooking,
+  AnnaSlot,
+  AnnaStats,
+  BOOKING_STATUS_OPTIONS,
+  STATUS_COLORS,
+} from "./types";
+import "react-day-picker/dist/style.css";
+
+function StatusBadge({ status, label }: { status: string; label: string }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[status] || STATUS_COLORS.cancelled}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function StatCard({
+  title,
+  value,
+  accent,
+  delay,
+}: {
+  title: string;
+  value: number | string;
+  accent: string;
+  delay: number;
+}) {
+  return (
+    <FadeIn delay={delay} duration={0.35} yOffset={12}>
+      <div className="group relative overflow-hidden rounded-2xl border border-black/5 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
+        <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
+        <p className="text-sm text-zinc-500">{title}</p>
+        <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900">{value}</p>
+      </div>
+    </FadeIn>
+  );
+}
+
+function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await annaLogin(password);
+      toast.success("Добро пожаловать");
+      onSuccess();
+    } catch {
+      toast.error("Неверный пароль");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fdf2f8,_#fafafa_45%,_#f4f4f5)] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-md rounded-3xl border border-black/5 bg-white/90 p-8 shadow-xl backdrop-blur"
+      >
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-900 text-white">
+            <Camera className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-semibold text-zinc-900">Anna CRM</h1>
+            <p className="text-sm text-zinc-500">Запись на фотосессию</p>
+          </div>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <Input
+            type="password"
+            placeholder="Пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="h-12 rounded-xl"
+            autoFocus
+          />
+          <Button type="submit" className="h-12 w-full rounded-xl" disabled={loading}>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Войти"}
+          </Button>
+        </form>
+      </motion.div>
+    </div>
+  );
+}
+
+export function AnnaAdminPage() {
+  const [authed, setAuthed] = useState(!!getAnnaToken());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<AnnaStats | null>(null);
+  const [calendarDays, setCalendarDays] = useState<Record<string, { total: number; available: number; occupied: number }>>({});
+  const [selectedDay, setSelectedDay] = useState<Date | undefined>(new Date());
+  const [daySlots, setDaySlots] = useState<AnnaSlot[]>([]);
+  const [bookings, setBookings] = useState<AnnaBooking[]>([]);
+  const [pricing, setPricing] = useState({ fullPrice: 3000, prepayAmount: 1500 });
+  const [slotDate, setSlotDate] = useState("");
+  const [slotTime, setSlotTime] = useState("");
+  const [bulkText, setBulkText] = useState("");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState<"all" | "future" | "past">("all");
+
+  const monthKey = format(selectedDay || new Date(), "yyyy-MM");
+
+  useEffect(() => {
+    let robots = document.querySelector('meta[name="robots"]');
+    const prev = robots?.getAttribute("content") || "";
+    if (!robots) {
+      robots = document.createElement("meta");
+      robots.setAttribute("name", "robots");
+      document.head.appendChild(robots);
+    }
+    robots.setAttribute("content", "noindex, nofollow");
+    return () => {
+      if (robots) robots.setAttribute("content", prev || "index, follow");
+    };
+  }, []);
+
+  const loadAll = useCallback(async (silent = false) => {
+    if (!getAnnaToken()) return;
+    if (!silent) setLoading(true);
+    else setRefreshing(true);
+    try {
+      const dayIso = selectedDay ? format(selectedDay, "yyyy-MM-dd") : "";
+      const bookingParams: Record<string, string> = {};
+      if (statusFilter) bookingParams.status = statusFilter;
+      if (timeFilter === "future") bookingParams.future = "true";
+      if (timeFilter === "past") bookingParams.past = "true";
+
+      const [statsData, calData, slotsData, bookingsData, configData] = await Promise.all([
+        fetchAnnaStats(),
+        fetchAnnaCalendar(monthKey),
+        dayIso ? fetchAnnaSlots(dayIso) : Promise.resolve([]),
+        fetchAnnaBookings(bookingParams),
+        fetchAnnaConfig(),
+      ]);
+      setStats(statsData);
+      setCalendarDays(calData.days || {});
+      setDaySlots(slotsData);
+      setBookings(bookingsData);
+      setPricing(configData.pricing || pricing);
+    } catch (e) {
+      if (!silent) {
+        toast.error(e instanceof Error ? e.message : "Ошибка загрузки");
+        clearAnnaToken();
+        setAuthed(false);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [monthKey, selectedDay, statusFilter, timeFilter]);
+
+  useEffect(() => {
+    if (authed) loadAll();
+  }, [authed, loadAll]);
+
+  useEffect(() => {
+    if (!authed) return;
+    const id = setInterval(() => loadAll(true), 8000);
+    return () => clearInterval(id);
+  }, [authed, loadAll]);
+
+  const filteredBookings = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return bookings;
+    return bookings.filter((b) => {
+      const hay = [
+        b.telegramUsername,
+        b.telegramFirstName,
+        b.telegramLastName,
+        String(b.telegramUserId),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [bookings, search]);
+
+  const nearestLabel = stats?.nearestSession
+    ? format(parseISO(stats.nearestSession), "d MMMM, HH:mm", { locale: ru })
+    : "—";
+
+  const handleAddSlot = async () => {
+    try {
+      await createAnnaSlot(slotDate, slotTime);
+      toast.success("Слот добавлен");
+      setSlotDate("");
+      setSlotTime("");
+      loadAll(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  const handleBulk = async () => {
+    try {
+      const res = await createAnnaSlotsBulk(bulkText);
+      toast.success(`Добавлено: ${res.added}`);
+      if (res.errors?.length) toast.warning(`Ошибок: ${res.errors.length}`);
+      setBulkText("");
+      loadAll(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  const handleDeleteSlot = async (slot: AnnaSlot) => {
+    if (slot.status !== "available") {
+      toast.error("Нельзя удалить занятый слот");
+      return;
+    }
+    try {
+      await deleteAnnaSlot(slot.id);
+      toast.success("Слот удалён");
+      loadAll(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  const handleStatusChange = async (booking: AnnaBooking, status: string) => {
+    try {
+      await updateAnnaBooking(booking.id, { status });
+      toast.success("Статус обновлён");
+      loadAll(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  const handleCommentSave = async (booking: AnnaBooking, comment: string) => {
+    try {
+      await updateAnnaBooking(booking.id, { adminComment: comment });
+      toast.success("Комментарий сохранён");
+      loadAll(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  if (!authed) {
+    return <LoginScreen onSuccess={() => setAuthed(true)} />;
+  }
+
+  return (
+    <div className="min-h-screen bg-[#fafafa] text-zinc-900">
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-white/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-900 text-white">
+              <Camera className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="text-lg font-semibold">Anna CRM</h1>
+              <p className="text-xs text-zinc-500">Фотосессии · синхронизация с Telegram</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => loadAll(true)}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Обновить
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="rounded-xl"
+              onClick={() => {
+                clearAnnaToken();
+                setAuthed(false);
+              }}
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Выйти
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6">
+        {loading ? (
+          <div className="flex h-64 items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
+          </div>
+        ) : (
+          <>
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+              <StatCard title="Будущие слоты" value={stats?.counts.totalFuture ?? 0} accent="bg-zinc-900" delay={0} />
+              <StatCard title="Свободные" value={stats?.counts.available ?? 0} accent="bg-emerald-500" delay={0.03} />
+              <StatCard title="Забронированы" value={stats?.counts.reserved ?? 0} accent="bg-amber-500" delay={0.06} />
+              <StatCard title="Ждут оплату" value={stats?.counts.awaiting_payment ?? 0} accent="bg-orange-500" delay={0.09} />
+              <StatCard title="Предоплата" value={stats?.counts.prepaid ?? 0} accent="bg-sky-500" delay={0.12} />
+              <StatCard title="Оплачено" value={stats?.counts.paid_full ?? 0} accent="bg-violet-500" delay={0.15} />
+              <StatCard title="Отменено" value={stats?.counts.cancelled ?? 0} accent="bg-zinc-400" delay={0.18} />
+              <StatCard title="Ближайшая" value={nearestLabel} accent="bg-rose-500" delay={0.21} />
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+              <FadeIn delay={0.1}>
+                <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                  <div className="mb-4 flex items-center gap-2">
+                    <CalendarDays className="h-5 w-5 text-zinc-500" />
+                    <h2 className="text-lg font-semibold">Календарь</h2>
+                  </div>
+                  <DayPicker
+                    mode="single"
+                    selected={selectedDay}
+                    onSelect={setSelectedDay}
+                    locale={ru}
+                    month={startOfMonth(selectedDay || new Date())}
+                    onMonthChange={(m) => setSelectedDay(m)}
+                    modifiers={{
+                      hasFree: (date) => {
+                        const key = format(date, "yyyy-MM-dd");
+                        return (calendarDays[key]?.available || 0) > 0;
+                      },
+                      hasBusy: (date) => {
+                        const key = format(date, "yyyy-MM-dd");
+                        return (calendarDays[key]?.occupied || 0) > 0;
+                      },
+                    }}
+                    modifiersClassNames={{
+                      hasFree: "rdp-day_has-free",
+                      hasBusy: "rdp-day_has-busy",
+                    }}
+                    className="mx-auto"
+                  />
+                  <style>{`
+                    .rdp-day_has-free:not(.rdp-day_selected) { background: #ecfdf5; border-radius: 9999px; }
+                    .rdp-day_has-busy:not(.rdp-day_selected) { box-shadow: inset 0 0 0 2px #fdba74; border-radius: 9999px; }
+                    .rdp-day_selected { background: #18181b !important; color: white; border-radius: 9999px; }
+                  `}</style>
+                </div>
+              </FadeIn>
+
+              <FadeIn delay={0.15}>
+                <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                  <h2 className="mb-4 text-lg font-semibold">
+                    {selectedDay
+                      ? format(selectedDay, "d MMMM yyyy", { locale: ru })
+                      : "Выберите день"}
+                  </h2>
+                  <AnimatePresence mode="popLayout">
+                    {daySlots.length === 0 ? (
+                      <motion.p
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center text-sm text-zinc-500"
+                      >
+                        На этот день слотов нет
+                      </motion.p>
+                    ) : (
+                      <div className="space-y-3">
+                        {daySlots.map((slot) => (
+                          <motion.div
+                            key={slot.id}
+                            layout
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="rounded-2xl border border-zinc-100 bg-zinc-50/50 p-4 transition hover:bg-white hover:shadow-sm"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-lg font-semibold">{slot.time}</p>
+                                <StatusBadge status={slot.status} label={slot.statusLabel} />
+                              </div>
+                              {slot.status === "available" && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="rounded-xl text-red-500 hover:bg-red-50 hover:text-red-600"
+                                  onClick={() => handleDeleteSlot(slot)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                            {slot.booking && (
+                              <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 text-sm">
+                                <p className="flex items-center gap-2">
+                                  <User className="h-4 w-4 text-zinc-400" />
+                                  {[slot.booking.telegramFirstName, slot.booking.telegramLastName]
+                                    .filter(Boolean)
+                                    .join(" ") || "—"}
+                                </p>
+                                <p className="text-zinc-500">
+                                  {slot.booking.telegramUsername
+                                    ? `@${slot.booking.telegramUsername}`
+                                    : `ID ${slot.booking.telegramUserId}`}
+                                </p>
+                                <p className="text-zinc-500">
+                                  Предоплата: {slot.booking.prepaymentAmount || pricing.prepayAmount} ₽
+                                </p>
+                                {slot.booking.adminComment && (
+                                  <p className="rounded-xl bg-white p-2 text-zinc-600">
+                                    {slot.booking.adminComment}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                          </motion.div>
+                        ))}
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </FadeIn>
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-2">
+              <FadeIn delay={0.1}>
+                <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                  <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+                    <Plus className="h-5 w-5" /> Добавить слот
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input
+                      placeholder="ДД.ММ.ГГГГ"
+                      value={slotDate}
+                      onChange={(e) => setSlotDate(e.target.value)}
+                      className="rounded-xl"
+                    />
+                    <Input
+                      placeholder="ЧЧ:ММ"
+                      value={slotTime}
+                      onChange={(e) => setSlotTime(e.target.value)}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <Button className="mt-3 rounded-xl" onClick={handleAddSlot}>
+                    Сохранить слот
+                  </Button>
+                </div>
+              </FadeIn>
+              <FadeIn delay={0.15}>
+                <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                  <h2 className="mb-4 text-lg font-semibold">Массовое добавление</h2>
+                  <Textarea
+                    placeholder={"23.07.2026 17:00\n23.07.2026 19:00"}
+                    value={bulkText}
+                    onChange={(e) => setBulkText(e.target.value)}
+                    className="min-h-[120px] rounded-xl"
+                  />
+                  <Button className="mt-3 rounded-xl" variant="outline" onClick={handleBulk}>
+                    Добавить список
+                  </Button>
+                </div>
+              </FadeIn>
+            </section>
+
+            <section>
+              <FadeIn delay={0.1}>
+                <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                  <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <h2 className="text-lg font-semibold">Записи</h2>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                        <Input
+                          placeholder="Поиск..."
+                          value={search}
+                          onChange={(e) => setSearch(e.target.value)}
+                          className="rounded-xl pl-9"
+                        />
+                      </div>
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm"
+                      >
+                        <option value="">Все статусы</option>
+                        {BOOKING_STATUS_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        value={timeFilter}
+                        onChange={(e) => setTimeFilter(e.target.value as typeof timeFilter)}
+                        className="h-10 rounded-xl border border-zinc-200 bg-white px-3 text-sm"
+                      >
+                        <option value="all">Все даты</option>
+                        <option value="future">Будущие</option>
+                        <option value="past">Прошедшие</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {filteredBookings.length === 0 ? (
+                    <p className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center text-sm text-zinc-500">
+                      Записей пока нет
+                    </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {filteredBookings.map((booking) => (
+                        <BookingCard
+                          key={booking.id}
+                          booking={booking}
+                          pricing={pricing}
+                          onStatusChange={handleStatusChange}
+                          onCommentSave={handleCommentSave}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </FadeIn>
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function BookingCard({
+  booking,
+  pricing,
+  onStatusChange,
+  onCommentSave,
+}: {
+  booking: AnnaBooking;
+  pricing: { prepayAmount: number; fullPrice: number };
+  onStatusChange: (b: AnnaBooking, status: string) => void;
+  onCommentSave: (b: AnnaBooking, comment: string) => void;
+}) {
+  const [comment, setComment] = useState(booking.adminComment || "");
+  const name = [booking.telegramFirstName, booking.telegramLastName].filter(Boolean).join(" ");
+
+  return (
+    <div className="rounded-2xl border border-zinc-100 bg-zinc-50/40 p-5 transition hover:bg-white hover:shadow-sm">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-base font-semibold">
+              {booking.date} · {booking.time}
+            </p>
+            <StatusBadge status={booking.status} label={booking.statusLabel} />
+          </div>
+          <p className="text-sm text-zinc-600">{name || "—"}</p>
+          <p className="text-sm text-zinc-500">
+            {booking.telegramUsername ? `@${booking.telegramUsername}` : `Telegram ID: ${booking.telegramUserId}`}
+          </p>
+          <p className="text-sm text-zinc-500">
+            Предоплата {booking.prepaymentAmount || pricing.prepayAmount} ₽ · Полная{" "}
+            {booking.totalAmount || pricing.fullPrice} ₽
+          </p>
+          <p className="text-xs text-zinc-400">
+            Создано: {format(parseISO(booking.createdAt), "d MMM yyyy, HH:mm", { locale: ru })}
+          </p>
+          {booking.telegramUsername && (
+            <a
+              href={`https://t.me/${booking.telegramUsername}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-zinc-900 px-3 py-2 text-sm text-white transition hover:bg-zinc-800"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Написать в Telegram
+            </a>
+          )}
+        </div>
+        <div className="w-full max-w-sm space-y-3">
+          <select
+            value={booking.status}
+            onChange={(e) => onStatusChange(booking, e.target.value)}
+            className="h-10 w-full rounded-xl border border-zinc-200 bg-white px-3 text-sm"
+          >
+            {BOOKING_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <Textarea
+            placeholder="Комментарий администратора..."
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            className="min-h-[80px] rounded-xl"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+            onClick={() => onCommentSave(booking, comment)}
+          >
+            Сохранить комментарий
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -20,6 +20,7 @@ import { RetailPaymentSuccess } from "./components/RetailPaymentSuccess";
 import { RetailPaymentFail } from "./components/RetailPaymentFail";
 import { TochkaDiagnostics } from "./components/TochkaDiagnostics";
 import { DebugPage } from "./components/DebugPage";
+import { AnnaAdminPage } from "./components/anna/AnnaAdminPage";
 
 import { LoginForm } from "./components/auth/LoginForm";
 import { SignupForm } from "./components/auth/SignupForm";
@@ -245,6 +246,9 @@ function App() {
 
             {/* Календарь урожая */}
             <Route path="/harvest" element={<HarvestCalendarPage />} />
+
+            {/* Anna photo booking CRM (hidden from index) */}
+            <Route path="/anna" element={<AnnaAdminPage />} />
 
             {/* Отладка интеграций (до /:productSlug) */}
             <Route path="/debug" element={<DebugPage />} />

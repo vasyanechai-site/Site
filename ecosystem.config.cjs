@@ -13,5 +13,14 @@ module.exports = {
         PORT: 8787,
       },
     },
+    {
+      name: "photo-booking-bot",
+      script: ".venv/bin/python",
+      args: "-m bot",
+      cwd: `${__dirname}/photo-booking-bot`,
+      env: {
+        PYTHONUNBUFFERED: "1",
+      },
+    },
   ],
 };

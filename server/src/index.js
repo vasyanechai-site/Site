@@ -81,6 +81,7 @@ import {
   formatNewWholesaleUserCreated,
 } from "./telegram.js";
 import { registerDebugRoutes } from "./debugRoutes.js";
+import { registerPhotoBookingRoutes } from "./photoBooking.js";
 import { registerAgentRoutes } from "./agentsRoutes.js";
 import { transliterateProductName } from "./retailSlug.js";
 import { verifyTochkaWebhookJwt } from "./tochkaWebhookVerify.js";
@@ -1657,6 +1658,7 @@ app.use((error, _req, res, next) => {
 });
 
 registerDebugRoutes(app);
+registerPhotoBookingRoutes(app);
 
 app.use("/api", (_req, res) => {
   res.status(404).json({

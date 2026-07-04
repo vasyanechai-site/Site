@@ -104,9 +104,12 @@ jobs:
             if [ -n "${{ secrets.PUBLIC_API_BASE_URL }}" ]; then
               python3 server/deploy/patch_dotenv.py PUBLIC_API_BASE_URL "${{ secrets.PUBLIC_API_BASE_URL }}"
             fi
+            if [ -n "${{ secrets.ANNA_ADMIN_PASSWORD }}" ]; then
+              python3 server/deploy/patch_dotenv.py ANNA_ADMIN_PASSWORD "${{ secrets.ANNA_ADMIN_PASSWORD }}"
+            fi
             rm -rf node_modules
             npm ci --omit=dev
-            node --input-type=module -e "import 'cors'; import 'jose'; console.log('runtime deps ok')"
+            node --input-type=module -e "import 'cors'; import 'jose'; import 'better-sqlite3'; console.log('runtime deps ok')"
             pm2 delete site-api 2>/dev/null || true
             pm2 start ecosystem.config.cjs --only site-api
             pm2 save

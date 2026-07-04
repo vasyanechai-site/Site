@@ -1,0 +1,80 @@
+name: Deploy photo booking bot
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "photo-booking-bot/**"
+      - "ecosystem.config.cjs"
+      - "server/src/photoBooking.js"
+      - ".github/workflows/deploy-photo-booking-bot.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy photo booking bot on VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            set -e
+            cd "${{ secrets.VPS_APP_PATH }}"
+            git fetch --all
+            git reset --hard origin/main
+
+            if [ -n "${{ secrets.ANNA_ADMIN_PASSWORD }}" ]; then
+              python3 server/deploy/patch_dotenv.py ANNA_ADMIN_PASSWORD "${{ secrets.ANNA_ADMIN_PASSWORD }}"
+            fi
+
+            cd photo-booking-bot
+            touch .env
+
+            patch_bot_env() {
+              KEY="$1"
+              VAL="$2"
+              if [ -n "$VAL" ]; then
+                python3 ../server/deploy/patch_dotenv.py "$KEY" "$VAL"
+              fi
+            }
+
+            patch_bot_env BOT_TOKEN "${{ secrets.PHOTO_BOOKING_BOT_TOKEN }}"
+            patch_bot_env ADMIN_ID "${{ secrets.PHOTO_BOOKING_ADMIN_ID }}"
+            patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
+            patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
+            patch_bot_env FULL_PRICE "${{ secrets.PHOTO_BOOKING_FULL_PRICE }}"
+            patch_bot_env PREPAY_PERCENT "${{ secrets.PHOTO_BOOKING_PREPAY_PERCENT }}"
+
+            if [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
+              patch_bot_env HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"
+            elif [ -n "${{ secrets.HTTPS_PROXY }}" ]; then
+              patch_bot_env HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
+            fi
+
+            if ! grep -q '^BOT_TOKEN=.\+' .env; then
+              echo "ERROR: BOT_TOKEN missing in photo-booking-bot/.env"
+              echo "Add GitHub secret PHOTO_BOOKING_BOT_TOKEN or create .env on VPS manually"
+              exit 1
+            fi
+
+            if ! command -v python3 >/dev/null; then
+              echo "python3 required on VPS"
+              exit 1
+            fi
+
+            if [ ! -d .venv ]; then
+              python3 -m venv .venv
+            fi
+            . .venv/bin/activate
+            pip install -q -r requirements.txt
+
+            cd ..
+            pm2 delete photo-booking-bot 2>/dev/null || true
+            pm2 start ecosystem.config.cjs --only photo-booking-bot
+            pm2 save
+            sleep 3
+            pm2 logs photo-booking-bot --lines 40 --nostream

@@ -13,6 +13,8 @@ Allow: /harvest
 
 Disallow: /admin
 Disallow: /admin/
+Disallow: /anna
+Disallow: /anna/
 Disallow: /login
 Disallow: /loginopt
 Disallow: /signup
@@ -44,6 +46,8 @@ Allow: /locations
 Disallow: /humans.txt
 Disallow: /admin
 Disallow: /admin/
+Disallow: /anna
+Disallow: /anna/
 Disallow: /login
 Disallow: /w/
 
@@ -55,6 +59,8 @@ Allow: /locations
 Disallow: /humans.txt
 Disallow: /admin
 Disallow: /admin/
+Disallow: /anna
+Disallow: /anna/
 Disallow: /login
 Disallow: /w/
 

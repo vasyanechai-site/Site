@@ -14,6 +14,9 @@ __pycache__/
 *.pyc
 supabase/.temp/
 .cursor/
+photo-booking-bot/.venv/
+photo-booking-bot/data/
+photo-booking-bot/.env
 node_modules/
 dist/
 .env
