@@ -1,5 +1,5 @@
+import asyncio
 import io
-import json
 import logging
 from datetime import datetime
 
@@ -9,52 +9,35 @@ from aiogram.types import Message
 from bot.config import Settings
 from bot.database import Database
 from bot.keyboards.admin_kb import admin_main_menu_kb, admin_slots_menu_kb
+from bot.openai_voice import process_voice
 from bot.utils import format_slot_datetime, parse_slot_datetime
 
 logger = logging.getLogger(__name__)
 
 router = Router()
 
-
-INTENT_PROMPT = """Ты парсер команд администратора фотостудии. Верни только JSON без markdown.
-Поля:
-- intent: one of add_slot, list_slots, list_bookings, stats, settings, awaiting_payments, unknown
-- date: "ДД.ММ.ГГГГ" or null
-- time: "ЧЧ:ММ" or null
-- search: string or null
-
-Примеры:
-"добавь слот 25 июля в 15:00" -> {"intent":"add_slot","date":"25.07.2026","time":"15:00","search":null}
-"покажи записи" -> {"intent":"list_bookings","date":null,"time":null,"search":null}
-"статистика" -> {"intent":"stats","date":null,"time":null,"search":null}
-"""
+DOWNLOAD_TIMEOUT_SEC = 25
+OPENAI_TIMEOUT_SEC = 45
 
 
-async def _transcribe(api_key: str, audio_bytes: bytes) -> str:
-    from openai import OpenAI
+async def _download_voice(bot: Bot, message: Message) -> bytes:
+    file = await bot.get_file(message.voice.file_id)
+    buf = io.BytesIO()
+    await bot.download_file(file.file_path, buf)
+    data = buf.getvalue()
+    if not data:
+        raise ValueError("Пустой файл голосового сообщения")
+    return data
 
-    client = OpenAI(api_key=api_key)
-    buf = io.BytesIO(audio_bytes)
-    buf.name = "voice.ogg"
-    result = client.audio.transcriptions.create(model="whisper-1", file=buf, language="ru")
-    return (result.text or "").strip()
 
-
-async def _parse_intent(api_key: str, text: str) -> dict:
-    from openai import OpenAI
-
-    client = OpenAI(api_key=api_key)
-    resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": INTENT_PROMPT},
-            {"role": "user", "content": text},
-        ],
-        temperature=0,
-        response_format={"type": "json_object"},
-    )
-    raw = resp.choices[0].message.content or "{}"
-    return json.loads(raw)
+async def _reply_or_edit(status_msg: Message | None, message: Message, text: str, **kwargs) -> None:
+    if status_msg:
+        try:
+            await status_msg.edit_text(text, **kwargs)
+            return
+        except Exception:
+            pass
+    await message.answer(text, **kwargs)
 
 
 @router.message(F.voice)
@@ -66,22 +49,53 @@ async def admin_voice(message: Message, bot: Bot, db: Database, settings: Settin
         )
         return
 
-    await message.answer("🎤 Слушаю…")
-    file = await bot.get_file(message.voice.file_id)
-    buf = io.BytesIO()
-    await bot.download_file(file.file_path, buf)
-    audio_bytes = buf.getvalue()
+    status_msg = await message.answer("🎤 Слушаю…")
 
     try:
-        text = await _transcribe(settings.openai_api_key, audio_bytes)
-        intent_data = await _parse_intent(settings.openai_api_key, text)
+        audio_bytes = await asyncio.wait_for(
+            _download_voice(bot, message),
+            timeout=DOWNLOAD_TIMEOUT_SEC,
+        )
+        text, intent_data = await asyncio.wait_for(
+            asyncio.to_thread(
+                process_voice,
+                settings.openai_api_key,
+                audio_bytes,
+                settings.https_proxy,
+            ),
+            timeout=OPENAI_TIMEOUT_SEC,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Voice command timed out (download=%ss, openai=%ss)", DOWNLOAD_TIMEOUT_SEC, OPENAI_TIMEOUT_SEC)
+        await _reply_or_edit(
+            status_msg,
+            message,
+            "⏱ Таймаут OpenAI. С VPS из РФ нужен HTTPS_PROXY или OPENAI_HTTPS_PROXY в .env.\n"
+            "Проверка: /voicecheck",
+            reply_markup=admin_main_menu_kb(),
+        )
+        return
     except Exception as exc:
         logger.exception("Voice command failed")
-        await message.answer(f"Не удалось обработать голос: {exc}")
+        await _reply_or_edit(
+            status_msg,
+            message,
+            f"Не удалось обработать голос: {exc}",
+            reply_markup=admin_main_menu_kb(),
+        )
+        return
+
+    if not text:
+        await _reply_or_edit(
+            status_msg,
+            message,
+            "Не расслышал текст. Попробуйте говорить дольше и чётче.",
+            reply_markup=admin_main_menu_kb(),
+        )
         return
 
     intent = str(intent_data.get("intent") or "unknown")
-    await message.answer(f"📝 «{text}»")
+    await _reply_or_edit(status_msg, message, f"📝 «{text}»")
 
     if intent == "add_slot":
         date_s = intent_data.get("date")

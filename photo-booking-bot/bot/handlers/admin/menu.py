@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -40,6 +43,33 @@ async def admin_back_to_user(callback: CallbackQuery, state: FSMContext) -> None
     await callback.message.edit_text("Режим клиента. Используйте кнопки в меню ниже.")
     await callback.message.answer("Меню клиента:", reply_markup=start_keyboard(is_admin=True))
     await callback.answer()
+
+
+@router.message(Command("voicecheck"))
+async def voice_check(message: Message, settings) -> None:
+    from bot.openai_voice import ping_openai
+
+    if not settings.openai_api_key:
+        await message.answer("OPENAI_API_KEY не задан в .env")
+        return
+    proxy_hint = settings.https_proxy or "не задан (прямое подключение)"
+    await message.answer(f"Проверяю OpenAI…\nПрокси: {proxy_hint}")
+    try:
+        await asyncio.wait_for(
+            asyncio.to_thread(
+                ping_openai,
+                settings.openai_api_key,
+                settings.https_proxy,
+            ),
+            timeout=30,
+        )
+        await message.answer("✅ OpenAI доступен — голосовые команды должны работать.")
+    except asyncio.TimeoutError:
+        await message.answer(
+            "⏱ Таймаут OpenAI. Добавьте HTTPS_PROXY или OPENAI_HTTPS_PROXY в Secrets / .env бота."
+        )
+    except Exception as exc:
+        await message.answer(f"❌ OpenAI недоступен: {exc}")
 
 
 @router.message(Command("dbcheck"))

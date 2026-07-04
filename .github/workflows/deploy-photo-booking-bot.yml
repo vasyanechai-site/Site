@@ -51,6 +51,13 @@ jobs:
             if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
               patch_bot_env OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
             fi
+            if [ -n "${{ secrets.OPENAI_HTTPS_PROXY }}" ]; then
+              patch_bot_env OPENAI_HTTPS_PROXY "${{ secrets.OPENAI_HTTPS_PROXY }}"
+            elif [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
+              patch_bot_env OPENAI_HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"
+            elif [ -n "${{ secrets.HTTPS_PROXY }}" ]; then
+              patch_bot_env OPENAI_HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
+            fi
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
 

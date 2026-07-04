@@ -69,6 +69,11 @@ async def main() -> None:
     dp.include_router(admin.router)
     dp.include_router(user.router)
 
+    if settings.openai_api_key:
+        logger.info("OpenAI voice commands: enabled")
+    else:
+        logger.info("OpenAI voice commands: disabled (no OPENAI_API_KEY)")
+
     logger.info("Photo booking bot started")
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("Webhook cleared — waiting before polling")
