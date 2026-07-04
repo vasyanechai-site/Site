@@ -14,9 +14,11 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-def _stats_text(stats: dict, price: int) -> str:
+def _stats_text(stats: dict, price: int, channel_id: int | None = None) -> str:
+    ch_line = f"Канал ID: <code>{channel_id}</code>\n" if channel_id else "Канал: не привязан\n"
     return (
         "🔒 <b>Закрытый канал</b>\n\n"
+        f"{ch_line}"
         f"Цена: {price} ₽/мес\n"
         f"Всего оплативших: {stats['totalPaid']}\n"
         f"Активных: {stats['active']}\n"
@@ -30,13 +32,28 @@ def _stats_text(stats: dict, price: int) -> str:
 
 
 @router.callback_query(F.data == "adm:channel:menu")
-async def admin_channel_menu(callback: CallbackQuery, db: Database) -> None:
+async def admin_channel_menu(callback: CallbackQuery, db: Database, settings: Settings) -> None:
     stats = await db.get_channel_stats()
     ch = await db.get_channel_settings()
+    stored_id = await db.get_closed_channel_id(settings)
+    channel_id = stored_id if stored_id and stored_id not in (0, -1000) else None
     await callback.message.edit_text(
-        _stats_text(stats, ch.monthly_price),
+        _stats_text(stats, ch.monthly_price, channel_id),
         reply_markup=admin_channel_list_kb(),
         parse_mode="HTML",
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "adm:channel:bind")
+async def admin_channel_bind_help(callback: CallbackQuery) -> None:
+    await callback.message.answer(
+        "Привязка закрытого канала:\n\n"
+        "1. Откройте любой пост в закрытом канале\n"
+        "2. Скопируйте ссылку на пост (t.me/c/…)\n"
+        "3. Отправьте эту ссылку сюда, в чат с ботом\n\n"
+        "Либо перешлите любой пост из канала.\n"
+        "Либо удалите бота из админов канала и добавьте снова."
     )
     await callback.answer()
 

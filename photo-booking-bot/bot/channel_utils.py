@@ -1,4 +1,5 @@
 from enum import StrEnum
+import re
 
 
 class SubscriptionStatus(StrEnum):
@@ -67,6 +68,22 @@ def resolve_channel_id(raw: str | int) -> int:
     if cid > 0:
         return int(f"-100{cid}")
     return cid
+
+
+def parse_channel_id_from_text(text: str) -> int | None:
+    """Extract Telegram channel chat_id from t.me/c/ link or -100… id."""
+    if not text:
+        return None
+    m = re.search(r"(?:https?://)?t\.me/c/(\d+)/", text.strip())
+    if m:
+        return int(f"-100{m.group(1)}")
+    m = re.search(r"(-100\d{6,})", text)
+    if m:
+        return int(m.group(1))
+    stripped = text.strip()
+    if stripped.isdigit() and len(stripped) >= 9:
+        return resolve_channel_id(stripped)
+    return None
 
 
 def channel_open_url(channel_id: int) -> str:

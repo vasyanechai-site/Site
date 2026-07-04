@@ -6,6 +6,7 @@ from aiogram.filters import ChatMemberUpdatedFilter, IS_MEMBER, IS_NOT_MEMBER
 from aiogram.types import ChatMemberUpdated, Message
 from aiogram.types import MessageOriginChannel
 
+from bot.channel_utils import parse_channel_id_from_text
 from bot.channel_service import handle_channel_join
 from bot.channel_setup import channel_id_env_hint, inspect_closed_channel
 from bot.config import Settings
@@ -74,17 +75,20 @@ async def admin_bind_channel_from_forward(
 ) -> None:
     if message.from_user.id not in settings.admin_ids:
         return
-    chat_id = None
+
+    chat_id = parse_channel_id_from_text(message.text or "")
     title = None
-    origin = message.forward_origin
-    if isinstance(origin, MessageOriginChannel):
-        chat_id = origin.chat.id
-        title = origin.chat.title
-    elif message.forward_from_chat and message.forward_from_chat.type == ChatType.CHANNEL:
-        chat_id = message.forward_from_chat.id
-        title = message.forward_from_chat.title
+    if chat_id is None:
+        origin = message.forward_origin
+        if isinstance(origin, MessageOriginChannel):
+            chat_id = origin.chat.id
+            title = origin.chat.title
+        elif message.forward_from_chat and message.forward_from_chat.type == ChatType.CHANNEL:
+            chat_id = message.forward_from_chat.id
+            title = message.forward_from_chat.title
     if chat_id is None:
         return
+
     text = await _bind_closed_channel(bot, db, settings, chat_id, title=title)
     await message.answer(text)
 

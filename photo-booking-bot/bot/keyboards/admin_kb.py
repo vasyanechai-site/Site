@@ -206,6 +206,8 @@ def admin_channel_list_kb(subs=None) -> InlineKeyboardMarkup:
             rows.append(
                 [InlineKeyboardButton(text=f"{label} — {s.status.label_ru}", callback_data=f"adm:channel:sub:{s.id}")]
             )
+    else:
+        rows.append([InlineKeyboardButton(text="Привязать канал", callback_data="adm:channel:bind")])
     rows.append([InlineKeyboardButton(text="← Назад", callback_data="adm:menu")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
