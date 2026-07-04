@@ -45,6 +45,12 @@ jobs:
 
             patch_bot_env BOT_TOKEN "${{ secrets.PHOTO_BOOKING_BOT_TOKEN }}"
             patch_bot_env ADMIN_ID "${{ secrets.PHOTO_BOOKING_ADMIN_ID }}"
+            if [ -n "${{ secrets.PHOTO_BOOKING_ADMIN_IDS }}" ]; then
+              patch_bot_env ADMIN_IDS "${{ secrets.PHOTO_BOOKING_ADMIN_IDS }}"
+            fi
+            if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
+              patch_bot_env OPENAI_API_KEY "${{ secrets.OPENAI_API_KEY }}"
+            fi
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
 
