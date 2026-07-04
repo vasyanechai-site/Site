@@ -69,7 +69,8 @@ async def main() -> None:
 
     logger.info("Photo booking bot started")
     await bot.delete_webhook(drop_pending_updates=True)
-    logger.info("Webhook cleared — single polling instance")
+    logger.info("Webhook cleared — waiting before polling")
+    await asyncio.sleep(5)
     await dp.start_polling(bot)
 
 

@@ -111,6 +111,7 @@ jobs:
 
             cd ..
             bash photo-booking-bot/scripts/stop_bot.sh "${{ secrets.VPS_APP_PATH }}"
+            sleep 3
             pm2 delete site-api 2>/dev/null || true
             pm2 start ecosystem.config.cjs
             pm2 save

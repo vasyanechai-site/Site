@@ -369,7 +369,7 @@ async def pay_booking(
 
 
 @router.callback_query(F.data.startswith("cancel:"))
-async def cancel_booking(callback: CallbackQuery, db: Database) -> None:
+async def cancel_booking(callback: CallbackQuery, db: Database, state: FSMContext) -> None:
     slot_id = int(callback.data.removeprefix("cancel:"))
     user = callback.from_user
 
@@ -379,12 +379,17 @@ async def cancel_booking(callback: CallbackQuery, db: Database) -> None:
         await callback.answer(str(exc), show_alert=True)
         return
 
-    await callback.message.edit_text(
-        "Запись отменена. Слот снова свободен.\n"
-        "Если захотите — можно записаться заново через «Записаться»."
-    )
+    await state.clear()
+    try:
+        await callback.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
     await callback.answer("Запись отменена")
-    await callback.message.answer("Главное меню:", reply_markup=start_keyboard())
+    await callback.message.answer(
+        "Запись отменена. Слот снова свободен.\n\n"
+        "Когда захотите — нажмите «Записаться».",
+        reply_markup=start_keyboard(),
+    )
 
 
 @router.callback_query(F.data.startswith("reschedule:"))
