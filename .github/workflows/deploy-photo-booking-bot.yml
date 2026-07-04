@@ -59,7 +59,11 @@ jobs:
               patch_bot_env OPENAI_HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
             fi
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
-            patch_bot_env CLOSED_CHANNEL_ID "${{ secrets.CLOSED_CHANNEL_ID:-393215352 }}"
+            CLOSED_CHANNEL_ID="${{ secrets.CLOSED_CHANNEL_ID }}"
+            if [ -z "$CLOSED_CHANNEL_ID" ]; then
+              CLOSED_CHANNEL_ID="393215352"
+            fi
+            patch_bot_env CLOSED_CHANNEL_ID "$CLOSED_CHANNEL_ID"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
 
             # Всегда telegram-relay; секрет TELEGRAM_BOT_PROXY_URL часто указывает на старый worker
