@@ -44,8 +44,8 @@ async def main() -> None:
 
     dp.update.middleware(InjectMiddleware(db, settings))
 
-    dp.include_router(admin.router)
     dp.include_router(user.router)
+    dp.include_router(admin.router)
 
     logger.info("Photo booking bot started")
     await dp.start_polling(bot)

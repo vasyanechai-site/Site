@@ -3,19 +3,15 @@ from datetime import datetime
 from aiogram import F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
 
 from bot.config import Settings
 from bot.database import Database
 from bot.keyboards import delete_slots_keyboard
+from bot.states import AddSlotsState
 from bot.utils import format_slot_datetime, parse_slot_datetime, user_display_name
 
 router = Router()
-
-
-class AddSlotsState(StatesGroup):
-    waiting_for_lines = State()
 
 
 def admin_only_message(message: Message, settings: Settings) -> bool:
@@ -63,16 +59,6 @@ async def add_slots_start(message: Message, state: FSMContext, settings: Setting
         "24.07.2026 18:00\n\n"
         "Для отмены отправьте /cancel"
     )
-
-
-@router.message(Command("cancel"))
-async def cancel_state(message: Message, state: FSMContext, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        return
-    current = await state.get_state()
-    if current == AddSlotsState.waiting_for_lines.state:
-        await state.clear()
-        await message.answer("Добавление слотов отменено.")
 
 
 @router.message(AddSlotsState.waiting_for_lines)

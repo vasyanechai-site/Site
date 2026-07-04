@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import aiosqlite
@@ -14,6 +14,8 @@ from bot.utils import (
     slot_to_iso,
     now_local_dt,
 )
+
+RESERVE_TIMEOUT_MINUTES = 15
 
 
 @dataclass
@@ -302,25 +304,26 @@ class Database:
                 return self._row_to_slot(row) if row else None
 
     async def list_future_slots(self) -> list[Slot]:
-        now_iso = now_local_iso()
+        await self.expire_stale_unpaid_slots()
+        now = now_local_dt()
         async with await self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
                        created_at, updated_at
                 FROM slots
-                WHERE slot_at >= ?
                 ORDER BY slot_at
                 """,
-                (now_iso,),
             ) as cursor:
                 rows = await cursor.fetchall()
-                return [self._row_to_slot(row) for row in rows]
+        return [s for s in (self._row_to_slot(row) for row in rows) if s.slot_at >= now]
 
     async def expire_stale_unpaid_slots(self) -> None:
-        """Снимает неоплаченные брони на слоты в прошлом."""
-        now = datetime.now().isoformat()
+        """Снимает просроченные неоплаченные брони (прошлое время или >15 мин в reserved)."""
+        now = datetime.now()
+        now_iso = now.isoformat()
         now_cutoff = now_local_iso()
+        reserve_deadline = (now - timedelta(minutes=RESERVE_TIMEOUT_MINUTES)).isoformat()
         async with await self._connect() as db:
             async with db.execute(
                 """
@@ -329,8 +332,17 @@ class Database:
                 """,
                 (SlotStatus.RESERVED.value, SlotStatus.AWAITING_PAYMENT.value, now_cutoff),
             ) as cursor:
-                rows = await cursor.fetchall()
-            for (slot_id,) in rows:
+                past_rows = await cursor.fetchall()
+            async with db.execute(
+                """
+                SELECT id FROM slots
+                WHERE status = ? AND booked_at IS NOT NULL AND booked_at < ? AND slot_at >= ?
+                """,
+                (SlotStatus.RESERVED.value, reserve_deadline, now_cutoff),
+            ) as cursor:
+                timeout_rows = await cursor.fetchall()
+            slot_ids = {row[0] for row in past_rows} | {row[0] for row in timeout_rows}
+            for slot_id in slot_ids:
                 await db.execute(
                     """
                     UPDATE slots
@@ -338,7 +350,7 @@ class Database:
                         last_name = NULL, booked_at = NULL, updated_at = ?
                     WHERE id = ?
                     """,
-                    (SlotStatus.AVAILABLE.value, now, slot_id),
+                    (SlotStatus.AVAILABLE.value, now_iso, slot_id),
                 )
                 await db.execute(
                     """
@@ -348,13 +360,13 @@ class Database:
                     """,
                     (
                         BookingStatus.CANCELLED.value,
-                        now,
+                        now_iso,
                         slot_id,
                         BookingStatus.CANCELLED.value,
                         BookingStatus.PAID_FULL.value,
                     ),
                 )
-            if rows:
+            if slot_ids:
                 await db.commit()
 
     async def list_available_dates(self) -> list[datetime]:

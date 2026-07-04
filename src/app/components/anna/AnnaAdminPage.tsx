@@ -273,8 +273,13 @@ function AnnaAdminPageInner() {
         });
       }
     } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      const authFailed = msg.includes("Unauthorized") || msg.includes("401");
       if (!silent) {
-        toast.error(e instanceof Error ? e.message : "Ошибка загрузки");
+        toast.error(msg || "Ошибка загрузки");
+        clearAnnaToken();
+        setAuthed(false);
+      } else if (authFailed) {
         clearAnnaToken();
         setAuthed(false);
       }

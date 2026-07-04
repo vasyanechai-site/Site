@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from bot.database import Slot
-from bot.utils import DATE_BUTTON_FORMAT, TIME_BUTTON_FORMAT, SlotStatus, format_date_button, format_time_button
+from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_time_button
 
 
 def start_keyboard() -> ReplyKeyboardMarkup:
@@ -23,12 +23,18 @@ def dates_keyboard(dates, prefix: str = "date") -> InlineKeyboardMarkup:
         ]
         for date in dates
     ]
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows or [[InlineKeyboardButton(text="Нет дат", callback_data="noop")]]
-    )
+    if not rows:
+        rows = [[InlineKeyboardButton(text="Нет свободных дат", callback_data="noop")]]
+    rows.append([InlineKeyboardButton(text="Отмена", callback_data="flow:cancel")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def times_keyboard(slots: list[Slot], prefix: str = "time") -> InlineKeyboardMarkup:
+def times_keyboard(
+    slots: list[Slot],
+    prefix: str = "time",
+    *,
+    back_callback: str = "flow:back_dates",
+) -> InlineKeyboardMarkup:
     rows = [
         [
             InlineKeyboardButton(
@@ -38,9 +44,15 @@ def times_keyboard(slots: list[Slot], prefix: str = "time") -> InlineKeyboardMar
         ]
         for slot in slots
     ]
-    return InlineKeyboardMarkup(
-        inline_keyboard=rows or [[InlineKeyboardButton(text="Нет времени", callback_data="noop")]]
+    if not rows:
+        rows = [[InlineKeyboardButton(text="Нет свободного времени", callback_data="noop")]]
+    rows.append(
+        [
+            InlineKeyboardButton(text="← Другая дата", callback_data=back_callback),
+            InlineKeyboardButton(text="Отмена", callback_data="flow:cancel"),
+        ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def payment_keyboard(slot_id: int) -> InlineKeyboardMarkup:
