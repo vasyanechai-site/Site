@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — auto-install python3-venv on VPS if missing
+# trigger: 2026-07-04 — fix slot listing with active booking UX
 
 on:
   push:

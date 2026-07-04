@@ -91,10 +91,14 @@ async def my_booking(message: Message, db: Database) -> None:
 @router.message(F.text == "Записаться")
 async def booking_start(message: Message, db: Database, state: FSMContext) -> None:
     await state.clear()
-    if await db.get_user_active_slot(message.from_user.id):
+    active = await db.get_user_active_slot(message.from_user.id)
+    if active:
+        pricing = await db.get_pricing()
         await message.answer(
-            "У вас уже есть запись. Откройте «Моя запись» — там можно перенести или отменить.",
-            reply_markup=start_keyboard(),
+            "У вас уже есть запись:\n\n"
+            + _booking_message(active, pricing)
+            + "\n\nЧтобы выбрать другое время — перенесите или отмените текущую запись.",
+            reply_markup=_manage_keyboard(active),
         )
         return
 

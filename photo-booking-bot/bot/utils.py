@@ -76,6 +76,10 @@ def now_local_iso() -> str:
     return datetime.now().replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
 
 
+def now_local_dt() -> datetime:
+    return datetime.now().replace(second=0, microsecond=0)
+
+
 def slot_to_iso(dt: datetime) -> str:
     return dt.replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
 

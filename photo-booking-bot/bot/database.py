@@ -12,6 +12,7 @@ from bot.utils import (
     parse_slot_datetime,
     parse_stored_datetime,
     slot_to_iso,
+    now_local_dt,
 )
 
 
@@ -316,37 +317,88 @@ class Database:
                 rows = await cursor.fetchall()
                 return [self._row_to_slot(row) for row in rows]
 
-    async def list_available_dates(self) -> list[datetime]:
-        now_iso = now_local_iso()
+    async def expire_stale_unpaid_slots(self) -> None:
+        """Снимает неоплаченные брони на слоты в прошлом."""
+        now = datetime.now().isoformat()
+        now_cutoff = now_local_iso()
         async with await self._connect() as db:
             async with db.execute(
                 """
-                SELECT DISTINCT date(slot_at) AS d
-                FROM slots
-                WHERE status = ? AND slot_at >= ?
-                ORDER BY d
+                SELECT id FROM slots
+                WHERE status IN (?, ?) AND slot_at < ?
                 """,
-                (SlotStatus.AVAILABLE.value, now_iso),
+                (SlotStatus.RESERVED.value, SlotStatus.AWAITING_PAYMENT.value, now_cutoff),
             ) as cursor:
                 rows = await cursor.fetchall()
-                return [datetime.fromisoformat(f"{row[0]}T00:00:00") for row in rows]
+            for (slot_id,) in rows:
+                await db.execute(
+                    """
+                    UPDATE slots
+                    SET status = ?, user_id = NULL, username = NULL, first_name = NULL,
+                        last_name = NULL, booked_at = NULL, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (SlotStatus.AVAILABLE.value, now, slot_id),
+                )
+                await db.execute(
+                    """
+                    UPDATE bookings
+                    SET status = ?, updated_at = ?
+                    WHERE slot_id = ? AND status NOT IN (?, ?)
+                    """,
+                    (
+                        BookingStatus.CANCELLED.value,
+                        now,
+                        slot_id,
+                        BookingStatus.CANCELLED.value,
+                        BookingStatus.PAID_FULL.value,
+                    ),
+                )
+            if rows:
+                await db.commit()
+
+    async def list_available_dates(self) -> list[datetime]:
+        await self.expire_stale_unpaid_slots()
+        now = now_local_dt()
+        async with await self._connect() as db:
+            async with db.execute(
+                """
+                SELECT slot_at FROM slots
+                WHERE status = ?
+                ORDER BY slot_at
+                """,
+                (SlotStatus.AVAILABLE.value,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        days: set = set()
+        for (slot_at_raw,) in rows:
+            slot_at = parse_stored_datetime(slot_at_raw)
+            if slot_at >= now:
+                days.add(slot_at.date())
+        return [datetime.combine(d, datetime.min.time()) for d in sorted(days)]
 
     async def list_available_times_for_date(self, date: datetime) -> list[Slot]:
-        day = date.date().isoformat()
-        now_iso = now_local_iso()
+        await self.expire_stale_unpaid_slots()
+        day = date.date()
+        now = now_local_dt()
         async with await self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
                        created_at, updated_at
                 FROM slots
-                WHERE status = ? AND date(slot_at) = ? AND slot_at >= ?
+                WHERE status = ?
                 ORDER BY slot_at
                 """,
-                (SlotStatus.AVAILABLE.value, day, now_iso),
+                (SlotStatus.AVAILABLE.value,),
             ) as cursor:
                 rows = await cursor.fetchall()
-                return [self._row_to_slot(row) for row in rows]
+        slots = []
+        for row in rows:
+            slot = self._row_to_slot(row)
+            if slot.slot_at.date() == day and slot.slot_at >= now:
+                slots.append(slot)
+        return slots
 
     async def reserve_slot(
         self,
@@ -502,7 +554,8 @@ class Database:
     )
 
     async def get_user_active_slot(self, user_id: int) -> Slot | None:
-        now_iso = now_local_iso()
+        await self.expire_stale_unpaid_slots()
+        now = now_local_dt()
         placeholders = ", ".join("?" for _ in self._ACTIVE_SLOT_STATUSES)
         async with await self._connect() as db:
             async with db.execute(
@@ -510,14 +563,17 @@ class Database:
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
                        created_at, updated_at
                 FROM slots
-                WHERE user_id = ? AND status IN ({placeholders}) AND slot_at >= ?
+                WHERE user_id = ? AND status IN ({placeholders})
                 ORDER BY slot_at
-                LIMIT 1
                 """,
-                (user_id, *self._ACTIVE_SLOT_STATUSES, now_iso),
+                (user_id, *self._ACTIVE_SLOT_STATUSES),
             ) as cursor:
-                row = await cursor.fetchone()
-                return self._row_to_slot(row) if row else None
+                rows = await cursor.fetchall()
+        for row in rows:
+            slot = self._row_to_slot(row)
+            if slot.slot_at >= now:
+                return slot
+        return None
 
     async def reschedule_booking(
         self,
