@@ -13,6 +13,7 @@ import {
   channelSubscriberAction,
   fetchChannelStats,
   fetchChannelSubscribers,
+  patchChannelSettings,
 } from "../../lib/annaApi";
 
 const R = "rounded-md";
@@ -38,6 +39,7 @@ export type ChannelStats = {
   lastPaymentAt: string | null;
   lastJoinAt: string | null;
   monthlyPrice: number;
+  channelTelegramId: number | null;
 };
 
 export type ChannelSubscriber = {
@@ -85,6 +87,8 @@ export function AnnaChannelSection() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [channelLink, setChannelLink] = useState("");
+  const [savingChannel, setSavingChannel] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -103,6 +107,26 @@ export function AnnaChannelSection() {
       setLoading(false);
     }
   }, [search, statusFilter]);
+
+  useEffect(() => {
+    if (stats?.channelTelegramId != null && channelLink === "") {
+      setChannelLink(String(stats.channelTelegramId));
+    }
+  }, [stats?.channelTelegramId, channelLink]);
+
+  const saveChannelLink = async () => {
+    if (!channelLink.trim()) return;
+    setSavingChannel(true);
+    try {
+      await patchChannelSettings({ channelTelegramId: channelLink.trim() });
+      toast.success("Канал привязан");
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка");
+    } finally {
+      setSavingChannel(false);
+    }
+  };
 
   useEffect(() => {
     load();
@@ -128,6 +152,29 @@ export function AnnaChannelSection() {
 
   return (
     <div className="space-y-6">
+      <section className={`${SECTION} space-y-3`}>
+        <h2 className="text-sm font-semibold text-zinc-900">Привязка канала</h2>
+        <p className="text-xs text-zinc-500">
+          Вставьте ссылку на пост закрытого канала (t.me/c/…) или ID канала. Бот должен быть админом канала.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            placeholder="https://t.me/c/1234567890/1"
+            value={channelLink}
+            onChange={(e) => setChannelLink(e.target.value)}
+            className={R}
+          />
+          <Button className={R} onClick={saveChannelLink} disabled={savingChannel}>
+            {savingChannel ? "Сохранение…" : "Привязать"}
+          </Button>
+        </div>
+        {stats?.channelTelegramId ? (
+          <p className="text-xs text-zinc-500">Текущий ID: {stats.channelTelegramId}</p>
+        ) : (
+          <p className="text-xs text-amber-700">Канал ещё не привязан — invite-ссылки не работают</p>
+        )}
+      </section>
+
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard title="Всего оплативших" value={stats?.totalPaid ?? 0} />
         <StatCard title="Активных" value={stats?.active ?? 0} />

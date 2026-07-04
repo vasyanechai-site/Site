@@ -777,6 +777,7 @@ export function registerPhotoBookingRoutes(app) {
       lastPaymentAt: db.prepare("SELECT paid_at FROM channel_subscriptions WHERE paid_at IS NOT NULL ORDER BY paid_at DESC LIMIT 1").get()?.paid_at ?? null,
       lastJoinAt: db.prepare("SELECT joined_at FROM channel_subscriptions WHERE joined_at IS NOT NULL ORDER BY joined_at DESC LIMIT 1").get()?.joined_at ?? null,
       monthlyPrice: db.prepare("SELECT channel_monthly_price FROM app_settings WHERE id = 1").get()?.channel_monthly_price ?? 500,
+      channelTelegramId: db.prepare("SELECT closed_channel_telegram_id FROM app_settings WHERE id = 1").get()?.closed_channel_telegram_id ?? null,
     };
   }
 
@@ -839,15 +840,43 @@ export function registerPhotoBookingRoutes(app) {
   });
 
   app.patch("/api/anna/channel/settings", annaAuthMiddleware, (req, res) => {
-    const price = Number(req.body?.monthlyPrice);
-    if (!Number.isInteger(price) || price <= 0) {
-      return res.status(400).json({ error: "Некорректная стоимость" });
-    }
     const db = getDb();
-    db.prepare("UPDATE app_settings SET channel_monthly_price = ?, updated_at = ? WHERE id = 1").run(
-      price,
-      nowIso()
-    );
-    res.json({ monthlyPrice: price });
+    const now = nowIso();
+    if (req.body?.monthlyPrice != null) {
+      const price = Number(req.body.monthlyPrice);
+      if (!Number.isInteger(price) || price <= 0) {
+        return res.status(400).json({ error: "Некорректная стоимость" });
+      }
+      db.prepare("UPDATE app_settings SET channel_monthly_price = ?, updated_at = ? WHERE id = 1").run(
+        price,
+        now
+      );
+    }
+    if (req.body?.channelTelegramId != null && req.body.channelTelegramId !== "") {
+      const raw = String(req.body.channelTelegramId).trim();
+      let channelId = null;
+      const m = raw.match(/t\.me\/c\/(\d+)/i);
+      if (m) {
+        channelId = Number(`-100${m[1]}`);
+      } else if (/^-100\d+$/.test(raw)) {
+        channelId = Number(raw);
+      } else if (/^\d{9,}$/.test(raw)) {
+        channelId = Number(`-100${raw}`);
+      }
+      if (!channelId) {
+        return res.status(400).json({ error: "Некорректный ID или ссылка канала" });
+      }
+      db.prepare("UPDATE app_settings SET closed_channel_telegram_id = ?, updated_at = ? WHERE id = 1").run(
+        channelId,
+        now
+      );
+    }
+    const row = db.prepare(
+      "SELECT channel_monthly_price, closed_channel_telegram_id FROM app_settings WHERE id = 1"
+    ).get();
+    res.json({
+      monthlyPrice: row?.channel_monthly_price ?? 500,
+      channelTelegramId: row?.closed_channel_telegram_id ?? null,
+    });
   });
 }

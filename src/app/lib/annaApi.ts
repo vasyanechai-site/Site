@@ -132,6 +132,16 @@ export async function channelSubscriberAction(id: number, action: string) {
   return annaFetch(`/channel/subscribers/${id}/${action}`, { method: "POST" });
 }
 
+export async function patchChannelSettings(body: {
+  monthlyPrice?: number;
+  channelTelegramId?: string;
+}) {
+  return annaFetch("/channel/settings", {
+    method: "PATCH",
+    body: JSON.stringify(body),
+  });
+}
+
 /** @deprecated use fetchAnnaSettings */
 export async function fetchAnnaConfig() {
   return fetchAnnaSettings();

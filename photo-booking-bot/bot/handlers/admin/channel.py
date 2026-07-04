@@ -1,8 +1,10 @@
 import logging
 
 from aiogram import Bot, F, Router
-from aiogram.types import CallbackQuery
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, Message
 
+from bot.channel_bind import try_bind_from_admin_message
 from bot.channel_service import deliver_channel_invite, send_invite_to_user
 from bot.channel_utils import SubscriptionStatus
 from bot.config import Settings
@@ -12,6 +14,41 @@ from bot.keyboards.admin_kb import admin_back_kb, admin_channel_list_kb, admin_c
 logger = logging.getLogger(__name__)
 
 router = Router()
+logger = logging.getLogger(__name__)
+
+
+@router.message(Command("bind_channel"))
+async def admin_bind_channel_cmd(
+    message: Message, bot: Bot, db: Database, settings: Settings
+) -> None:
+    reply = await try_bind_from_admin_message(message, bot, db, settings)
+    if reply:
+        await message.answer(reply)
+        return
+    await message.answer(
+        "Привязка закрытого канала:\n\n"
+        "Отправьте команду со ссылкой на пост:\n"
+        "/bind_channel https://t.me/c/1234567890/1\n\n"
+        "Или просто перешлите пост из канала / отправьте ссылку t.me/c/…"
+    )
+
+
+@router.message(F.text.contains("t.me") | F.caption.contains("t.me"))
+async def admin_bind_channel_link(
+    message: Message, bot: Bot, db: Database, settings: Settings
+) -> None:
+    reply = await try_bind_from_admin_message(message, bot, db, settings)
+    if reply:
+        await message.answer(reply)
+
+
+@router.message(F.forward_date)
+async def admin_bind_channel_forward(
+    message: Message, bot: Bot, db: Database, settings: Settings
+) -> None:
+    reply = await try_bind_from_admin_message(message, bot, db, settings)
+    if reply:
+        await message.answer(reply)
 
 
 def _stats_text(stats: dict, price: int, channel_id: int | None = None) -> str:
@@ -49,11 +86,10 @@ async def admin_channel_menu(callback: CallbackQuery, db: Database, settings: Se
 async def admin_channel_bind_help(callback: CallbackQuery) -> None:
     await callback.message.answer(
         "Привязка закрытого канала:\n\n"
-        "1. Откройте любой пост в закрытом канале\n"
-        "2. Скопируйте ссылку на пост (t.me/c/…)\n"
-        "3. Отправьте эту ссылку сюда, в чат с ботом\n\n"
-        "Либо перешлите любой пост из канала.\n"
-        "Либо удалите бота из админов канала и добавьте снова."
+        "Отправьте боту ссылку на пост:\n"
+        "/bind_channel https://t.me/c/…/…\n\n"
+        "Или перешлите пост из канала.\n"
+        "Или удалите бота из админов канала и добавьте снова."
     )
     await callback.answer()
 
