@@ -46,8 +46,6 @@ jobs:
             patch_bot_env ADMIN_ID "${{ secrets.PHOTO_BOOKING_ADMIN_ID }}"
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
-            patch_bot_env FULL_PRICE "${{ secrets.PHOTO_BOOKING_FULL_PRICE }}"
-            patch_bot_env PREPAY_PERCENT "${{ secrets.PHOTO_BOOKING_PREPAY_PERCENT }}"
 
             if [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
               patch_bot_env HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"

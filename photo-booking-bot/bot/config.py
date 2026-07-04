@@ -29,14 +29,8 @@ class Settings:
     admin_id: int
     phone: str
     recipient_name: str
-    full_price: int
-    prepay_percent: int
     database_path: Path
     https_proxy: str | None
-
-    @property
-    def prepay_amount(self) -> int:
-        return round(self.full_price * self.prepay_percent / 100)
 
     @property
     def phone_display(self) -> str:
@@ -56,8 +50,6 @@ def load_settings() -> Settings:
         admin_id=_int("ADMIN_ID"),
         phone=_require("PHONE"),
         recipient_name=_require("RECIPIENT_NAME"),
-        full_price=_int("FULL_PRICE"),
-        prepay_percent=_int("PREPAY_PERCENT"),
         database_path=BASE_DIR / db_path,
         https_proxy=proxy or None,
     )

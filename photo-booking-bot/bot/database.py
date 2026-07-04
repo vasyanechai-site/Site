@@ -42,6 +42,16 @@ class Booking:
     slot_at: datetime | None = None
 
 
+@dataclass
+class Pricing:
+    full_price: int
+    prepay_percent: int
+
+    @property
+    def prepay_amount(self) -> int:
+        return round(self.full_price * self.prepay_percent / 100)
+
+
 class Database:
     def __init__(self, path: Path):
         self.path = path
@@ -91,6 +101,16 @@ class Database:
                 """
             )
             await db.execute(
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    full_price INTEGER NOT NULL DEFAULT 3000,
+                    prepay_percent INTEGER NOT NULL DEFAULT 50,
+                    updated_at TEXT
+                )
+                """
+            )
+            await db.execute(
                 "CREATE INDEX IF NOT EXISTS idx_slots_status_at ON slots(status, slot_at)"
             )
             await db.execute(
@@ -101,7 +121,28 @@ class Database:
             )
             await self._migrate_columns(db)
             await self._migrate_legacy_bookings(db)
+            await self._ensure_pricing_defaults(db)
             await db.commit()
+
+    async def _ensure_pricing_defaults(self, db: aiosqlite.Connection) -> None:
+        now = datetime.now().isoformat()
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO app_settings (id, full_price, prepay_percent, updated_at)
+            VALUES (1, 3000, 50, ?)
+            """,
+            (now,),
+        )
+
+    async def get_pricing(self) -> Pricing:
+        async with await self._connect() as db:
+            async with db.execute(
+                "SELECT full_price, prepay_percent FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return Pricing(full_price=3000, prepay_percent=50)
+                return Pricing(full_price=int(row[0]), prepay_percent=int(row[1]))
 
     async def _migrate_columns(self, db: aiosqlite.Connection) -> None:
         async with db.execute("PRAGMA table_info(slots)") as cursor:
@@ -168,14 +209,6 @@ class Database:
             created_at=datetime.fromisoformat(row[7]) if len(row) > 7 and row[7] else None,
             updated_at=datetime.fromisoformat(row[8]) if len(row) > 8 and row[8] else None,
         )
-        now = datetime.now().isoformat()
-        sets = ["updated_at = ?"]
-        values: list = [now]
-        for key, value in fields.items():
-            sets.append(f"{key} = ?")
-            values.append(value)
-        values.append(slot_id)
-        await db.execute(f"UPDATE slots SET {', '.join(sets)} WHERE id = ?", values)
 
     async def _create_booking(
         self,

@@ -56,9 +56,9 @@ pm2 save
 | `ADMIN_ID` | Telegram user ID администратора |
 | `PHONE` | Номер для СБП |
 | `RECIPIENT_NAME` | Имя получателя |
-| `FULL_PRICE` | Полная стоимость, ₽ |
-| `PREPAY_PERCENT` | Процент предоплаты |
 | `HTTPS_PROXY` | Опционально, если `api.telegram.org` недоступен с VPS |
+
+Полная стоимость и % предоплаты — в админке **/anna**, таблица `app_settings` в SQLite.
 
 ## Статусы слотов
 

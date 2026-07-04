@@ -32,25 +32,6 @@ const SLOT_TO_BOOKING = {
 
 let dbInstance = null;
 
-function readBotEnv() {
-  const envPath = path.join(REPO_ROOT, "photo-booking-bot/.env");
-  const result = { fullPrice: 3000, prepayPercent: 50 };
-  if (!fs.existsSync(envPath)) return result;
-  const text = fs.readFileSync(envPath, "utf8");
-  for (const line of text.split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    const key = trimmed.slice(0, idx).trim();
-    const value = trimmed.slice(idx + 1).trim();
-    if (key === "FULL_PRICE") result.fullPrice = Number(value) || result.fullPrice;
-    if (key === "PREPAY_PERCENT") result.prepayPercent = Number(value) || result.prepayPercent;
-  }
-  result.prepayAmount = Math.round((result.fullPrice * result.prepayPercent) / 100);
-  return result;
-}
-
 function getDbPath() {
   return (
     process.env.PHOTO_BOOKING_DB_PATH ||
@@ -101,10 +82,21 @@ function ensureSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_slots_status_at ON slots(status, slot_at);
     CREATE INDEX IF NOT EXISTS idx_bookings_slot ON bookings(slot_id);
     CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      full_price INTEGER NOT NULL DEFAULT 3000,
+      prepay_percent INTEGER NOT NULL DEFAULT 50,
+      updated_at TEXT
+    );
   `);
 
-  const cols = db.prepare("PRAGMA table_info(slots)").all().map((c) => c.name);
   const now = new Date().toISOString();
+  db.prepare(
+    `INSERT OR IGNORE INTO app_settings (id, full_price, prepay_percent, updated_at)
+     VALUES (1, 3000, 50, ?)`
+  ).run(now);
+
+  const cols = db.prepare("PRAGMA table_info(slots)").all().map((c) => c.name);
   if (!cols.includes("created_at")) {
     db.exec("ALTER TABLE slots ADD COLUMN created_at TEXT");
     db.prepare("UPDATE slots SET created_at = ? WHERE created_at IS NULL").run(now);
@@ -113,6 +105,32 @@ function ensureSchema(db) {
     db.exec("ALTER TABLE slots ADD COLUMN updated_at TEXT");
     db.prepare("UPDATE slots SET updated_at = ? WHERE updated_at IS NULL").run(now);
   }
+}
+
+function getPricing(db) {
+  const row = db.prepare(
+    "SELECT full_price, prepay_percent FROM app_settings WHERE id = 1"
+  ).get();
+  const fullPrice = row?.full_price ?? 3000;
+  const prepayPercent = row?.prepay_percent ?? 50;
+  return {
+    fullPrice,
+    prepayPercent,
+    prepayAmount: Math.round((fullPrice * prepayPercent) / 100),
+  };
+}
+
+function updatePricing(db, fullPrice, prepayPercent) {
+  if (!Number.isInteger(fullPrice) || fullPrice <= 0) {
+    throw new Error("Полная стоимость должна быть положительным числом");
+  }
+  if (!Number.isInteger(prepayPercent) || prepayPercent < 1 || prepayPercent > 99) {
+    throw new Error("Предоплата должна быть от 1% до 99%");
+  }
+  db.prepare(
+    `UPDATE app_settings SET full_price = ?, prepay_percent = ?, updated_at = ? WHERE id = 1`
+  ).run(fullPrice, prepayPercent, nowIso());
+  return getPricing(db);
 }
 
 function nowIso() {
@@ -233,9 +251,32 @@ export function registerPhotoBookingRoutes(app) {
     return res.json({ token });
   });
 
+  app.get("/api/anna/settings", annaAuthMiddleware, (_req, res) => {
+    const db = getDb();
+    res.json({ pricing: getPricing(db) });
+  });
+
+  app.patch("/api/anna/settings", annaAuthMiddleware, (req, res) => {
+    try {
+      const db = getDb();
+      const current = getPricing(db);
+      const fullPrice =
+        req.body?.fullPrice !== undefined ? Number(req.body.fullPrice) : current.fullPrice;
+      const prepayPercent =
+        req.body?.prepayPercent !== undefined
+          ? Number(req.body.prepayPercent)
+          : current.prepayPercent;
+      const pricing = updatePricing(db, fullPrice, prepayPercent);
+      res.json({ pricing });
+    } catch (e) {
+      res.status(400).json({ error: e.message || "Invalid settings" });
+    }
+  });
+
+  /** @deprecated use /api/anna/settings */
   app.get("/api/anna/config", annaAuthMiddleware, (_req, res) => {
-    const pricing = readBotEnv();
-    res.json({ pricing });
+    const db = getDb();
+    res.json({ pricing: getPricing(db) });
   });
 
   app.get("/api/anna/stats", annaAuthMiddleware, (_req, res) => {

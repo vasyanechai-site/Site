@@ -12,6 +12,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Settings2,
   Trash2,
   User,
 } from "lucide-react";
@@ -28,11 +29,12 @@ import {
   deleteAnnaSlot,
   fetchAnnaBookings,
   fetchAnnaCalendar,
-  fetchAnnaConfig,
+  fetchAnnaSettings,
   fetchAnnaSlots,
   fetchAnnaStats,
   getAnnaToken,
   updateAnnaBooking,
+  updateAnnaSettings,
 } from "../../lib/annaApi";
 import {
   AnnaBooking,
@@ -136,7 +138,9 @@ export function AnnaAdminPage() {
   const [selectedDay, setSelectedDay] = useState<Date | undefined>(new Date());
   const [daySlots, setDaySlots] = useState<AnnaSlot[]>([]);
   const [bookings, setBookings] = useState<AnnaBooking[]>([]);
-  const [pricing, setPricing] = useState({ fullPrice: 3000, prepayAmount: 1500 });
+  const [pricing, setPricing] = useState({ fullPrice: 3000, prepayPercent: 50, prepayAmount: 1500 });
+  const [pricingDraft, setPricingDraft] = useState({ fullPrice: "3000", prepayPercent: "50" });
+  const [savingPricing, setSavingPricing] = useState(false);
   const [slotDate, setSlotDate] = useState("");
   const [slotTime, setSlotTime] = useState("");
   const [bulkText, setBulkText] = useState("");
@@ -171,18 +175,23 @@ export function AnnaAdminPage() {
       if (timeFilter === "future") bookingParams.future = "true";
       if (timeFilter === "past") bookingParams.past = "true";
 
-      const [statsData, calData, slotsData, bookingsData, configData] = await Promise.all([
+      const [statsData, calData, slotsData, bookingsData, settingsData] = await Promise.all([
         fetchAnnaStats(),
         fetchAnnaCalendar(monthKey),
         dayIso ? fetchAnnaSlots(dayIso) : Promise.resolve([]),
         fetchAnnaBookings(bookingParams),
-        fetchAnnaConfig(),
+        fetchAnnaSettings(),
       ]);
       setStats(statsData);
       setCalendarDays(calData.days || {});
       setDaySlots(slotsData);
       setBookings(bookingsData);
-      setPricing(configData.pricing || pricing);
+      const p = settingsData.pricing;
+      setPricing(p);
+      setPricingDraft({
+        fullPrice: String(p.fullPrice),
+        prepayPercent: String(p.prepayPercent),
+      });
     } catch (e) {
       if (!silent) {
         toast.error(e instanceof Error ? e.message : "Ошибка загрузки");
@@ -225,6 +234,40 @@ export function AnnaAdminPage() {
   const nearestLabel = stats?.nearestSession
     ? format(parseISO(stats.nearestSession), "d MMMM, HH:mm", { locale: ru })
     : "—";
+
+  const handleSavePricing = async () => {
+    const fullPrice = Number(pricingDraft.fullPrice);
+    const prepayPercent = Number(pricingDraft.prepayPercent);
+    if (!Number.isFinite(fullPrice) || fullPrice <= 0) {
+      toast.error("Укажите корректную полную стоимость");
+      return;
+    }
+    if (!Number.isFinite(prepayPercent) || prepayPercent < 1 || prepayPercent > 99) {
+      toast.error("Предоплата должна быть от 1% до 99%");
+      return;
+    }
+    setSavingPricing(true);
+    try {
+      const res = await updateAnnaSettings({ fullPrice, prepayPercent });
+      setPricing(res.pricing);
+      setPricingDraft({
+        fullPrice: String(res.pricing.fullPrice),
+        prepayPercent: String(res.pricing.prepayPercent),
+      });
+      toast.success("Настройки цен сохранены — бот использует их сразу");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Ошибка сохранения");
+    } finally {
+      setSavingPricing(false);
+    }
+  };
+
+  const draftPrepayAmount = useMemo(() => {
+    const full = Number(pricingDraft.fullPrice);
+    const pct = Number(pricingDraft.prepayPercent);
+    if (!Number.isFinite(full) || !Number.isFinite(pct)) return "—";
+    return Math.round((full * pct) / 100);
+  }, [pricingDraft]);
 
   const handleAddSlot = async () => {
     try {
@@ -345,6 +388,68 @@ export function AnnaAdminPage() {
               <StatCard title="Отменено" value={stats?.counts.cancelled ?? 0} accent="bg-zinc-400" delay={0.18} />
               <StatCard title="Ближайшая" value={nearestLabel} accent="bg-rose-500" delay={0.21} />
             </section>
+
+            <FadeIn delay={0.05}>
+              <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
+                <div className="mb-4 flex items-center gap-2">
+                  <Settings2 className="h-5 w-5 text-zinc-500" />
+                  <h2 className="text-lg font-semibold">Цены и предоплата</h2>
+                </div>
+                <p className="mb-4 text-sm text-zinc-500">
+                  Меняется здесь — сразу применяется в Telegram-боте для новых записей.
+                </p>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-zinc-500">
+                      Полная стоимость, ₽
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={pricingDraft.fullPrice}
+                      onChange={(e) =>
+                        setPricingDraft((s) => ({ ...s, fullPrice: e.target.value }))
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-zinc-500">
+                      Предоплата, %
+                    </label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={pricingDraft.prepayPercent}
+                      onChange={(e) =>
+                        setPricingDraft((s) => ({ ...s, prepayPercent: e.target.value }))
+                      }
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-xs font-medium text-zinc-500">
+                      Сумма предоплаты
+                    </label>
+                    <div className="flex h-10 items-center rounded-xl border border-zinc-200 bg-zinc-50 px-3 text-sm font-medium">
+                      {draftPrepayAmount} ₽
+                    </div>
+                  </div>
+                </div>
+                <Button
+                  className="mt-4 rounded-xl"
+                  onClick={handleSavePricing}
+                  disabled={savingPricing}
+                >
+                  {savingPricing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Сохранить настройки"
+                  )}
+                </Button>
+              </div>
+            </FadeIn>
 
             <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <FadeIn delay={0.1}>

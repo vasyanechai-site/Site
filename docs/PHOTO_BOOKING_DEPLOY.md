@@ -7,12 +7,12 @@
 | Secret | Значение |
 |--------|----------|
 | `PHOTO_BOOKING_BOT_TOKEN` | Токен @AnnaNechaiBot от BotFather |
-| `PHOTO_BOOKING_ADMIN_ID` | `393215352` |
-| `PHOTO_BOOKING_PHONE` | `+79817726003` |
-| `PHOTO_BOOKING_RECIPIENT_NAME` | `Анна Н.` |
-| `PHOTO_BOOKING_FULL_PRICE` | `3000` |
-| `PHOTO_BOOKING_PREPAY_PERCENT` | `50` |
-| `ANNA_ADMIN_PASSWORD` | Пароль для `/anna` (например `4321`) |
+| `PHOTO_BOOKING_ADMIN_ID` | Telegram ID администратора |
+| `PHOTO_BOOKING_PHONE` | Номер для СБП |
+| `PHOTO_BOOKING_RECIPIENT_NAME` | Имя получателя |
+| `ANNA_ADMIN_PASSWORD` | Пароль для `/anna` |
+
+**Стоимость и % предоплаты** — не в секретах. Настраиваются в админке **/anna** (блок «Цены и предоплата»).
 
 Уже должны быть: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_PATH`.
 

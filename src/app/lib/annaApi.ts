@@ -83,6 +83,21 @@ export async function updateAnnaBooking(
   });
 }
 
+export async function fetchAnnaSettings() {
+  return annaFetch("/api/anna/settings");
+}
+
+export async function updateAnnaSettings(payload: {
+  fullPrice?: number;
+  prepayPercent?: number;
+}) {
+  return annaFetch("/api/anna/settings", {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+/** @deprecated use fetchAnnaSettings */
 export async function fetchAnnaConfig() {
-  return annaFetch("/api/anna/config");
+  return fetchAnnaSettings();
 }

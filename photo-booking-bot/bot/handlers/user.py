@@ -60,29 +60,30 @@ async def choose_date(callback: CallbackQuery, db: Database) -> None:
 
 
 @router.callback_query(F.data.startswith("time:"))
-async def choose_time(callback: CallbackQuery, db: Database, settings: Settings) -> None:
+async def choose_time(callback: CallbackQuery, db: Database) -> None:
     slot_id = int(callback.data.removeprefix("time:"))
     user = callback.from_user
 
     try:
+        pricing = await db.get_pricing()
         slot = await db.reserve_slot(
             slot_id=slot_id,
             user_id=user.id,
             username=user.username,
             first_name=user.first_name,
             last_name=user.last_name,
-            prepayment_amount=settings.prepay_amount,
-            total_amount=settings.full_price,
+            prepayment_amount=pricing.prepay_amount,
+            total_amount=pricing.full_price,
         )
     except ValueError as exc:
         await callback.answer(str(exc), show_alert=True)
         return
 
-    prepay = settings.prepay_amount
-    remainder = 100 - settings.prepay_percent
+    prepay = pricing.prepay_amount
+    remainder = 100 - pricing.prepay_percent
     await callback.message.edit_text(
         "Дата забронирована. Чтобы подтвердить запись, внесите "
-        f"{settings.prepay_percent}% предоплаты.\n"
+        f"{pricing.prepay_percent}% предоплаты.\n"
         f"Остальные {remainder}% нужно будет внести в конце фотосессии.\n\n"
         f"Сумма предоплаты: {prepay} ₽\n"
         f"Выбрано: {format_slot_datetime(slot.slot_at)}",
@@ -107,9 +108,10 @@ async def pay_booking(
         await callback.answer(str(exc), show_alert=True)
         return
 
-    prepay = settings.prepay_amount
+    pricing = await db.get_pricing()
+    prepay = pricing.prepay_amount
     await callback.message.edit_text(
-        f"Отправьте {settings.prepay_percent}% предоплаты — {prepay} ₽ — по СБП на номер:\n\n"
+        f"Отправьте {pricing.prepay_percent}% предоплаты — {prepay} ₽ — по СБП на номер:\n\n"
         f"{settings.phone_display}\n\n"
         f"Получатель: {settings.recipient_name}\n\n"
         "После оплаты я свяжусь с вами для подтверждения записи."
