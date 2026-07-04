@@ -412,6 +412,21 @@ class Database:
                 slots.append(slot)
         return slots
 
+    async def count_available_future_slots(self) -> int:
+        await self.expire_stale_unpaid_slots()
+        now = now_local_dt()
+        async with await self._connect() as db:
+            async with db.execute(
+                """
+                SELECT slot_at FROM slots WHERE status = ?
+                """,
+                (SlotStatus.AVAILABLE.value,),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return sum(
+            1 for (raw,) in rows if parse_stored_datetime(raw) >= now
+        )
+
     async def reserve_slot(
         self,
         slot_id: int,

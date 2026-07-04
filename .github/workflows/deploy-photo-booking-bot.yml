@@ -75,6 +75,12 @@ jobs:
               patch_bot_env HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
             fi
 
+            ABS_DB="${{ secrets.VPS_APP_PATH }}/photo-booking-bot/data/booking.db"
+            patch_bot_env DATABASE_PATH "$ABS_DB"
+            cd ..
+            python3 server/deploy/patch_dotenv.py PHOTO_BOOKING_DB_PATH "$ABS_DB"
+            cd photo-booking-bot
+
             if ! grep -q '^BOT_TOKEN=.\+' .env; then
               echo "ERROR: BOT_TOKEN missing in photo-booking-bot/.env"
               echo "Add GitHub secret PHOTO_BOOKING_BOT_TOKEN or create .env on VPS manually"
@@ -106,6 +112,7 @@ jobs:
             cd ..
             pm2 delete photo-booking-bot 2>/dev/null || true
             pm2 start ecosystem.config.cjs --only photo-booking-bot
+            pm2 restart site-api 2>/dev/null || true
             pm2 save
             sleep 3
             pm2 logs photo-booking-bot --lines 40 --nostream || true

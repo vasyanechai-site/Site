@@ -5,7 +5,18 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DB_PATH = (BASE_DIR / "data" / "booking.db").resolve()
 load_dotenv(BASE_DIR / ".env")
+
+
+def _resolve_db_path() -> Path:
+    raw = os.getenv("DATABASE_PATH", "").strip()
+    if not raw:
+        return DEFAULT_DB_PATH
+    path = Path(raw)
+    if path.is_absolute():
+        return path.resolve()
+    return (BASE_DIR / path).resolve()
 
 
 def _require(name: str) -> str:
@@ -44,7 +55,7 @@ class Settings:
 
 
 def load_settings() -> Settings:
-    db_path = os.getenv("DATABASE_PATH", "data/booking.db").strip()
+    database_path = _resolve_db_path()
     proxy = os.getenv("HTTPS_PROXY", "").strip() or os.getenv("TELEGRAM_HTTPS_PROXY", "").strip()
 
     proxy_url = os.getenv("TELEGRAM_BOT_PROXY_URL", "").strip()
@@ -61,7 +72,7 @@ def load_settings() -> Settings:
         admin_id=_int("ADMIN_ID"),
         phone=_require("PHONE"),
         recipient_name=_require("RECIPIENT_NAME"),
-        database_path=BASE_DIR / db_path,
+        database_path=database_path,
         https_proxy=proxy or None,
         telegram_api_base=telegram_api_base,
     )

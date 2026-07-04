@@ -62,14 +62,17 @@ def parse_slot_datetime(text: str) -> datetime:
 
 def parse_stored_datetime(value: str) -> datetime:
     """Парсит slot_at из БД (локальный ISO или legacy UTC с Z)."""
-    if value.endswith("Z"):
+    cleaned = value.strip()
+    if cleaned.endswith("Z"):
         from datetime import timezone
 
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
         return dt.astimezone().replace(tzinfo=None)
-    if len(value) > 19:
-        return datetime.fromisoformat(value[:19])
-    return datetime.fromisoformat(value)
+    # SQLite / legacy: "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DDTHH:MM:SS"
+    normalized = cleaned.replace(" ", "T", 1) if " " in cleaned and "T" not in cleaned else cleaned
+    if len(normalized) > 19:
+        normalized = normalized[:19]
+    return datetime.fromisoformat(normalized)
 
 
 def now_local_iso() -> str:

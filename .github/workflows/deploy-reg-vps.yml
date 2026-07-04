@@ -107,6 +107,8 @@ jobs:
             if [ -n "${{ secrets.ANNA_ADMIN_PASSWORD }}" ]; then
               python3 server/deploy/patch_dotenv.py ANNA_ADMIN_PASSWORD "${{ secrets.ANNA_ADMIN_PASSWORD }}"
             fi
+            ABS_DB="${{ secrets.VPS_APP_PATH }}/photo-booking-bot/data/booking.db"
+            python3 server/deploy/patch_dotenv.py PHOTO_BOOKING_DB_PATH "$ABS_DB"
             rm -rf node_modules
             npm ci --omit=dev
             node --input-type=module -e "import 'cors'; import 'jose'; import 'better-sqlite3'; console.log('runtime deps ok')"
@@ -157,6 +159,8 @@ jobs:
             if [ -n "$BOT_PROXY_SECRET" ]; then
               patch_bot_env TELEGRAM_BOT_PROXY_SECRET "$BOT_PROXY_SECRET"
             fi
+            ABS_DB="${{ secrets.VPS_APP_PATH }}/photo-booking-bot/data/booking.db"
+            patch_bot_env DATABASE_PATH "$ABS_DB"
             if [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
                 patch_bot_env HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"
               elif [ -n "${{ secrets.HTTPS_PROXY }}" ]; then

@@ -39,6 +39,16 @@ async def main() -> None:
     db = Database(settings.database_path)
     await db.init()
 
+    available = await db.count_available_future_slots()
+    logger.info("Database: %s", settings.database_path)
+    logger.info("Available future slots in DB: %s", available)
+    legacy = settings.database_path.parent.parent / "booking.db"
+    if legacy.resolve() != settings.database_path.resolve() and legacy.is_file():
+        logger.warning(
+            "Legacy DB file exists (%s) — ensure DATABASE_PATH points to data/booking.db used by /anna admin",
+            legacy,
+        )
+
     bot = build_bot(settings)
     dp = Dispatcher(storage=MemoryStorage())
 
