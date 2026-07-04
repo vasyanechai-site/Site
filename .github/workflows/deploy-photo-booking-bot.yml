@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — bot-api-proxy in existing relay worker
+# trigger: 2026-07-04 — redeploy bot after relay proxy live
 
 on:
   push:
