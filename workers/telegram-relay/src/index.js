@@ -4,6 +4,7 @@
  * Два режима:
  * 1) POST / + Bearer — уведомления о заказах (sendMessage)
  * 2) /{TELEGRAM_RELAY_SECRET}/bot<token>/<method> — полный Bot API для aiogram
+ * 3) /{TELEGRAM_RELAY_SECRET}/file/bot<token>/<path> — скачивание файлов (voice, photo)
  *
  * Секреты (wrangler secret put):
  *   TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_RELAY_SECRET
@@ -61,11 +62,17 @@ export default {
     const relaySecret = String(env.TELEGRAM_RELAY_SECRET || "").trim();
     const parts = url.pathname.split("/").filter(Boolean);
 
+    const relayAuthorized =
+      parts.length >= 2 && relaySecret && timingSafeEqualString(parts[0], relaySecret);
+
     // Bot API proxy: /{secret}/bot<token>/<method>
-    if (parts.length >= 2 && parts[1]?.startsWith("bot")) {
-      if (!relaySecret || !timingSafeEqualString(parts[0], relaySecret)) {
-        return json({ ok: false, error: "unauthorized" }, 401);
-      }
+    if (relayAuthorized && parts[1]?.startsWith("bot")) {
+      const tgPath = `/${parts.slice(1).join("/")}`;
+      return proxyBotApi(request, tgPath, url.search);
+    }
+
+    // File download: /{secret}/file/bot<token>/<path> (aiogram download_file)
+    if (relayAuthorized && parts[1] === "file" && parts[2]?.startsWith("bot")) {
       const tgPath = `/${parts.slice(1).join("/")}`;
       return proxyBotApi(request, tgPath, url.search);
     }
@@ -74,8 +81,8 @@ export default {
       return json({
         ok: true,
         service: "telegram-relay",
-        features: ["order-relay", "bot-api-proxy"],
-        hint: "POST / with Bearer for orders; /{SECRET}/bot<token>/<method> for Bot API",
+        features: ["order-relay", "bot-api-proxy", "file-download-proxy"],
+        hint: "POST / with Bearer for orders; /{SECRET}/bot<token>/<method> for Bot API; /{SECRET}/file/bot<token>/<path> for files",
       });
     }
 
