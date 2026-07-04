@@ -1,6 +1,4 @@
-name: Deploy photo booking bot
-
-on:
+# trigger: 2026-07-04 — redeploy bot with CF proxy env
   push:
     branches: ["main"]
     paths:

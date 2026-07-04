@@ -31,9 +31,9 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
           secrets: |
-            TELEGRAM_BOT_PROXY_SECRET
+            TELEGRAM_RELAY_SECRET
         env:
-          TELEGRAM_BOT_PROXY_SECRET: ${{ secrets.TELEGRAM_BOT_PROXY_SECRET || secrets.TELEGRAM_RELAY_SECRET }}
+          TELEGRAM_RELAY_SECRET: ${{ secrets.TELEGRAM_RELAY_SECRET }}
 
       - name: Print VPS env hint
         run: |
