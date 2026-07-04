@@ -37,3 +37,20 @@ def channel_invite_kb(invite_url: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton(text="Вступить в канал", url=invite_url)],
         ]
     )
+
+
+def channel_renew_48h_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Продлить подписку", callback_data="ch:renew")],
+        ]
+    )
+
+
+def channel_renew_24h_kb(*, discount: bool) -> InlineKeyboardMarkup:
+    callback_data = "ch:renew:disc" if discount else "ch:renew"
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатить", callback_data=callback_data)],
+        ]
+    )

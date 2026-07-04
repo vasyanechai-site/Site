@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
 
 from bot.database import Slot
-from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_time_button
+from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_slot_datetime, format_time_button
 
 
 def start_keyboard(*, is_admin: bool = False) -> ReplyKeyboardMarkup:
@@ -82,6 +82,22 @@ def times_keyboard(
             ),
         ]
     )
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def nearest_slots_keyboard(slots: list[Slot]) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(
+                text=format_slot_datetime(slot.slot_at),
+                callback_data=f"time:{slot.id}",
+            )
+        ]
+        for slot in slots
+    ]
+    if not rows:
+        rows = [[InlineKeyboardButton(text="Нет свободных слотов", callback_data="noop")]]
+    rows.append([InlineKeyboardButton(text="Все даты", callback_data="flow:back_dates")])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 

@@ -9,7 +9,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from bot.channel_utils import InviteLinkStatus, SubscriptionStatus  # noqa: E402
+from bot.channel_utils import (
+    FULL_PRICE_MONTHS_FOR_DISCOUNT,
+    InviteLinkStatus,
+    SubscriptionStatus,
+)  # noqa: E402
 from bot.database import Database  # noqa: E402
 
 
@@ -72,6 +76,45 @@ async def run_tests() -> None:
         await db.cancel_channel_subscription(sub.id)
         sub3 = await db.get_channel_subscription_by_id(sub.id)
         assert sub3.status == SubscriptionStatus.CANCELLED
+
+        # Renewal discount eligibility
+        state0 = await db.get_channel_renewal_state(222)
+        assert db.can_offer_renewal_discount(state0)
+
+        await db.record_renewal_payment(222, amount=500, full_price=500)
+        state1 = await db.get_channel_renewal_state(222)
+        assert state1.full_price_renewals_since_discount == 1
+        assert not db.can_offer_renewal_discount(state1)
+
+        await db.record_renewal_payment(222, amount=250, full_price=500)
+        state2 = await db.get_channel_renewal_state(222)
+        assert state2.discount_ever_used
+        assert state2.full_price_renewals_since_discount == 0
+        assert not db.can_offer_renewal_discount(state2)
+
+        for _ in range(FULL_PRICE_MONTHS_FOR_DISCOUNT):
+            await db.record_renewal_payment(222, amount=500, full_price=500)
+        state3 = await db.get_channel_renewal_state(222)
+        assert db.can_offer_renewal_discount(state3)
+
+        # Pending renewal preserves paid history
+        sub_r = await db.ensure_pending_subscription(
+            telegram_user_id=333,
+            username="renew",
+            first_name="Re",
+            last_name="New",
+            amount=500,
+        )
+        sub_r = await db.confirm_channel_payment(sub_r.id)
+        pending = await db.ensure_pending_renewal(
+            telegram_user_id=333,
+            username="renew",
+            first_name="Re",
+            last_name="New",
+            amount=500,
+        )
+        assert pending.status == SubscriptionStatus.PENDING_PAYMENT
+        assert pending.paid_at is not None
 
         print("RESULT: ALL CHANNEL TESTS PASSED")
 

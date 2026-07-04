@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import logging
 
 from aiogram import Bot, Dispatcher
@@ -79,11 +80,23 @@ async def main() -> None:
     logger.info("Photo booking bot started")
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("Webhook cleared — waiting before polling")
-    await asyncio.sleep(5)
-    await dp.start_polling(
-        bot,
-        allowed_updates=["message", "callback_query", "chat_member"],
-    )
+
+    from bot.channel_renewals import renewal_reminder_loop
+
+    reminder_task = asyncio.create_task(renewal_reminder_loop(bot, db, settings))
+    logger.info("Channel renewal reminder loop started (hourly)")
+
+    try:
+        await asyncio.sleep(5)
+        await dp.start_polling(
+            bot,
+            allowed_updates=["message", "callback_query", "chat_member"],
+        )
+    finally:
+        reminder_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await reminder_task
+        await bot.session.close()
 
 
 if __name__ == "__main__":

@@ -234,6 +234,33 @@ async def run_db_scenarios(db: Database, r: TestResult) -> None:
             r.ok("Admin: нельзя удалить занятый слот")
 
 
+def test_manage_keyboard_pay_button(r: TestResult) -> None:
+    from bot.handlers.user import _manage_keyboard
+    from bot.database import Slot
+
+    now = datetime.now().replace(second=0, microsecond=0)
+    base = dict(
+        id=1,
+        slot_at=now,
+        user_id=USER_ID,
+        username="u",
+        first_name="T",
+        last_name="U",
+    )
+    for status in (SlotStatus.RESERVED, SlotStatus.AWAITING_PAYMENT):
+        kb = _manage_keyboard(Slot(**base, status=status))
+        labels = [btn.text for row in kb.inline_keyboard for btn in row]
+        if "Оплатить" not in labels:
+            r.fail("Manage keyboard pay", f"missing Оплатить for {status}")
+            return
+    prepaid_kb = _manage_keyboard(Slot(**base, status=SlotStatus.PREPAID))
+    prepaid_labels = [btn.text for row in prepaid_kb.inline_keyboard for btn in row]
+    if "Оплатить" in prepaid_labels:
+        r.fail("Manage keyboard pay", "Оплатить shown for prepaid")
+        return
+    r.ok("User: Оплатить для reserved и awaiting_payment после переноса")
+
+
 def test_callback_parsing(r: TestResult) -> None:
     p = _parse_reschedule_date("rdate:42:11.07.2026")
     if p != (42, "11.07.2026"):
@@ -261,6 +288,7 @@ def test_callback_parsing(r: TestResult) -> None:
 async def main() -> int:
     r = TestResult()
     test_callback_parsing(r)
+    test_manage_keyboard_pay_button(r)
 
     with tempfile.TemporaryDirectory() as tmp:
         db_path = Path(tmp) / "test_booking.db"

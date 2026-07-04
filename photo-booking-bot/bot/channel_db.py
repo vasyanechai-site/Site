@@ -6,10 +6,12 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from bot.channel_utils import (
+    FULL_PRICE_MONTHS_FOR_DISCOUNT,
     INVITE_EXPIRE_HOURS,
     SUBSCRIPTION_PERIOD_DAYS,
     InviteLinkStatus,
     SubscriptionStatus,
+    renewal_discounted_price,
 )
 from bot.utils import now_local_dt, now_local_iso, parse_stored_datetime
 
@@ -34,6 +36,15 @@ class ChannelSubscription:
     joined_at: datetime | None
     created_at: datetime
     updated_at: datetime
+    reminder_48h_sent_at: datetime | None = None
+    reminder_24h_sent_at: datetime | None = None
+
+
+@dataclass
+class ChannelUserRenewalState:
+    telegram_user_id: int
+    discount_ever_used: bool
+    full_price_renewals_since_discount: int
 
 
 @dataclass
@@ -104,6 +115,30 @@ class ChannelDbMixin:
                 "ALTER TABLE app_settings ADD COLUMN channel_monthly_price INTEGER DEFAULT 500"
             )
 
+        await db.execute(
+            """
+            CREATE TABLE IF NOT EXISTS channel_renewal_state (
+                telegram_user_id INTEGER PRIMARY KEY,
+                discount_ever_used INTEGER NOT NULL DEFAULT 0,
+                full_price_renewals_since_discount INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+
+        async with db.execute("PRAGMA table_info(channel_subscriptions)") as cursor:
+            sub_cols = {row[1] for row in await cursor.fetchall()}
+        if "reminder_48h_sent_at" not in sub_cols:
+            await db.execute("ALTER TABLE channel_subscriptions ADD COLUMN reminder_48h_sent_at TEXT")
+        if "reminder_24h_sent_at" not in sub_cols:
+            await db.execute("ALTER TABLE channel_subscriptions ADD COLUMN reminder_24h_sent_at TEXT")
+
+    _SUBSCRIPTION_SELECT = """
+        id, telegram_user_id, telegram_username, telegram_first_name,
+        telegram_last_name, status, amount, paid_at, starts_at, ends_at,
+        joined_at, created_at, updated_at, reminder_48h_sent_at, reminder_24h_sent_at
+    """
+
     def _row_to_subscription(self, row) -> ChannelSubscription:
         return ChannelSubscription(
             id=row[0],
@@ -119,6 +154,8 @@ class ChannelDbMixin:
             joined_at=parse_stored_datetime(row[10]) if row[10] else None,
             created_at=parse_stored_datetime(row[11]),
             updated_at=parse_stored_datetime(row[12]),
+            reminder_48h_sent_at=parse_stored_datetime(row[13]) if len(row) > 13 and row[13] else None,
+            reminder_24h_sent_at=parse_stored_datetime(row[14]) if len(row) > 14 and row[14] else None,
         )
 
     def _row_to_invite(self, row) -> ChannelInviteLink:
@@ -175,10 +212,8 @@ class ChannelDbMixin:
         await self.expire_channel_subscriptions()
         async with self._connect() as db:
             async with db.execute(
-                """
-                SELECT id, telegram_user_id, telegram_username, telegram_first_name,
-                       telegram_last_name, status, amount, paid_at, starts_at, ends_at,
-                       joined_at, created_at, updated_at
+                f"""
+                SELECT {self._SUBSCRIPTION_SELECT}
                 FROM channel_subscriptions
                 WHERE telegram_user_id = ?
                 ORDER BY id DESC LIMIT 1
@@ -234,13 +269,178 @@ class ChannelDbMixin:
                 sub_id = (await cursor.fetchone())[0]
         return await self.get_channel_subscription_by_id(sub_id)
 
-    async def get_channel_subscription_by_id(self, sub_id: int) -> ChannelSubscription:
+    async def ensure_pending_renewal(
+        self,
+        *,
+        telegram_user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+        amount: int,
+    ) -> ChannelSubscription:
+        sub = await self.get_user_channel_subscription(telegram_user_id)
+        now = now_local_iso()
+        if sub and sub.status == SubscriptionStatus.PENDING_PAYMENT:
+            if sub.amount != amount:
+                async with self._connect() as db:
+                    await db.execute(
+                        """
+                        UPDATE channel_subscriptions SET amount = ?, updated_at = ? WHERE id = ?
+                        """,
+                        (amount, now, sub.id),
+                    )
+                    await db.commit()
+                return await self.get_channel_subscription_by_id(sub.id)
+            return sub
+        if sub and sub.status in (SubscriptionStatus.ACTIVE, SubscriptionStatus.EXPIRED):
+            async with self._connect() as db:
+                await db.execute(
+                    """
+                    UPDATE channel_subscriptions
+                    SET status = ?, amount = ?, telegram_username = ?,
+                        telegram_first_name = ?, telegram_last_name = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        SubscriptionStatus.PENDING_PAYMENT.value,
+                        amount,
+                        username,
+                        first_name,
+                        last_name,
+                        now,
+                        sub.id,
+                    ),
+                )
+                await db.commit()
+            return await self.get_channel_subscription_by_id(sub.id)
+        return await self.ensure_pending_subscription(
+            telegram_user_id=telegram_user_id,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            amount=amount,
+        )
+
+    async def user_has_pending_channel_payment(self, telegram_user_id: int) -> bool:
         async with self._connect() as db:
             async with db.execute(
                 """
-                SELECT id, telegram_user_id, telegram_username, telegram_first_name,
-                       telegram_last_name, status, amount, paid_at, starts_at, ends_at,
-                       joined_at, created_at, updated_at
+                SELECT 1 FROM channel_subscriptions
+                WHERE telegram_user_id = ? AND status = ? LIMIT 1
+                """,
+                (telegram_user_id, SubscriptionStatus.PENDING_PAYMENT.value),
+            ) as cursor:
+                return (await cursor.fetchone()) is not None
+
+    async def list_subscriptions_for_reminders(self) -> list[ChannelSubscription]:
+        await self.expire_channel_subscriptions()
+        now = now_local_iso()
+        async with self._connect() as db:
+            async with db.execute(
+                f"""
+                SELECT {self._SUBSCRIPTION_SELECT}
+                FROM channel_subscriptions
+                WHERE status = ? AND ends_at IS NOT NULL AND ends_at > ?
+                ORDER BY ends_at ASC
+                """,
+                (SubscriptionStatus.ACTIVE.value, now),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [self._row_to_subscription(r) for r in rows]
+
+    async def mark_reminder_sent(self, subscription_id: int, *, kind: str) -> None:
+        column = {
+            "48h": "reminder_48h_sent_at",
+            "24h": "reminder_24h_sent_at",
+        }.get(kind)
+        if not column:
+            raise ValueError(f"Unknown reminder kind: {kind}")
+        now = now_local_iso()
+        async with self._connect() as db:
+            await db.execute(
+                f"UPDATE channel_subscriptions SET {column} = ?, updated_at = ? WHERE id = ?",
+                (now, now, subscription_id),
+            )
+            await db.commit()
+
+    async def get_channel_renewal_state(self, telegram_user_id: int) -> ChannelUserRenewalState:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT telegram_user_id, discount_ever_used, full_price_renewals_since_discount
+                FROM channel_renewal_state WHERE telegram_user_id = ?
+                """,
+                (telegram_user_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+        if not row:
+            return ChannelUserRenewalState(
+                telegram_user_id=telegram_user_id,
+                discount_ever_used=False,
+                full_price_renewals_since_discount=0,
+            )
+        return ChannelUserRenewalState(
+            telegram_user_id=row[0],
+            discount_ever_used=bool(row[1]),
+            full_price_renewals_since_discount=int(row[2]),
+        )
+
+    def can_offer_renewal_discount(self, state: ChannelUserRenewalState) -> bool:
+        if not state.discount_ever_used and state.full_price_renewals_since_discount == 0:
+            return True
+        if (
+            state.discount_ever_used
+            and state.full_price_renewals_since_discount >= FULL_PRICE_MONTHS_FOR_DISCOUNT
+        ):
+            return True
+        return False
+
+    async def record_renewal_payment(
+        self,
+        telegram_user_id: int,
+        *,
+        amount: int,
+        full_price: int,
+    ) -> None:
+        discounted = renewal_discounted_price(full_price)
+        is_discounted = amount < full_price and amount <= discounted
+        now = now_local_iso()
+        async with self._connect() as db:
+            if is_discounted:
+                await db.execute(
+                    """
+                    INSERT INTO channel_renewal_state (
+                        telegram_user_id, discount_ever_used,
+                        full_price_renewals_since_discount, updated_at
+                    ) VALUES (?, 1, 0, ?)
+                    ON CONFLICT(telegram_user_id) DO UPDATE SET
+                        discount_ever_used = 1,
+                        full_price_renewals_since_discount = 0,
+                        updated_at = excluded.updated_at
+                    """,
+                    (telegram_user_id, now),
+                )
+            else:
+                await db.execute(
+                    """
+                    INSERT INTO channel_renewal_state (
+                        telegram_user_id, discount_ever_used,
+                        full_price_renewals_since_discount, updated_at
+                    ) VALUES (?, 0, 1, ?)
+                    ON CONFLICT(telegram_user_id) DO UPDATE SET
+                        full_price_renewals_since_discount =
+                            full_price_renewals_since_discount + 1,
+                        updated_at = excluded.updated_at
+                    """,
+                    (telegram_user_id, now),
+                )
+            await db.commit()
+
+    async def get_channel_subscription_by_id(self, sub_id: int) -> ChannelSubscription:
+        async with self._connect() as db:
+            async with db.execute(
+                f"""
+                SELECT {self._SUBSCRIPTION_SELECT}
                 FROM channel_subscriptions WHERE id = ?
                 """,
                 (sub_id,),
@@ -270,7 +470,7 @@ class ChannelDbMixin:
                 """
                 UPDATE channel_subscriptions
                 SET status = ?, paid_at = ?, starts_at = ?, ends_at = ?,
-                    updated_at = ?
+                    updated_at = ?, reminder_48h_sent_at = NULL, reminder_24h_sent_at = NULL
                 WHERE id = ?
                 """,
                 (
@@ -451,9 +651,7 @@ class ChannelDbMixin:
         async with self._connect() as db:
             async with db.execute(
                 f"""
-                SELECT id, telegram_user_id, telegram_username, telegram_first_name,
-                       telegram_last_name, status, amount, paid_at, starts_at, ends_at,
-                       joined_at, created_at, updated_at
+                SELECT {self._SUBSCRIPTION_SELECT}
                 FROM channel_subscriptions {where}
                 ORDER BY id DESC LIMIT ?
                 """,

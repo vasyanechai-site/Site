@@ -12,6 +12,7 @@ from bot.states import AddSlotsState
 from bot.keyboards import (
     active_booking_keyboard,
     dates_keyboard,
+    nearest_slots_keyboard,
     payment_keyboard,
     start_keyboard,
     times_keyboard,
@@ -60,9 +61,10 @@ def _manage_keyboard(slot: Slot):
         SlotStatus.AWAITING_PAYMENT,
         SlotStatus.PREPAID,
     )
+    unpaid = slot.status in (SlotStatus.RESERVED, SlotStatus.AWAITING_PAYMENT)
     return active_booking_keyboard(
         slot.id,
-        show_pay=slot.status == SlotStatus.RESERVED,
+        show_pay=unpaid,
         show_reschedule=can_manage,
         show_cancel=can_manage,
     )
@@ -79,6 +81,17 @@ async def cmd_start(message: Message, db: Database, settings: Settings, state: F
     )
     if active:
         text += "\n\nУ вас уже есть активная запись — нажмите «Моя запись»."
+    else:
+        slots = await db.list_slots_filtered("available", limit=10)
+        if slots:
+            text += "\n\nБлижайшие свободные слоты — выберите время:"
+            await message.answer(text, reply_markup=start_keyboard(is_admin=is_admin))
+            await message.answer(
+                "Фотосессия займёт один час.",
+                reply_markup=nearest_slots_keyboard(slots),
+            )
+            return
+        text += "\n\nСейчас нет свободных слотов. Загляните позже."
     if is_admin:
         text += "\n\n⚙️ Для управления записями нажмите «Админка»."
     await message.answer(text, reply_markup=start_keyboard(is_admin=is_admin))

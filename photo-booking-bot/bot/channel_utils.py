@@ -37,6 +37,15 @@ class InviteLinkStatus(StrEnum):
 
 SUBSCRIPTION_PERIOD_DAYS = 30
 INVITE_EXPIRE_HOURS = 24
+RENEWAL_DISCOUNT_PERCENT = 50
+REMINDER_48H_HOURS = 48
+REMINDER_24H_HOURS = 24
+FULL_PRICE_MONTHS_FOR_DISCOUNT = 3
+RENEWAL_FEEDBACK_USERNAME = "anyutaporohina"
+
+
+def renewal_discounted_price(full_price: int) -> int:
+    return max(1, round(full_price * (100 - RENEWAL_DISCOUNT_PERCENT) / 100))
 
 
 def resolve_channel_id(raw: str | int) -> int:
