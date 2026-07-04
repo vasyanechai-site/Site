@@ -53,6 +53,8 @@ jobs:
             elif [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
               DERIVED_PROXY_URL=$(echo "${{ secrets.TELEGRAM_RELAY_URL }}" | sed 's/telegram-relay/telegram-bot-proxy/')
               patch_bot_env TELEGRAM_BOT_PROXY_URL "$DERIVED_PROXY_URL"
+            else
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "https://telegram-bot-proxy.coffeenechai.workers.dev"
             fi
             BOT_PROXY_SECRET="${{ secrets.TELEGRAM_BOT_PROXY_SECRET }}"
             if [ -z "$BOT_PROXY_SECRET" ]; then
@@ -90,4 +92,12 @@ jobs:
             pm2 start ecosystem.config.cjs --only photo-booking-bot
             pm2 save
             sleep 3
-            pm2 logs photo-booking-bot --lines 40 --nostream
+            pm2 logs photo-booking-bot --lines 40 --nostream || true
+            pm2 status photo-booking-bot
+            if pm2 describe photo-booking-bot 2>/dev/null | grep -q online; then
+              echo "[deploy] photo-booking-bot is online"
+            else
+              echo "[deploy] WARNING: photo-booking-bot may not be running — check pm2 logs"
+              pm2 logs photo-booking-bot --lines 80 --nostream || true
+              exit 1
+            fi

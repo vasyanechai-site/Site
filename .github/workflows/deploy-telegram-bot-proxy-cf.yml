@@ -14,6 +14,9 @@ jobs:
     defaults:
       run:
         working-directory: workers/telegram-bot-proxy
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -24,20 +27,34 @@ jobs:
       - name: Install
         run: npm install
 
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: workers/telegram-bot-proxy
-          command: deploy
-          secrets: |
-            TELEGRAM_RELAY_SECRET
+      # Сначала только код — иначе secret bulk падает, если worker ещё не создан
+      - name: Deploy Worker (code)
+        run: npx wrangler deploy
+
+      - name: Upload TELEGRAM_RELAY_SECRET
+        run: |
+          if [ -z "$TELEGRAM_RELAY_SECRET" ]; then
+            echo "TELEGRAM_RELAY_SECRET not set — worker will reject requests until secret is uploaded"
+            exit 0
+          fi
+          printf '%s' "$TELEGRAM_RELAY_SECRET" | npx wrangler secret put TELEGRAM_RELAY_SECRET
         env:
           TELEGRAM_RELAY_SECRET: ${{ secrets.TELEGRAM_RELAY_SECRET }}
 
+      - name: Verify worker health
+        run: |
+          URL="https://telegram-bot-proxy.coffeenechai.workers.dev/"
+          for i in 1 2 3 4 5; do
+            if curl -fsS "$URL" | grep -q telegram-bot-proxy; then
+              echo "Worker OK: $URL"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "Worker not responding yet at $URL (may need custom subdomain propagation)"
+          curl -sS "$URL" || true
+
       - name: Print VPS env hint
         run: |
-          echo "В GitHub Secrets (Deploy photo booking bot / Deploy to Reg VPS):"
-          echo "TELEGRAM_BOT_PROXY_URL=https://telegram-bot-proxy.<account>.workers.dev"
-          echo "TELEGRAM_BOT_PROXY_SECRET=(тот же секрет, можно не задавать если есть TELEGRAM_RELAY_SECRET)"
+          echo "Bot .env (auto on deploy): TELEGRAM_BOT_PROXY_URL=https://telegram-bot-proxy.coffeenechai.workers.dev"
+          echo "TELEGRAM_BOT_PROXY_SECRET = TELEGRAM_RELAY_SECRET (same GitHub secret)"
