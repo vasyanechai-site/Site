@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — redeploy bot after relay proxy live
+# trigger: 2026-07-04 — fix broken .venv on VPS deploy
 
 on:
   push:
@@ -80,11 +80,12 @@ jobs:
               exit 1
             fi
 
-            if [ ! -d .venv ]; then
+            if [ ! -f .venv/bin/python ]; then
+              echo "[deploy] creating photo-booking-bot venv (missing or broken .venv)"
+              rm -rf .venv
               python3 -m venv .venv
             fi
-            . .venv/bin/activate
-            pip install -q -r requirements.txt
+            .venv/bin/pip install -q -r requirements.txt
 
             cd ..
             pm2 delete photo-booking-bot 2>/dev/null || true

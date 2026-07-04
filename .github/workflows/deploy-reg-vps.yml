@@ -163,9 +163,12 @@ jobs:
                 patch_bot_env HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
               fi
               if grep -q '^BOT_TOKEN=.\+' .env; then
-                if [ ! -d .venv ]; then python3 -m venv .venv; fi
-                . .venv/bin/activate
-                pip install -q -r requirements.txt
+                if [ ! -f .venv/bin/python ]; then
+                  echo "[deploy] creating photo-booking-bot venv (missing or broken .venv)"
+                  rm -rf .venv
+                  python3 -m venv .venv
+                fi
+                .venv/bin/pip install -q -r requirements.txt
                 cd ..
                 pm2 delete photo-booking-bot 2>/dev/null || true
                 pm2 start ecosystem.config.cjs --only photo-booking-bot
