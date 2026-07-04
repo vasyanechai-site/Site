@@ -8,7 +8,10 @@ from bot.utils import (
     BookingStatus,
     SlotStatus,
     format_slot_datetime,
+    now_local_iso,
     parse_slot_datetime,
+    parse_stored_datetime,
+    slot_to_iso,
 )
 
 
@@ -121,8 +124,16 @@ class Database:
             )
             await self._migrate_columns(db)
             await self._migrate_legacy_bookings(db)
+            await self._normalize_utc_slot_timestamps(db)
             await self._ensure_pricing_defaults(db)
             await db.commit()
+
+    async def _normalize_utc_slot_timestamps(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("SELECT id, slot_at FROM slots WHERE slot_at LIKE '%Z'") as cursor:
+            rows = await cursor.fetchall()
+        for row_id, slot_at in rows:
+            local_iso = slot_to_iso(parse_stored_datetime(slot_at))
+            await db.execute("UPDATE slots SET slot_at = ? WHERE id = ?", (local_iso, row_id))
 
     async def _ensure_pricing_defaults(self, db: aiosqlite.Connection) -> None:
         now = datetime.now().isoformat()
@@ -200,14 +211,14 @@ class Database:
     def _row_to_slot(self, row) -> Slot:
         return Slot(
             id=row[0],
-            slot_at=datetime.fromisoformat(row[1]),
+            slot_at=parse_stored_datetime(row[1]),
             status=SlotStatus(row[2]),
             user_id=row[3],
             username=row[4],
             first_name=row[5],
             last_name=row[6],
-            created_at=datetime.fromisoformat(row[7]) if len(row) > 7 and row[7] else None,
-            updated_at=datetime.fromisoformat(row[8]) if len(row) > 8 and row[8] else None,
+            created_at=parse_stored_datetime(row[7]) if len(row) > 7 and row[7] else None,
+            updated_at=parse_stored_datetime(row[8]) if len(row) > 8 and row[8] else None,
         )
 
     async def _create_booking(
@@ -247,7 +258,7 @@ class Database:
         return cursor.lastrowid
 
     async def add_slot(self, slot_at: datetime) -> None:
-        iso = slot_at.isoformat()
+        iso = slot_to_iso(slot_at)
         now = datetime.now().isoformat()
         async with await self._connect() as db:
             try:
@@ -278,7 +289,7 @@ class Database:
                 return self._row_to_slot(row) if row else None
 
     async def list_future_slots(self) -> list[Slot]:
-        now_iso = datetime.now().replace(second=0, microsecond=0).isoformat()
+        now_iso = now_local_iso()
         async with await self._connect() as db:
             async with db.execute(
                 """
@@ -294,7 +305,7 @@ class Database:
                 return [self._row_to_slot(row) for row in rows]
 
     async def list_available_dates(self) -> list[datetime]:
-        now_iso = datetime.now().replace(second=0, microsecond=0).isoformat()
+        now_iso = now_local_iso()
         async with await self._connect() as db:
             async with db.execute(
                 """
@@ -310,7 +321,7 @@ class Database:
 
     async def list_available_times_for_date(self, date: datetime) -> list[Slot]:
         day = date.date().isoformat()
-        now_iso = datetime.now().replace(second=0, microsecond=0).isoformat()
+        now_iso = now_local_iso()
         async with await self._connect() as db:
             async with db.execute(
                 """
@@ -472,6 +483,148 @@ class Database:
             raise ValueError("Слот не найден.")
         return slot
 
+    _ACTIVE_SLOT_STATUSES = (
+        SlotStatus.RESERVED.value,
+        SlotStatus.AWAITING_PAYMENT.value,
+        SlotStatus.PREPAID.value,
+    )
+
+    async def get_user_active_slot(self, user_id: int) -> Slot | None:
+        now_iso = now_local_iso()
+        placeholders = ", ".join("?" for _ in self._ACTIVE_SLOT_STATUSES)
+        async with await self._connect() as db:
+            async with db.execute(
+                f"""
+                SELECT id, slot_at, status, user_id, username, first_name, last_name,
+                       created_at, updated_at
+                FROM slots
+                WHERE user_id = ? AND status IN ({placeholders}) AND slot_at >= ?
+                ORDER BY slot_at
+                LIMIT 1
+                """,
+                (user_id, *self._ACTIVE_SLOT_STATUSES, now_iso),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return self._row_to_slot(row) if row else None
+
+    async def reschedule_booking(
+        self,
+        old_slot_id: int,
+        new_slot_id: int,
+        user_id: int,
+        username: str | None,
+        first_name: str | None,
+        last_name: str | None,
+    ) -> Slot:
+        if old_slot_id == new_slot_id:
+            raise ValueError("Выберите другое время.")
+
+        pricing = await self.get_pricing()
+        now = datetime.now().isoformat()
+        async with await self._connect() as db:
+            async with db.execute(
+                "SELECT status, user_id FROM slots WHERE id = ?",
+                (old_slot_id,),
+            ) as cursor:
+                old_row = await cursor.fetchone()
+            if not old_row or old_row[1] != user_id:
+                raise ValueError("Запись не найдена.")
+            old_status = old_row[0]
+            if old_status not in self._ACTIVE_SLOT_STATUSES:
+                raise ValueError("Эту запись нельзя перенести.")
+
+            async with db.execute(
+                """
+                SELECT prepayment_amount, total_amount FROM bookings
+                WHERE slot_id = ? AND status != ?
+                ORDER BY updated_at DESC LIMIT 1
+                """,
+                (old_slot_id, BookingStatus.CANCELLED.value),
+            ) as cursor:
+                booking_row = await cursor.fetchone()
+            prepayment = int(booking_row[0]) if booking_row else pricing.prepay_amount
+            total = int(booking_row[1]) if booking_row else pricing.full_price
+
+            async with db.execute(
+                "SELECT status FROM slots WHERE id = ?",
+                (new_slot_id,),
+            ) as cursor:
+                new_row = await cursor.fetchone()
+            if not new_row:
+                raise ValueError("Слот не найден.")
+            if new_row[0] != SlotStatus.AVAILABLE.value:
+                raise ValueError("Это время уже занято.")
+
+            await db.execute(
+                """
+                UPDATE slots
+                SET status = ?, user_id = NULL, username = NULL, first_name = NULL,
+                    last_name = NULL, booked_at = NULL, updated_at = ?
+                WHERE id = ? AND user_id = ?
+                """,
+                (SlotStatus.AVAILABLE.value, now, old_slot_id, user_id),
+            )
+            await db.execute(
+                """
+                UPDATE bookings
+                SET status = ?, updated_at = ?
+                WHERE slot_id = ? AND status != ?
+                """,
+                (BookingStatus.CANCELLED.value, now, old_slot_id, BookingStatus.CANCELLED.value),
+            )
+
+            new_slot_status = SlotStatus.RESERVED.value
+            if old_status == SlotStatus.AWAITING_PAYMENT.value:
+                new_slot_status = SlotStatus.AWAITING_PAYMENT.value
+            elif old_status == SlotStatus.PREPAID.value:
+                new_slot_status = SlotStatus.PREPAID.value
+
+            await db.execute(
+                """
+                UPDATE slots
+                SET status = ?, user_id = ?, username = ?, first_name = ?, last_name = ?,
+                    booked_at = ?, updated_at = ?
+                WHERE id = ? AND status = ?
+                """,
+                (
+                    new_slot_status,
+                    user_id,
+                    username,
+                    first_name,
+                    last_name,
+                    now,
+                    now,
+                    new_slot_id,
+                    SlotStatus.AVAILABLE.value,
+                ),
+            )
+            if db.total_changes == 0:
+                raise ValueError("Не удалось забронировать новое время.")
+
+            booking_status = BookingStatus.RESERVED
+            if new_slot_status == SlotStatus.AWAITING_PAYMENT.value:
+                booking_status = BookingStatus.AWAITING_PAYMENT
+            elif new_slot_status == SlotStatus.PREPAID.value:
+                booking_status = BookingStatus.PREPAID
+
+            await self._create_booking(
+                db,
+                new_slot_id,
+                user_id,
+                username,
+                first_name,
+                last_name,
+                booking_status,
+                prepayment,
+                total,
+            )
+            await db.commit()
+
+        slot = await self.get_slot(new_slot_id)
+        if not slot:
+            raise ValueError("Слот не найден.")
+        return slot
+
     async def delete_slot(self, slot_id: int) -> None:
         async with await self._connect() as db:
             async with db.execute(
@@ -488,7 +641,7 @@ class Database:
             await db.commit()
 
     async def list_awaiting_payment(self) -> list[Slot]:
-        now_iso = datetime.now().replace(second=0, microsecond=0).isoformat()
+        now_iso = now_local_iso()
         async with await self._connect() as db:
             async with db.execute(
                 """

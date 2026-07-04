@@ -60,6 +60,26 @@ def parse_slot_datetime(text: str) -> datetime:
     return datetime.strptime(cleaned, SLOT_DATETIME_FORMAT)
 
 
+def parse_stored_datetime(value: str) -> datetime:
+    """Парсит slot_at из БД (локальный ISO или legacy UTC с Z)."""
+    if value.endswith("Z"):
+        from datetime import timezone
+
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return dt.astimezone().replace(tzinfo=None)
+    if len(value) > 19:
+        return datetime.fromisoformat(value[:19])
+    return datetime.fromisoformat(value)
+
+
+def now_local_iso() -> str:
+    return datetime.now().replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def slot_to_iso(dt: datetime) -> str:
+    return dt.replace(second=0, microsecond=0).strftime("%Y-%m-%dT%H:%M:%S")
+
+
 def format_slot_datetime(dt: datetime) -> str:
     return dt.strftime(SLOT_DATETIME_FORMAT)
 

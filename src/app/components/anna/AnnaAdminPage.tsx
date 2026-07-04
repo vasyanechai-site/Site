@@ -37,6 +37,19 @@ import {
   updateAnnaSettings,
 } from "../../lib/annaApi";
 import {
+  dateDigitsToApi,
+  formatDateDisplay,
+  formatTimeDisplay,
+  normalizeBulkSlotText,
+  parseDateDigits,
+  parseTimeDigits,
+  timeDigitsToApi,
+  validateBulkSlotText,
+  validateDateDigits,
+  validateFutureSlot,
+  validateTimeDigits,
+} from "../../lib/datetimeMask";
+import {
   AnnaBooking,
   AnnaSlot,
   AnnaStats,
@@ -58,18 +71,15 @@ function StatusBadge({ status, label }: { status: string; label: string }) {
 function StatCard({
   title,
   value,
-  accent,
   delay,
 }: {
   title: string;
   value: number | string;
-  accent: string;
   delay: number;
 }) {
   return (
     <FadeIn delay={delay} duration={0.35} yOffset={12}>
-      <div className="group relative overflow-hidden rounded-2xl border border-black/5 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
-        <div className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
+      <div className="group rounded-2xl border border-black/5 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
         <p className="text-sm text-zinc-500">{title}</p>
         <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900">{value}</p>
       </div>
@@ -194,8 +204,8 @@ function AnnaAdminPageInner() {
   const [pricing, setPricing] = useState({ fullPrice: 3000, prepayPercent: 50, prepayAmount: 1500 });
   const [pricingDraft, setPricingDraft] = useState({ fullPrice: "3000", prepayPercent: "50" });
   const [savingPricing, setSavingPricing] = useState(false);
-  const [slotDate, setSlotDate] = useState("");
-  const [slotTime, setSlotTime] = useState("");
+  const [slotDateDigits, setSlotDateDigits] = useState("");
+  const [slotTimeDigits, setSlotTimeDigits] = useState("");
   const [bulkText, setBulkText] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -340,11 +350,20 @@ function AnnaAdminPageInner() {
   }, [pricingDraft]);
 
   const handleAddSlot = async () => {
+    const dateErr = validateDateDigits(slotDateDigits);
+    const timeErr = validateTimeDigits(slotTimeDigits);
+    const futureErr =
+      !dateErr && !timeErr ? validateFutureSlot(slotDateDigits, slotTimeDigits) : null;
+    if (dateErr || timeErr || futureErr) {
+      toast.error(dateErr || timeErr || futureErr);
+      return;
+    }
+
     try {
-      await createAnnaSlot(slotDate, slotTime);
+      await createAnnaSlot(dateDigitsToApi(slotDateDigits), timeDigitsToApi(slotTimeDigits));
       toast.success("Слот добавлен");
-      setSlotDate("");
-      setSlotTime("");
+      setSlotDateDigits("");
+      setSlotTimeDigits("");
       loadAll(true);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Ошибка");
@@ -352,8 +371,16 @@ function AnnaAdminPageInner() {
   };
 
   const handleBulk = async () => {
+    const normalized = normalizeBulkSlotText(bulkText);
+    const bulkErr = validateBulkSlotText(normalized);
+    if (bulkErr) {
+      toast.error(bulkErr);
+      setBulkText(normalized);
+      return;
+    }
+
     try {
-      const res = await createAnnaSlotsBulk(bulkText);
+      const res = await createAnnaSlotsBulk(normalized);
       toast.success(`Добавлено: ${res.added}`);
       if (res.errors?.length) toast.warning(`Ошибок: ${res.errors.length}`);
       setBulkText("");
@@ -449,14 +476,14 @@ function AnnaAdminPageInner() {
         ) : (
           <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-              <StatCard title="Будущие слоты" value={stats?.counts.totalFuture ?? 0} accent="bg-zinc-900" delay={0} />
-              <StatCard title="Свободные" value={stats?.counts.available ?? 0} accent="bg-emerald-500" delay={0.03} />
-              <StatCard title="Забронированы" value={stats?.counts.reserved ?? 0} accent="bg-amber-500" delay={0.06} />
-              <StatCard title="Ждут оплату" value={stats?.counts.awaiting_payment ?? 0} accent="bg-orange-500" delay={0.09} />
-              <StatCard title="Предоплата" value={stats?.counts.prepaid ?? 0} accent="bg-sky-500" delay={0.12} />
-              <StatCard title="Оплачено" value={stats?.counts.paid_full ?? 0} accent="bg-violet-500" delay={0.15} />
-              <StatCard title="Отменено" value={stats?.counts.cancelled ?? 0} accent="bg-zinc-400" delay={0.18} />
-              <StatCard title="Ближайшая" value={nearestLabel} accent="bg-rose-500" delay={0.21} />
+              <StatCard title="Будущие слоты" value={stats?.counts.totalFuture ?? 0} delay={0} />
+              <StatCard title="Свободные" value={stats?.counts.available ?? 0} delay={0.03} />
+              <StatCard title="Забронированы" value={stats?.counts.reserved ?? 0} delay={0.06} />
+              <StatCard title="Ждут оплату" value={stats?.counts.awaiting_payment ?? 0} delay={0.09} />
+              <StatCard title="Предоплата" value={stats?.counts.prepaid ?? 0} delay={0.12} />
+              <StatCard title="Оплачено" value={stats?.counts.paid_full ?? 0} delay={0.15} />
+              <StatCard title="Отменено" value={stats?.counts.cancelled ?? 0} delay={0.18} />
+              <StatCard title="Ближайшая" value={nearestLabel} delay={0.21} />
             </section>
 
             <FadeIn delay={0.05}>
@@ -642,17 +669,24 @@ function AnnaAdminPageInner() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Input
                       placeholder="ДД.ММ.ГГГГ"
-                      value={slotDate}
-                      onChange={(e) => setSlotDate(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={formatDateDisplay(slotDateDigits)}
+                      onChange={(e) => setSlotDateDigits(parseDateDigits(e.target.value))}
                       className="rounded-xl"
                     />
                     <Input
                       placeholder="ЧЧ:ММ"
-                      value={slotTime}
-                      onChange={(e) => setSlotTime(e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      value={formatTimeDisplay(slotTimeDigits)}
+                      onChange={(e) => setSlotTimeDigits(parseTimeDigits(e.target.value))}
                       className="rounded-xl"
                     />
                   </div>
+                  <p className="mt-2 text-xs text-zinc-500">
+                    Можно вводить только цифры — точки и двоеточие подставятся сами
+                  </p>
                   <Button className="mt-3 rounded-xl" onClick={handleAddSlot}>
                     Сохранить слот
                   </Button>
@@ -662,11 +696,15 @@ function AnnaAdminPageInner() {
                 <div className="rounded-3xl border border-black/5 bg-white p-6 shadow-sm">
                   <h2 className="mb-4 text-lg font-semibold">Массовое добавление</h2>
                   <Textarea
-                    placeholder={"23.07.2026 17:00\n23.07.2026 19:00"}
+                    placeholder={"230720261700\n230720261900"}
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
+                    onBlur={() => setBulkText(normalizeBulkSlotText(bulkText))}
                     className="min-h-[120px] rounded-xl"
                   />
+                  <p className="mt-2 text-xs text-zinc-500">
+                    По одному слоту на строку — 12 цифр подряд (дата + время) или ДД.ММ.ГГГГ ЧЧ:ММ
+                  </p>
                   <Button className="mt-3 rounded-xl" variant="outline" onClick={handleBulk}>
                     Добавить список
                   </Button>

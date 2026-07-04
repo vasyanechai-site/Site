@@ -105,6 +105,8 @@ function ensureSchema(db) {
     db.exec("ALTER TABLE slots ADD COLUMN updated_at TEXT");
     db.prepare("UPDATE slots SET updated_at = ? WHERE updated_at IS NULL").run(now);
   }
+
+  normalizeUtcSlotTimestamps(db);
 }
 
 function getPricing(db) {
@@ -137,11 +139,39 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/** Локальное время сервера без UTC-сдвига — как в Python-боте. */
+function slotToLocalIso(dt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:00`;
+}
+
+function normalizeUtcSlotTimestamps(db) {
+  const rows = db.prepare("SELECT id, slot_at FROM slots WHERE slot_at LIKE '%Z'").all();
+  for (const row of rows) {
+    const localIso = slotToLocalIso(new Date(row.slot_at));
+    db.prepare("UPDATE slots SET slot_at = ? WHERE id = ?").run(localIso, row.id);
+  }
+}
+
 function parseSlotDatetime(text) {
   const cleaned = String(text).trim().replace(/\s+/g, " ");
-  const match = cleaned.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
+  let match = cleaned.match(/^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/);
   if (!match) {
-    throw new Error("Формат: ДД.ММ.ГГГГ ЧЧ:ММ");
+    const digits = cleaned.replace(/\D/g, "");
+    if (digits.length >= 12) {
+      const d = digits.slice(0, 12);
+      match = [
+        null,
+        d.slice(0, 2),
+        d.slice(2, 4),
+        d.slice(4, 8),
+        d.slice(8, 10),
+        d.slice(10, 12),
+      ];
+    }
+  }
+  if (!match) {
+    throw new Error("Формат: ДД.ММ.ГГГГ ЧЧ:ММ или 12 цифр подряд");
   }
   const [, dd, mm, yyyy, hh, min] = match;
   const dt = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0, 0);
@@ -375,7 +405,7 @@ export function registerPhotoBookingRoutes(app) {
       if (dt <= new Date()) throw new Error("Слот должен быть в будущем");
 
       const db = getDb();
-      const iso = dt.toISOString();
+      const iso = slotToLocalIso(dt);
       const now = nowIso();
       try {
         db.prepare(
@@ -408,7 +438,7 @@ export function registerPhotoBookingRoutes(app) {
       try {
         const dt = parseSlotDatetime(line);
         if (dt <= new Date()) throw new Error("Слот должен быть в будущем");
-        const iso = dt.toISOString();
+        const iso = slotToLocalIso(dt);
         const now = nowIso();
         insert.run(iso, now, now);
         added.push(iso);
