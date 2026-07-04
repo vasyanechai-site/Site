@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DB_PATH = (BASE_DIR / "data" / "booking.db").resolve()
-load_dotenv(BASE_DIR / ".env")
+load_dotenv(BASE_DIR / ".env", override=False)
 
 
 def _resolve_db_path() -> Path:

@@ -77,6 +77,16 @@ jobs:
 
             ABS_DB="${{ secrets.VPS_APP_PATH }}/photo-booking-bot/data/booking.db"
             patch_bot_env DATABASE_PATH "$ABS_DB"
+            mkdir -p "$(dirname "$ABS_DB")"
+            for LEGACY in \
+              "${{ secrets.VPS_APP_PATH }}/photo-booking-bot/booking.db" \
+              "${{ secrets.VPS_APP_PATH }}/booking.db"; do
+              if [ -f "$LEGACY" ] && [ "$LEGACY" != "$ABS_DB" ]; then
+                echo "[deploy] merge available slots from $LEGACY"
+                sqlite3 "$ABS_DB" "ATTACH DATABASE '$LEGACY' AS leg; INSERT OR IGNORE INTO main.slots (slot_at, status, created_at, updated_at) SELECT slot_at, status, COALESCE(created_at, datetime('now')), COALESCE(updated_at, datetime('now')) FROM leg.slots WHERE status='available'; DETACH leg;" 2>/dev/null || true
+              fi
+            done
+            sqlite3 "$ABS_DB" "SELECT status, COUNT(*) FROM slots GROUP BY status;" 2>/dev/null || true
             cd ..
             python3 server/deploy/patch_dotenv.py PHOTO_BOOKING_DB_PATH "$ABS_DB"
             cd photo-booking-bot
@@ -111,10 +121,16 @@ jobs:
 
             cd ..
             pm2 delete photo-booking-bot 2>/dev/null || true
-            pm2 start ecosystem.config.cjs --only photo-booking-bot
-            pm2 restart site-api 2>/dev/null || true
+            pm2 delete site-api 2>/dev/null || true
+            pm2 start ecosystem.config.cjs
             pm2 save
-            sleep 3
+            sleep 4
+            echo "[deploy] DB paths in PM2 env:"
+            pm2 env photo-booking-bot 2>/dev/null | grep DATABASE_PATH || true
+            pm2 env site-api 2>/dev/null | grep PHOTO_BOOKING_DB_PATH || true
+            cd photo-booking-bot
+            .venv/bin/python scripts/check_db.py || true
+            cd ..
             pm2 logs photo-booking-bot --lines 40 --nostream || true
             pm2 status photo-booking-bot || true
             if pm2 describe photo-booking-bot 2>/dev/null | grep -q online; then

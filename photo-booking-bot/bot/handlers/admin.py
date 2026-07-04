@@ -20,6 +20,27 @@ def admin_only_message(message: Message, settings: Settings) -> bool:
     return False
 
 
+@router.message(Command("dbcheck"))
+async def db_check(message: Message, db: Database, settings: Settings) -> None:
+    if not admin_only_message(message, settings):
+        return
+
+    from bot.config import load_settings
+
+    s = load_settings()
+    available = await db.count_available_future_slots()
+    dates = await db.list_available_dates()
+    lines = [
+        f"DB: {s.database_path}",
+        f"Файл: {'есть' if s.database_path.is_file() else 'нет'}",
+        f"Свободных слотов: {available}",
+        f"Дат с слотами: {len(dates)}",
+    ]
+    if dates:
+        lines.append("Даты: " + ", ".join(d.strftime("%d.%m.%Y") for d in dates[:5]))
+    await message.answer("\n".join(lines))
+
+
 @router.message(Command("addslot"))
 async def add_slot(message: Message, db: Database, settings: Settings) -> None:
     if not admin_only_message(message, settings):
