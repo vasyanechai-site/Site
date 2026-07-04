@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — read relay secret from site-api .env on VPS
+# trigger: 2026-07-04 — auto-install python3-venv on VPS if missing
 
 on:
   push:
@@ -86,12 +86,19 @@ jobs:
               exit 1
             fi
 
-            if [ ! -x .venv/bin/python ] || ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+            PYVER=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+            _venv_ok() {
+              [ -x .venv/bin/python ] && .venv/bin/python -m pip --version >/dev/null 2>&1
+            }
+            if ! _venv_ok; then
               echo "[deploy] creating photo-booking-bot venv (missing or broken .venv)"
               rm -rf .venv
-              if ! python3 -m venv .venv; then
-                echo "ERROR: python3 -m venv failed — on VPS run: apt install python3-venv"
-                exit 1
+              if ! python3 -m venv .venv 2>/dev/null || ! _venv_ok; then
+                echo "[deploy] python3-venv missing — installing python${PYVER}-venv"
+                sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "python${PYVER}-venv" python3-venv
+                rm -rf .venv
+                python3 -m venv .venv
               fi
             fi
             .venv/bin/python -m pip install -q -r requirements.txt
