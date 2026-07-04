@@ -48,6 +48,19 @@ def renewal_discounted_price(full_price: int) -> int:
     return max(1, round(full_price * (100 - RENEWAL_DISCOUNT_PERCENT) / 100))
 
 
+def channel_payment_skips_invite(sub, *, now=None) -> bool:
+    """Invite is skipped only when extending before expiry for a user already in the channel."""
+    from bot.utils import now_local_dt
+
+    now = now or now_local_dt()
+    return (
+        sub.joined_at is not None
+        and sub.paid_at is not None
+        and sub.ends_at is not None
+        and sub.ends_at > now
+    )
+
+
 def resolve_channel_id(raw: str | int) -> int:
     """393215352 → -100393215352 for supergroup/channel."""
     cid = int(raw)

@@ -39,6 +39,42 @@ async def create_personal_invite(
     )
 
 
+async def issue_channel_invite(
+    bot: Bot,
+    db: Database,
+    settings: Settings,
+    subscription: ChannelSubscription,
+) -> ChannelInviteLink:
+    pending = await db.get_pending_invite_for_user(subscription.telegram_user_id)
+    if pending and pending.subscription_id == subscription.id:
+        return pending
+    return await create_personal_invite(bot, db, settings, subscription)
+
+
+async def deliver_channel_invite(
+    bot: Bot,
+    db: Database,
+    settings: Settings,
+    subscription: ChannelSubscription,
+    *,
+    renewed: bool = False,
+) -> ChannelInviteLink:
+    invite = await issue_channel_invite(bot, db, settings, subscription)
+    try:
+        await send_invite_to_user(
+            bot,
+            subscription.telegram_user_id,
+            invite.invite_link,
+            renewed=renewed,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to send invite DM to user %s (link still in inline button)",
+            subscription.telegram_user_id,
+        )
+    return invite
+
+
 async def send_invite_to_user(
     bot: Bot,
     user_id: int,

@@ -1,12 +1,13 @@
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery, Message
 
+import logging
+
 from bot.channel_service import (
-    create_personal_invite,
+    deliver_channel_invite,
     notify_admin_channel_paid,
-    send_invite_to_user,
 )
-from bot.channel_utils import SubscriptionStatus, renewal_discounted_price
+from bot.channel_utils import SubscriptionStatus, channel_payment_skips_invite, renewal_discounted_price
 from bot.config import Settings
 from bot.database import Database
 from bot.keyboards.channel_kb import (
@@ -15,9 +16,10 @@ from bot.keyboards.channel_kb import (
     channel_invite_kb,
     channel_payment_kb,
 )
-from bot.utils import format_phone_display, now_local_dt
+from bot.utils import format_phone_display
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 def _intro_text(price: int) -> str:
@@ -81,15 +83,30 @@ async def _start_channel_payment(
 
 
 @router.message(F.text == "Закрытый канал")
-async def channel_entry(message: Message, db: Database, settings: Settings) -> None:
+async def channel_entry(message: Message, bot: Bot, db: Database, settings: Settings) -> None:
     user = message.from_user
     ch_settings = await db.get_channel_settings()
     sub = await db.get_user_channel_subscription(user.id)
 
     if sub and db.subscription_is_active(sub):
+        if sub.joined_at:
+            await message.answer(
+                "У вас уже есть активный доступ к закрытому каналу.",
+                reply_markup=channel_active_kb(settings.closed_channel_id),
+            )
+            return
+        try:
+            invite = await deliver_channel_invite(bot, db, settings, sub, renewed=True)
+        except Exception:
+            logger.exception("Failed to deliver invite for user %s", user.id)
+            await message.answer(
+                "Оплата получена, но не удалось создать ссылку для входа.\n"
+                "Напишите администратору."
+            )
+            return
         await message.answer(
-            "У вас уже есть активный доступ к закрытому каналу.",
-            reply_markup=channel_active_kb(settings.closed_channel_id),
+            "Оплата получена. Вступите в канал по вашей персональной ссылке:",
+            reply_markup=channel_invite_kb(invite.invite_link),
         )
         return
 
@@ -152,13 +169,12 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
         return
 
     ch_settings = await db.get_channel_settings()
-    is_renewal = sub.paid_at is not None and sub.starts_at is not None
-    extend = bool(
-        is_renewal and sub.ends_at and sub.ends_at > now_local_dt()
-    )
+    sub_before = sub
+    extend = channel_payment_skips_invite(sub_before)
+    is_repeat_payment = sub_before.paid_at is not None
 
     sub = await db.confirm_channel_payment(sub.id, extend=extend)
-    if is_renewal:
+    if is_repeat_payment:
         await db.record_renewal_payment(
             user.id,
             amount=sub.amount,
@@ -167,7 +183,7 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
 
     await notify_admin_channel_paid(bot, settings, user, sub)
 
-    if is_renewal:
+    if channel_payment_skips_invite(sub_before):
         await callback.message.edit_text(
             "Спасибо! Подписка продлена.\n\n"
             f"Доступ сохранён до {sub.ends_at.strftime('%d.%m.%Y') if sub.ends_at else '—'}.",
@@ -177,11 +193,12 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
         return
 
     try:
-        invite = await create_personal_invite(bot, db, settings, sub)
+        invite = await deliver_channel_invite(bot, db, settings, sub)
     except Exception as exc:
+        logger.exception("Invite creation failed for user %s", user.id)
         await callback.message.edit_text(
             f"Оплата зафиксирована, но не удалось создать invite-ссылку: {exc}\n"
-            "Напишите администратору."
+            "Напишите «Закрытый канал» ещё раз или обратитесь к администратору."
         )
         await callback.answer()
         return
@@ -191,5 +208,4 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
         "Персональная ссылка действует 24 часа и только для вас:",
         reply_markup=channel_invite_kb(invite.invite_link),
     )
-    await send_invite_to_user(bot, user.id, invite.invite_link)
     await callback.answer("Ссылка отправлена")

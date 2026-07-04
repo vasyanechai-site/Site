@@ -116,6 +116,17 @@ async def run_tests() -> None:
         assert pending.status == SubscriptionStatus.PENDING_PAYMENT
         assert pending.paid_at is not None
 
+        from bot.channel_utils import channel_payment_skips_invite
+        from bot.utils import now_local_dt
+
+        sub_paid = await db.confirm_channel_payment(pending.id)
+        assert sub_paid.status == SubscriptionStatus.ACTIVE
+        assert not channel_payment_skips_invite(pending)
+
+        sub_joined = await db.get_channel_subscription_by_id(sub_paid.id)
+        sub_joined.joined_at = now_local_dt()
+        assert channel_payment_skips_invite(sub_joined)
+
         print("RESULT: ALL CHANNEL TESTS PASSED")
 
 
