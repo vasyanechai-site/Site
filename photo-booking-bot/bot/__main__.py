@@ -10,6 +10,7 @@ from bot.config import load_settings
 from bot.database import Database
 from bot.handlers import admin, user
 from bot.middleware import InjectMiddleware
+from bot.single_instance import acquire_single_instance_lock
 
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +37,7 @@ def build_bot(settings) -> Bot:
 
 async def main() -> None:
     settings = load_settings()
+    acquire_single_instance_lock(settings.database_path.parent)
     db = Database(settings.database_path)
     await db.init()
 
