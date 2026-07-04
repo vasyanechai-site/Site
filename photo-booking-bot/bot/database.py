@@ -6,6 +6,7 @@ from typing import Literal
 
 import aiosqlite
 
+from bot.channel_db import ChannelDbMixin
 from bot.utils import (
     BookingStatus,
     SlotStatus,
@@ -78,7 +79,7 @@ class Pricing:
         return round(self.full_price * self.prepay_percent / 100)
 
 
-class Database:
+class Database(ChannelDbMixin):
     def __init__(self, path: Path):
         self.path = path
 
@@ -148,6 +149,7 @@ class Database:
             )
             await self._migrate_columns(db)
             await self._migrate_app_settings(db)
+            await self._init_channel_schema(db)
             await self._migrate_legacy_bookings(db)
             await self._normalize_utc_slot_timestamps(db)
             await self._ensure_pricing_defaults(db)

@@ -118,6 +118,20 @@ export async function updateAnnaSettings(payload: {
   });
 }
 
+export async function fetchChannelStats() {
+  return annaFetch("/channel/stats");
+}
+
+export async function fetchChannelSubscribers(params: Record<string, string> = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const data = await annaFetch(`/channel/subscribers${qs ? `?${qs}` : ""}`);
+  return Array.isArray(data) ? data : [];
+}
+
+export async function channelSubscriberAction(id: number, action: string) {
+  return annaFetch(`/channel/subscribers/${id}/${action}`, { method: "POST" });
+}
+
 /** @deprecated use fetchAnnaSettings */
 export async function fetchAnnaConfig() {
   return fetchAnnaSettings();

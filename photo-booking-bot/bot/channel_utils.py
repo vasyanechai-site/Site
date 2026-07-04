@@ -1,0 +1,54 @@
+from enum import StrEnum
+
+
+class SubscriptionStatus(StrEnum):
+    PENDING_PAYMENT = "pending_payment"
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+    @property
+    def label_ru(self) -> str:
+        return {
+            SubscriptionStatus.PENDING_PAYMENT: "Ожидает оплату",
+            SubscriptionStatus.ACTIVE: "Активна",
+            SubscriptionStatus.EXPIRED: "Истекла",
+            SubscriptionStatus.CANCELLED: "Отменена",
+        }[self]
+
+
+class InviteLinkStatus(StrEnum):
+    PENDING = "pending"
+    USED_OK = "used_ok"
+    USED_WRONG_USER = "used_wrong_user"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+
+    @property
+    def label_ru(self) -> str:
+        return {
+            InviteLinkStatus.PENDING: "Ожидает",
+            InviteLinkStatus.USED_OK: "Использована",
+            InviteLinkStatus.USED_WRONG_USER: "Чужой пользователь",
+            InviteLinkStatus.EXPIRED: "Истекла",
+            InviteLinkStatus.REVOKED: "Отозвана",
+        }[self]
+
+
+SUBSCRIPTION_PERIOD_DAYS = 30
+INVITE_EXPIRE_HOURS = 24
+
+
+def resolve_channel_id(raw: str | int) -> int:
+    """393215352 → -100393215352 for supergroup/channel."""
+    cid = int(raw)
+    if cid > 0:
+        return int(f"-100{cid}")
+    return cid
+
+
+def channel_open_url(channel_id: int) -> str:
+    s = str(abs(channel_id))
+    if s.startswith("100"):
+        s = s[3:]
+    return f"https://t.me/c/{s}/1"

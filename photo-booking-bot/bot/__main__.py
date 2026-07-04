@@ -8,7 +8,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import load_settings
 from bot.database import Database
-from bot.handlers import admin, user
+from bot.handlers import admin, channel, channel_member, user
 from bot.local_guard import refuse_accidental_local_polling
 from bot.middleware import InjectMiddleware
 from bot.single_instance import acquire_single_instance_lock
@@ -66,6 +66,8 @@ async def main() -> None:
 
     dp.update.middleware(InjectMiddleware(db, settings))
 
+    dp.include_router(channel.router)
+    dp.include_router(channel_member.router)
     dp.include_router(admin.router)
     dp.include_router(user.router)
 
@@ -78,7 +80,10 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=True)
     logger.info("Webhook cleared — waiting before polling")
     await asyncio.sleep(5)
-    await dp.start_polling(bot)
+    await dp.start_polling(
+        bot,
+        allowed_updates=["message", "callback_query", "chat_member"],
+    )
 
 
 if __name__ == "__main__":

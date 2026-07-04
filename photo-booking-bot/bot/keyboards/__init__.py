@@ -5,7 +5,10 @@ from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_time_button
 
 
 def start_keyboard(*, is_admin: bool = False) -> ReplyKeyboardMarkup:
-    rows = [[KeyboardButton(text="Записаться"), KeyboardButton(text="Моя запись")]]
+    rows = [
+        [KeyboardButton(text="Записаться"), KeyboardButton(text="Моя запись")],
+        [KeyboardButton(text="Закрытый канал")],
+    ]
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ Админка")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)

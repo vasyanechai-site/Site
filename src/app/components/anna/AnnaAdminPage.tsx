@@ -52,6 +52,7 @@ import {
   BOOKING_STATUS_OPTIONS,
   STATUS_COLORS,
 } from "./types";
+import { AnnaChannelSection } from "./AnnaChannelSection";
 import "react-day-picker/dist/style.css";
 
 const R = "rounded-md";
@@ -185,6 +186,7 @@ export function AnnaAdminPage() {
 }
 
 function AnnaAdminPageInner() {
+  const [tab, setTab] = useState<"booking" | "channel">("booking");
   const [authed, setAuthed] = useState(!!getAnnaToken());
   const [initialLoading, setInitialLoading] = useState(!!getAnnaToken());
   const [refreshing, setRefreshing] = useState(false);
@@ -531,6 +533,23 @@ function AnnaAdminPageInner() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <span className="text-sm font-semibold tracking-tight text-zinc-900">Админка</span>
           <div className="flex items-center gap-2">
+            <div className="flex rounded-md border border-zinc-200 p-0.5 text-xs">
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1.5 ${tab === "booking" ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+                onClick={() => setTab("booking")}
+              >
+                Запись
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-3 py-1.5 ${tab === "channel" ? "bg-zinc-900 text-white" : "text-zinc-600"}`}
+                onClick={() => setTab("channel")}
+              >
+                Закрытый канал
+              </button>
+            </div>
+            {tab === "booking" ? (
             <Button
               variant="outline"
               size="sm"
@@ -540,6 +559,7 @@ function AnnaAdminPageInner() {
             >
               {refreshing ? "Обновление..." : "Обновить"}
             </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="sm"
@@ -559,6 +579,8 @@ function AnnaAdminPageInner() {
           <div className="flex h-48 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
           </div>
+        ) : tab === "channel" ? (
+          <AnnaChannelSection />
         ) : (
           <>
             <section className="grid grid-cols-2 gap-3 md:grid-cols-4">

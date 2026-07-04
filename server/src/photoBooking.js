@@ -122,6 +122,43 @@ function ensureSchema(db) {
   if (!settingsCols.includes("recipient_name")) {
     db.exec("ALTER TABLE app_settings ADD COLUMN recipient_name TEXT");
   }
+  if (!settingsCols.includes("channel_monthly_price")) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN channel_monthly_price INTEGER DEFAULT 500");
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS channel_subscriptions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      telegram_user_id INTEGER NOT NULL,
+      telegram_username TEXT,
+      telegram_first_name TEXT,
+      telegram_last_name TEXT,
+      status TEXT NOT NULL DEFAULT 'pending_payment',
+      amount INTEGER NOT NULL DEFAULT 500,
+      paid_at TEXT,
+      starts_at TEXT,
+      ends_at TEXT,
+      joined_at TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS channel_invite_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subscription_id INTEGER NOT NULL,
+      telegram_user_id INTEGER NOT NULL,
+      invite_link TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      expected_user_id INTEGER NOT NULL,
+      used_by_user_id INTEGER,
+      created_at TEXT NOT NULL,
+      used_at TEXT,
+      expires_at TEXT NOT NULL,
+      FOREIGN KEY (subscription_id) REFERENCES channel_subscriptions(id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_ch_sub_user ON channel_subscriptions(telegram_user_id);
+    CREATE INDEX IF NOT EXISTS idx_ch_sub_status ON channel_subscriptions(status);
+    CREATE INDEX IF NOT EXISTS idx_ch_invite_link ON channel_invite_links(invite_link);
+  `);
 
   normalizeUtcSlotTimestamps(db);
 }
@@ -666,5 +703,148 @@ export function registerPhotoBookingRoutes(app) {
       )
       .get(id);
     res.json(bookingRow(updated));
+  });
+
+  const CHANNEL_STATUS_LABELS = {
+    pending_payment: "Ожидает оплату",
+    active: "Активна",
+    expired: "Истекла",
+    cancelled: "Отменена",
+  };
+  const INVITE_STATUS_LABELS = {
+    pending: "Ожидает",
+    used_ok: "Использована",
+    used_wrong_user: "Чужой пользователь",
+    expired: "Истекла",
+    revoked: "Отозвана",
+  };
+
+  function channelSubRow(row, invite) {
+    return {
+      id: row.id,
+      telegramUserId: row.telegram_user_id,
+      telegramUsername: row.telegram_username,
+      telegramFirstName: row.telegram_first_name,
+      telegramLastName: row.telegram_last_name,
+      status: row.status,
+      statusLabel: CHANNEL_STATUS_LABELS[row.status] || row.status,
+      amount: row.amount,
+      paidAt: row.paid_at,
+      startsAt: row.starts_at,
+      endsAt: row.ends_at,
+      joinedAt: row.joined_at,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      inviteStatus: invite?.status ?? null,
+      inviteStatusLabel: invite ? INVITE_STATUS_LABELS[invite.status] || invite.status : null,
+      inviteLink: invite?.invite_link ?? null,
+    };
+  }
+
+  function expireChannelSubs(db) {
+    const now = nowIso();
+    db.prepare(
+      `UPDATE channel_subscriptions SET status = 'expired', updated_at = ?
+       WHERE status = 'active' AND ends_at IS NOT NULL AND ends_at < ?`
+    ).run(now, now);
+  }
+
+  function getChannelStats(db) {
+    expireChannelSubs(db);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+    const weekStart = new Date(now.getTime() - 7 * 86400000).toISOString();
+    const monthStart = new Date(now.getTime() - 30 * 86400000).toISOString();
+    return {
+      totalPaid: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE paid_at IS NOT NULL").get().c,
+      active: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE status = 'active'").get().c,
+      joined: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE joined_at IS NOT NULL").get().c,
+      paidNotJoined: db.prepare(
+        "SELECT COUNT(*) AS c FROM channel_subscriptions WHERE status = 'active' AND paid_at IS NOT NULL AND joined_at IS NULL"
+      ).get().c,
+      expired: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE status = 'expired'").get().c,
+      cancelled: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE status = 'cancelled'").get().c,
+      newToday: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE paid_at >= ?").get(todayStart).c,
+      newWeek: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE paid_at >= ?").get(weekStart).c,
+      newMonth: db.prepare("SELECT COUNT(*) AS c FROM channel_subscriptions WHERE paid_at >= ?").get(monthStart).c,
+      revenueToday: db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM channel_subscriptions WHERE paid_at >= ?").get(todayStart).s,
+      revenueWeek: db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM channel_subscriptions WHERE paid_at >= ?").get(weekStart).s,
+      revenueMonth: db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM channel_subscriptions WHERE paid_at >= ?").get(monthStart).s,
+      revenueTotal: db.prepare("SELECT COALESCE(SUM(amount),0) AS s FROM channel_subscriptions WHERE paid_at IS NOT NULL").get().s,
+      lastPaymentAt: db.prepare("SELECT paid_at FROM channel_subscriptions WHERE paid_at IS NOT NULL ORDER BY paid_at DESC LIMIT 1").get()?.paid_at ?? null,
+      lastJoinAt: db.prepare("SELECT joined_at FROM channel_subscriptions WHERE joined_at IS NOT NULL ORDER BY joined_at DESC LIMIT 1").get()?.joined_at ?? null,
+      monthlyPrice: db.prepare("SELECT channel_monthly_price FROM app_settings WHERE id = 1").get()?.channel_monthly_price ?? 500,
+    };
+  }
+
+  app.get("/api/anna/channel/stats", annaAuthMiddleware, (_req, res) => {
+    const db = getDb();
+    res.json(getChannelStats(db));
+  });
+
+  app.get("/api/anna/channel/subscribers", annaAuthMiddleware, (req, res) => {
+    const db = getDb();
+    expireChannelSubs(db);
+    const status = req.query.status ? String(req.query.status) : "";
+    const search = req.query.search ? String(req.query.search).trim() : "";
+    const clauses = [];
+    const params = [];
+    if (status) {
+      clauses.push("status = ?");
+      params.push(status);
+    }
+    if (search) {
+      clauses.push("(LOWER(COALESCE(telegram_username,'')) LIKE ? OR LOWER(COALESCE(telegram_first_name,'')) LIKE ? OR CAST(telegram_user_id AS TEXT) LIKE ?)");
+      const q = `%${search.toLowerCase()}%`;
+      params.push(q, q, q);
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    const rows = db.prepare(`SELECT * FROM channel_subscriptions ${where} ORDER BY id DESC LIMIT 500`).all(...params);
+    const result = rows.map((row) => {
+      const invite = db.prepare(
+        "SELECT * FROM channel_invite_links WHERE subscription_id = ? ORDER BY id DESC LIMIT 1"
+      ).get(row.id);
+      return channelSubRow(row, invite);
+    });
+    res.json(result);
+  });
+
+  app.post("/api/anna/channel/subscribers/:id/:action", annaAuthMiddleware, (req, res) => {
+    const db = getDb();
+    const id = Number(req.params.id);
+    const action = String(req.params.action);
+    const sub = db.prepare("SELECT * FROM channel_subscriptions WHERE id = ?").get(id);
+    if (!sub) return res.status(404).json({ error: "Подписчик не найден" });
+    const now = nowIso();
+    if (action === "cancel") {
+      db.prepare("UPDATE channel_subscriptions SET status = 'cancelled', updated_at = ? WHERE id = ?").run(now, id);
+    } else if (action === "activate" || action === "extend") {
+      const starts = action === "extend" && sub.ends_at && sub.ends_at > now ? sub.starts_at : now;
+      const base = action === "extend" && sub.ends_at && sub.ends_at > now ? new Date(sub.ends_at) : new Date();
+      const ends = new Date(base.getTime() + 30 * 86400000).toISOString();
+      db.prepare(
+        "UPDATE channel_subscriptions SET status = 'active', paid_at = COALESCE(paid_at, ?), starts_at = ?, ends_at = ?, updated_at = ? WHERE id = ?"
+      ).run(now, starts || now, ends, now, id);
+    } else {
+      return res.status(400).json({ error: "Unknown action" });
+    }
+    const updated = db.prepare("SELECT * FROM channel_subscriptions WHERE id = ?").get(id);
+    const invite = db.prepare(
+      "SELECT * FROM channel_invite_links WHERE subscription_id = ? ORDER BY id DESC LIMIT 1"
+    ).get(id);
+    res.json(channelSubRow(updated, invite));
+  });
+
+  app.patch("/api/anna/channel/settings", annaAuthMiddleware, (req, res) => {
+    const price = Number(req.body?.monthlyPrice);
+    if (!Number.isInteger(price) || price <= 0) {
+      return res.status(400).json({ error: "Некорректная стоимость" });
+    }
+    const db = getDb();
+    db.prepare("UPDATE app_settings SET channel_monthly_price = ?, updated_at = ? WHERE id = 1").run(
+      price,
+      nowIso()
+    );
+    res.json({ monthlyPrice: price });
   });
 }

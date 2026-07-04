@@ -15,6 +15,7 @@ def admin_main_menu_kb() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="📊 Аналитика", callback_data="adm:stats"),
             ],
             [InlineKeyboardButton(text="⚙️ Настройки", callback_data="adm:settings:menu")],
+            [InlineKeyboardButton(text="🔒 Закрытый канал", callback_data="adm:channel:menu")],
         ]
     )
 
@@ -194,4 +195,41 @@ def admin_settings_menu_kb() -> InlineKeyboardMarkup:
 def admin_cancel_kb(back: str = "adm:menu") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text="Отмена", callback_data=back)]]
+    )
+
+
+def admin_channel_list_kb(subs=None) -> InlineKeyboardMarkup:
+    rows = []
+    if subs:
+        for s in subs[:12]:
+            label = s.telegram_first_name or str(s.telegram_user_id)
+            rows.append(
+                [InlineKeyboardButton(text=f"{label} — {s.status.label_ru}", callback_data=f"adm:channel:sub:{s.id}")]
+            )
+    rows.append([InlineKeyboardButton(text="← Назад", callback_data="adm:menu")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+
+def admin_channel_user_kb(sub_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="Отправить ссылку",
+                    callback_data=f"adm:channel:resend:{sub_id}",
+                ),
+                InlineKeyboardButton(
+                    text="Новая ссылка",
+                    callback_data=f"adm:channel:newinv:{sub_id}",
+                ),
+            ],
+            [
+                InlineKeyboardButton(text="Продлить", callback_data=f"adm:channel:extend:{sub_id}"),
+                InlineKeyboardButton(text="Активировать", callback_data=f"adm:channel:activate:{sub_id}"),
+            ],
+            [
+                InlineKeyboardButton(text="Отменить", callback_data=f"adm:channel:cancel:{sub_id}"),
+            ],
+            [InlineKeyboardButton(text="← К списку", callback_data="adm:channel:list")],
+        ]
     )

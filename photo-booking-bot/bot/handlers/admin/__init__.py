@@ -2,7 +2,7 @@ from aiogram import Router
 
 from bot.filters import IsAdminCallbackFilter, IsAdminFilter
 
-from . import bookings, legacy, menu, payments, settings, slots, stats, voice
+from . import bookings, channel, legacy, menu, payments, settings, slots, stats, voice
 
 router = Router(name="admin")
 router.message.filter(IsAdminFilter())
@@ -14,6 +14,7 @@ router.include_router(bookings.router)
 router.include_router(payments.router)
 router.include_router(stats.router)
 router.include_router(settings.router)
+router.include_router(channel.router)
 router.include_router(legacy.router)
 router.include_router(voice.router)
 

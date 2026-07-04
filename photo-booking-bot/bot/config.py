@@ -19,6 +19,8 @@ def _resolve_db_path() -> Path:
     return (BASE_DIR / path).resolve()
 
 
+from bot.channel_utils import resolve_channel_id
+
 DEFAULT_RELAY_URL = "https://telegram-relay.coffeenechai.workers.dev"
 
 
@@ -102,6 +104,7 @@ class Settings:
     https_proxy: str | None
     telegram_api_base: str | None
     openai_api_key: str | None
+    closed_channel_id: int
 
     @property
     def phone_display(self) -> str:
@@ -133,4 +136,7 @@ def load_settings() -> Settings:
         https_proxy=proxy or None,
         telegram_api_base=telegram_api_base,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip() or None,
+        closed_channel_id=resolve_channel_id(
+            os.getenv("CLOSED_CHANNEL_ID", "393215352")
+        ),
     )
