@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — redeploy bot with CF proxy env
+# trigger: 2026-07-04b — redeploy after telegram-bot-proxy CF fix
 
 on:
   push:
