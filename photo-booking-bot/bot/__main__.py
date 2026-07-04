@@ -9,6 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.config import load_settings
 from bot.database import Database
 from bot.handlers import admin, user
+from bot.local_guard import refuse_accidental_local_polling
 from bot.middleware import InjectMiddleware
 from bot.single_instance import acquire_single_instance_lock
 
@@ -37,6 +38,7 @@ def build_bot(settings) -> Bot:
 
 async def main() -> None:
     settings = load_settings()
+    refuse_accidental_local_polling(settings.database_path)
     acquire_single_instance_lock(settings.database_path.parent)
     db = Database(settings.database_path)
     await db.init()
