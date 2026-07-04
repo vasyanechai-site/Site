@@ -60,24 +60,54 @@ def _int(name: str) -> int:
         raise RuntimeError(f"{name} must be an integer, got: {raw!r}") from exc
 
 
+def _optional_int(name: str) -> int | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} must be an integer, got: {raw!r}") from exc
+
+
+def get_admin_ids() -> frozenset[int]:
+    raw = os.getenv("ADMIN_IDS", "").strip()
+    if raw:
+        ids: list[int] = []
+        for part in raw.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                ids.append(int(part))
+            except ValueError as exc:
+                raise RuntimeError(f"ADMIN_IDS contains invalid id: {part!r}") from exc
+        if not ids:
+            raise RuntimeError("ADMIN_IDS is set but empty")
+        return frozenset(ids)
+    admin_id = _optional_int("ADMIN_ID")
+    if admin_id is None:
+        raise RuntimeError("Missing required env variable: ADMIN_ID or ADMIN_IDS")
+    return frozenset({admin_id})
+
+
 @dataclass(frozen=True)
 class Settings:
     bot_token: str
     admin_id: int
+    admin_ids: frozenset[int]
     phone: str
     recipient_name: str
     database_path: Path
     https_proxy: str | None
     telegram_api_base: str | None
+    openai_api_key: str | None
 
     @property
     def phone_display(self) -> str:
-        digits = "".join(ch for ch in self.phone if ch.isdigit())
-        if digits.startswith("7") and len(digits) == 11:
-            digits = "8" + digits[1:]
-        if len(digits) == 11 and digits.startswith("8"):
-            return f"{digits[0]}-{digits[1:4]}-{digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
-        return self.phone
+        from bot.utils import format_phone_display
+
+        return format_phone_display(self.phone)
 
 
 def load_settings() -> Settings:
@@ -90,12 +120,17 @@ def load_settings() -> Settings:
         f"{proxy_url}/{proxy_secret}" if proxy_secret else None
     )
 
+    admin_ids = get_admin_ids()
+    primary_admin = min(admin_ids)
+
     return Settings(
         bot_token=_require("BOT_TOKEN"),
-        admin_id=_int("ADMIN_ID"),
+        admin_id=primary_admin,
+        admin_ids=admin_ids,
         phone=_require("PHONE"),
         recipient_name=_require("RECIPIENT_NAME"),
         database_path=database_path,
         https_proxy=proxy or None,
         telegram_api_base=telegram_api_base,
+        openai_api_key=os.getenv("OPENAI_API_KEY", "").strip() or None,
     )

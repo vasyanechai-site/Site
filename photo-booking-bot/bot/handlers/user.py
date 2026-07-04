@@ -16,7 +16,7 @@ from bot.keyboards import (
     start_keyboard,
     times_keyboard,
 )
-from bot.utils import DATE_BUTTON_FORMAT, SlotStatus, format_date_button, format_slot_datetime
+from bot.utils import DATE_BUTTON_FORMAT, SlotStatus, format_date_button, format_phone_display, format_slot_datetime
 
 router = Router()
 
@@ -68,16 +68,19 @@ def _manage_keyboard(slot: Slot):
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, db: Database, state: FSMContext) -> None:
+async def cmd_start(message: Message, db: Database, settings: Settings, state: FSMContext) -> None:
     await state.clear()
     active = await db.get_user_active_slot(message.from_user.id)
+    is_admin = message.from_user.id in settings.admin_ids
     text = (
         "Привет! Это Аня.\n"
         "В этом боте ты можешь записаться ко мне на фотосессию на плёночный фотоаппарат."
     )
     if active:
         text += "\n\nУ вас уже есть активная запись — нажмите «Моя запись»."
-    await message.answer(text, reply_markup=start_keyboard())
+    if is_admin:
+        text += "\n\n⚙️ Для управления записями нажмите «Админка»."
+    await message.answer(text, reply_markup=start_keyboard(is_admin=is_admin))
 
 
 @router.message(F.text == "Моя запись")
@@ -102,7 +105,7 @@ async def cmd_cancel(message: Message, state: FSMContext, settings: Settings) ->
     user = message.from_user
     current = await state.get_state()
 
-    if user.id == settings.admin_id and current == AddSlotsState.waiting_for_lines.state:
+    if user.id in settings.admin_ids and current == AddSlotsState.waiting_for_lines.state:
         await state.clear()
         await message.answer("Добавление слотов отменено.")
         return
@@ -338,11 +341,15 @@ async def pay_booking(
         return
 
     pricing = await db.get_pricing()
+    contact = await db.get_contact_settings(
+        env_phone=settings.phone,
+        env_recipient=settings.recipient_name,
+    )
     prepay = pricing.prepay_amount
     await callback.message.edit_text(
         f"Отправьте предоплату {prepay} ₽ ({pricing.prepay_percent}%) по СБП:\n\n"
-        f"{settings.phone_display}\n\n"
-        f"Получатель: {settings.recipient_name}\n\n"
+        f"{format_phone_display(contact.phone)}\n\n"
+        f"Получатель: {contact.recipient_name}\n\n"
         "После оплаты я свяжусь с вами для подтверждения.\n\n"
         f"📅 {format_slot_datetime(slot.slot_at)}",
         reply_markup=active_booking_keyboard(
@@ -365,7 +372,8 @@ async def pay_booking(
         f"Предоплата: {prepay} ₽\n"
         "Статус: Ожидает оплату"
     )
-    await bot.send_message(settings.admin_id, admin_text, parse_mode="HTML")
+    for admin_id in settings.admin_ids:
+        await bot.send_message(admin_id, admin_text, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("cancel:"))
@@ -553,7 +561,8 @@ async def reschedule_choose_time(
         f"Новое время: {format_slot_datetime(slot.slot_at)}\n"
         f"Статус: {slot.status.label_ru}"
     )
-    await bot.send_message(settings.admin_id, admin_text, parse_mode="HTML")
+    for admin_id in settings.admin_ids:
+        await bot.send_message(admin_id, admin_text, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "noop")

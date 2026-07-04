@@ -1,3 +1,5 @@
+"""Legacy slash-команды администратора (совместимость)."""
+
 from datetime import datetime
 
 from aiogram import F, Router
@@ -8,48 +10,22 @@ from aiogram.types import CallbackQuery, Message
 from bot.config import Settings
 from bot.database import Database
 from bot.keyboards import delete_slots_keyboard
+from bot.keyboards.admin_kb import admin_main_menu_kb, admin_slots_menu_kb
 from bot.states import AddSlotsState
 from bot.utils import format_slot_datetime, parse_slot_datetime, user_display_name
 
 router = Router()
 
 
-def admin_only_message(message: Message, settings: Settings) -> bool:
-    if message.from_user and message.from_user.id == settings.admin_id:
-        return True
-    return False
-
-
-@router.message(Command("dbcheck"))
-async def db_check(message: Message, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        return
-
-    from bot.config import load_settings
-
-    s = load_settings()
-    available = await db.count_available_future_slots()
-    dates = await db.list_available_dates()
-    lines = [
-        f"DB: {s.database_path}",
-        f"Файл: {'есть' if s.database_path.is_file() else 'нет'}",
-        f"Свободных слотов: {available}",
-        f"Дат с слотами: {len(dates)}",
-    ]
-    if dates:
-        lines.append("Даты: " + ", ".join(d.strftime("%d.%m.%Y") for d in dates[:5]))
-    await message.answer("\n".join(lines))
-
-
 @router.message(Command("addslot"))
-async def add_slot(message: Message, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-
+async def add_slot(message: Message, db: Database) -> None:
     parts = (message.text or "").split(maxsplit=1)
     if len(parts) < 2:
-        await message.answer("Формат: /addslot ДД.ММ.ГГГГ ЧЧ:ММ\nПример: /addslot 23.07.2026 17:00")
+        await message.answer(
+            "Формат: /addslot ДД.ММ.ГГГГ ЧЧ:ММ\n"
+            "Или откройте ⚙️ Админка → Слоты → Добавить.",
+            reply_markup=admin_slots_menu_kb(),
+        )
         return
 
     try:
@@ -65,29 +41,19 @@ async def add_slot(message: Message, db: Database, settings: Settings) -> None:
 
 
 @router.message(Command("addslots"))
-async def add_slots_start(message: Message, state: FSMContext, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-
+async def add_slots_start(message: Message, state: FSMContext) -> None:
     await state.set_state(AddSlotsState.waiting_for_lines)
     await message.answer(
         "Отправьте список слотов — каждый с новой строки.\n"
         "Формат: ДД.ММ.ГГГГ ЧЧ:ММ\n\n"
-        "Пример:\n"
-        "23.07.2026 17:00\n"
-        "23.07.2026 19:00\n"
-        "24.07.2026 18:00\n\n"
-        "Для отмены отправьте /cancel"
+        "Для отмены отправьте /cancel\n"
+        "Или: ⚙️ Админка → Слоты → Пакетом.",
+        reply_markup=admin_slots_menu_kb(),
     )
 
 
 @router.message(AddSlotsState.waiting_for_lines)
-async def add_slots_lines(message: Message, state: FSMContext, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await state.clear()
-        return
-
+async def add_slots_lines(message: Message, state: FSMContext, db: Database) -> None:
     added, errors = await db.parse_and_add_slots(message.text or "")
     await state.clear()
 
@@ -99,14 +65,10 @@ async def add_slots_lines(message: Message, state: FSMContext, db: Database, set
 
 
 @router.message(Command("listslots"))
-async def list_slots(message: Message, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-
+async def list_slots(message: Message, db: Database) -> None:
     slots = await db.list_future_slots()
     if not slots:
-        await message.answer("Будущих слотов пока нет.")
+        await message.answer("Будущих слотов пока нет.", reply_markup=admin_slots_menu_kb())
         return
 
     lines = ["Будущие слоты:"]
@@ -119,15 +81,11 @@ async def list_slots(message: Message, db: Database, settings: Settings) -> None
         lines.append(
             f"• {format_slot_datetime(slot.slot_at)} — {slot.status.label_ru}{user_part}"
         )
-    await message.answer("\n".join(lines))
+    await message.answer("\n".join(lines), reply_markup=admin_slots_menu_kb())
 
 
 @router.message(Command("deleteslot"))
-async def delete_slot_menu(message: Message, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-
+async def delete_slot_menu(message: Message, db: Database) -> None:
     slots = await db.list_future_slots()
     available = [slot for slot in slots if slot.status.value == "available"]
     await message.answer(
@@ -137,11 +95,7 @@ async def delete_slot_menu(message: Message, db: Database, settings: Settings) -
 
 
 @router.callback_query(F.data.startswith("delslot:"))
-async def delete_slot_confirm(callback: CallbackQuery, db: Database, settings: Settings) -> None:
-    if callback.from_user.id != settings.admin_id:
-        await callback.answer("Только для администратора.", show_alert=True)
-        return
-
+async def delete_slot_confirm(callback: CallbackQuery, db: Database) -> None:
     slot_id = int(callback.data.removeprefix("delslot:"))
     try:
         slot = await db.get_slot(slot_id)
@@ -158,14 +112,13 @@ async def delete_slot_confirm(callback: CallbackQuery, db: Database, settings: S
 
 
 @router.message(Command("bookings"))
-async def list_bookings(message: Message, db: Database, settings: Settings) -> None:
-    if not admin_only_message(message, settings):
-        await message.answer("Эта команда доступна только администратору.")
-        return
-
+async def list_bookings(message: Message, db: Database) -> None:
     bookings = await db.list_awaiting_payment()
     if not bookings:
-        await message.answer("Пока никто не дошёл до этапа оплаты.")
+        await message.answer(
+            "Пока никто не дошёл до этапа оплаты.",
+            reply_markup=admin_main_menu_kb(),
+        )
         return
 
     lines = ["Записи, ожидающие оплату:"]
@@ -176,4 +129,4 @@ async def list_bookings(message: Message, db: Database, settings: Settings) -> N
             f"• {format_slot_datetime(slot.slot_at)}\n"
             f"  {name} | {username} | id {slot.user_id}"
         )
-    await message.answer("\n\n".join(lines))
+    await message.answer("\n\n".join(lines), reply_markup=admin_main_menu_kb())

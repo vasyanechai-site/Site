@@ -115,6 +115,14 @@ function ensureSchema(db) {
     db.prepare("UPDATE slots SET updated_at = ? WHERE updated_at IS NULL").run(now);
   }
 
+  const settingsCols = db.prepare("PRAGMA table_info(app_settings)").all().map((c) => c.name);
+  if (!settingsCols.includes("phone")) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN phone TEXT");
+  }
+  if (!settingsCols.includes("recipient_name")) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN recipient_name TEXT");
+  }
+
   normalizeUtcSlotTimestamps(db);
 }
 
@@ -129,6 +137,31 @@ function getPricing(db) {
     prepayPercent,
     prepayAmount: Math.round((fullPrice * prepayPercent) / 100),
   };
+}
+
+function getContactSettings(db) {
+  const row = db.prepare(
+    "SELECT phone, recipient_name FROM app_settings WHERE id = 1"
+  ).get();
+  return {
+    phone: row?.phone || process.env.PHONE || "",
+    recipientName: row?.recipient_name || process.env.RECIPIENT_NAME || "",
+  };
+}
+
+function updateContactSettings(db, { phone, recipientName }) {
+  const now = nowIso();
+  if (phone !== undefined) {
+    db.prepare(
+      "UPDATE app_settings SET phone = ?, updated_at = ? WHERE id = 1"
+    ).run(phone?.trim() || null, now);
+  }
+  if (recipientName !== undefined) {
+    db.prepare(
+      "UPDATE app_settings SET recipient_name = ?, updated_at = ? WHERE id = 1"
+    ).run(recipientName?.trim() || null, now);
+  }
+  return getContactSettings(db);
 }
 
 function updatePricing(db, fullPrice, prepayPercent) {
@@ -306,7 +339,7 @@ export function registerPhotoBookingRoutes(app) {
 
   app.get("/api/anna/settings", annaAuthMiddleware, (_req, res) => {
     const db = getDb();
-    res.json({ pricing: getPricing(db) });
+    res.json({ pricing: getPricing(db), contact: getContactSettings(db) });
   });
 
   app.patch("/api/anna/settings", annaAuthMiddleware, (req, res) => {
@@ -320,7 +353,16 @@ export function registerPhotoBookingRoutes(app) {
           ? Number(req.body.prepayPercent)
           : current.prepayPercent;
       const pricing = updatePricing(db, fullPrice, prepayPercent);
-      res.json({ pricing });
+      let contact;
+      if (req.body?.phone !== undefined || req.body?.recipientName !== undefined) {
+        contact = updateContactSettings(db, {
+          phone: req.body?.phone,
+          recipientName: req.body?.recipientName,
+        });
+      } else {
+        contact = getContactSettings(db);
+      }
+      res.json({ pricing, contact });
     } catch (e) {
       res.status(400).json({ error: e.message || "Invalid settings" });
     }

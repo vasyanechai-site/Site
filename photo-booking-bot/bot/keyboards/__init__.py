@@ -4,13 +4,11 @@ from bot.database import Slot
 from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_time_button
 
 
-def start_keyboard() -> ReplyKeyboardMarkup:
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Записаться"), KeyboardButton(text="Моя запись")],
-        ],
-        resize_keyboard=True,
-    )
+def start_keyboard(*, is_admin: bool = False) -> ReplyKeyboardMarkup:
+    rows = [[KeyboardButton(text="Записаться"), KeyboardButton(text="Моя запись")]]
+    if is_admin:
+        rows.append([KeyboardButton(text="⚙️ Админка")])
+    return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
 
 
 def dates_keyboard(

@@ -66,8 +66,8 @@ async def main() -> None:
 
     dp.update.middleware(InjectMiddleware(db, settings))
 
-    dp.include_router(user.router)
     dp.include_router(admin.router)
+    dp.include_router(user.router)
 
     logger.info("Photo booking bot started")
     await bot.delete_webhook(drop_pending_updates=True)

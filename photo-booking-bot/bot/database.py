@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 import aiosqlite
 
@@ -47,6 +48,24 @@ class Booking:
     created_at: datetime
     updated_at: datetime
     slot_at: datetime | None = None
+
+
+@dataclass
+class BookingRow(Booking):
+    """Запись с обязательным slot_at (для админ-списков)."""
+    slot_at: datetime  # type: ignore[assignment]
+
+
+@dataclass
+class ContactSettings:
+    phone: str
+    recipient_name: str
+
+
+@dataclass
+class Stats:
+    counts: dict[str, int]
+    nearest_session: datetime | None
 
 
 @dataclass
@@ -128,6 +147,7 @@ class Database:
                 "CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)"
             )
             await self._migrate_columns(db)
+            await self._migrate_app_settings(db)
             await self._migrate_legacy_bookings(db)
             await self._normalize_utc_slot_timestamps(db)
             await self._ensure_pricing_defaults(db)
@@ -171,6 +191,349 @@ class Database:
                 if not row:
                     return Pricing(full_price=3000, prepay_percent=50)
                 return Pricing(full_price=int(row[0]), prepay_percent=int(row[1]))
+
+    async def update_pricing(self, full_price: int, prepay_percent: int) -> Pricing:
+        if not isinstance(full_price, int) or full_price <= 0:
+            raise ValueError("Полная стоимость должна быть положительным числом")
+        if not isinstance(prepay_percent, int) or prepay_percent < 1 or prepay_percent > 99:
+            raise ValueError("Предоплата должна быть от 1% до 99%")
+        now = datetime.now().isoformat()
+        async with self._connect() as db:
+            await db.execute(
+                """
+                UPDATE app_settings SET full_price = ?, prepay_percent = ?, updated_at = ?
+                WHERE id = 1
+                """,
+                (full_price, prepay_percent, now),
+            )
+            await db.commit()
+        return await self.get_pricing()
+
+    async def get_contact_settings(
+        self,
+        *,
+        env_phone: str = "",
+        env_recipient: str = "",
+    ) -> ContactSettings:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT phone, recipient_name FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        phone = (row[0] if row and row[0] else None) or env_phone
+        recipient = (row[1] if row and row[1] else None) or env_recipient
+        return ContactSettings(phone=phone, recipient_name=recipient)
+
+    async def update_contact_settings(
+        self,
+        *,
+        phone: str | None = None,
+        recipient_name: str | None = None,
+    ) -> ContactSettings:
+        now = datetime.now().isoformat()
+        async with self._connect() as db:
+            if phone is not None:
+                await db.execute(
+                    "UPDATE app_settings SET phone = ?, updated_at = ? WHERE id = 1",
+                    (phone.strip() or None, now),
+                )
+            if recipient_name is not None:
+                await db.execute(
+                    "UPDATE app_settings SET recipient_name = ?, updated_at = ? WHERE id = 1",
+                    (recipient_name.strip() or None, now),
+                )
+            await db.commit()
+        return await self.get_contact_settings()
+
+    def _row_to_booking(self, row) -> BookingRow:
+        return BookingRow(
+            id=row[0],
+            slot_id=row[1],
+            telegram_user_id=row[2],
+            telegram_username=row[3],
+            telegram_first_name=row[4],
+            telegram_last_name=row[5],
+            status=BookingStatus(row[6]),
+            prepayment_amount=int(row[7]),
+            total_amount=int(row[8]),
+            admin_comment=row[9],
+            created_at=parse_stored_datetime(row[10]),
+            updated_at=parse_stored_datetime(row[11]),
+            slot_at=parse_stored_datetime(row[12]),
+        )
+
+    async def get_stats(self) -> Stats:
+        await self.expire_stale_unpaid_slots()
+        now = now_local_iso()
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT status FROM slots WHERE slot_at >= ?",
+                (now,),
+            ) as cursor:
+                future_rows = await cursor.fetchall()
+            async with db.execute(
+                "SELECT COUNT(*) FROM bookings WHERE status = ?",
+                (BookingStatus.CANCELLED.value,),
+            ) as cursor:
+                cancelled_row = await cursor.fetchone()
+            async with db.execute(
+                """
+                SELECT slot_at FROM slots
+                WHERE slot_at >= ? AND status != ?
+                ORDER BY slot_at ASC LIMIT 1
+                """,
+                (now, SlotStatus.AVAILABLE.value),
+            ) as cursor:
+                nearest_row = await cursor.fetchone()
+
+        counts = {
+            "totalFuture": len(future_rows),
+            "available": 0,
+            "reserved": 0,
+            "awaiting_payment": 0,
+            "prepaid": 0,
+            "paid_full": 0,
+            "cancelled": int(cancelled_row[0]) if cancelled_row else 0,
+        }
+        for (status,) in future_rows:
+            if status in counts:
+                counts[status] += 1
+
+        nearest = (
+            parse_stored_datetime(nearest_row[0]) if nearest_row and nearest_row[0] else None
+        )
+        return Stats(counts=counts, nearest_session=nearest)
+
+    async def list_bookings(
+        self,
+        *,
+        status: BookingStatus | None = None,
+        date: datetime | None = None,
+        future: bool = False,
+        past: bool = False,
+        search: str | None = None,
+        limit: int = 500,
+    ) -> list[BookingRow]:
+        await self.expire_stale_unpaid_slots()
+        sql = """
+            SELECT b.id, b.slot_id, b.telegram_user_id, b.telegram_username,
+                   b.telegram_first_name, b.telegram_last_name, b.status,
+                   b.prepayment_amount, b.total_amount, b.admin_comment,
+                   b.created_at, b.updated_at, s.slot_at
+            FROM bookings b
+            JOIN slots s ON s.id = b.slot_id
+            WHERE 1=1
+        """
+        params: list = []
+        if status is not None:
+            sql += " AND b.status = ?"
+            params.append(status.value)
+        if date is not None:
+            day_iso = date.strftime("%Y-%m-%d")
+            sql += " AND date(s.slot_at) = date(?)"
+            params.append(f"{day_iso}T00:00:00")
+        now = now_local_iso()
+        if future:
+            sql += " AND s.slot_at >= ?"
+            params.append(now)
+        if past:
+            sql += " AND s.slot_at < ?"
+            params.append(now)
+        sql += " ORDER BY s.slot_at DESC, b.updated_at DESC LIMIT ?"
+        params.append(limit)
+
+        async with self._connect() as db:
+            async with db.execute(sql, params) as cursor:
+                rows = await cursor.fetchall()
+
+        bookings = [self._row_to_booking(row) for row in rows]
+        if search:
+            needle = search.strip().lower()
+            bookings = [
+                b
+                for b in bookings
+                if needle
+                in " ".join(
+                    filter(
+                        None,
+                        [
+                            b.telegram_username,
+                            b.telegram_first_name,
+                            b.telegram_last_name,
+                            str(b.telegram_user_id),
+                        ],
+                    )
+                ).lower()
+            ]
+        return bookings
+
+    async def get_booking(self, booking_id: int) -> BookingRow | None:
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT b.id, b.slot_id, b.telegram_user_id, b.telegram_username,
+                       b.telegram_first_name, b.telegram_last_name, b.status,
+                       b.prepayment_amount, b.total_amount, b.admin_comment,
+                       b.created_at, b.updated_at, s.slot_at
+                FROM bookings b
+                JOIN slots s ON s.id = b.slot_id
+                WHERE b.id = ?
+                """,
+                (booking_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+        return self._row_to_booking(row) if row else None
+
+    async def update_booking(
+        self,
+        booking_id: int,
+        *,
+        status: BookingStatus | None = None,
+        admin_comment: str | None = None,
+    ) -> BookingRow:
+        now = datetime.now().isoformat()
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT slot_id FROM bookings WHERE id = ?",
+                (booking_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                raise ValueError("Запись не найдена.")
+            slot_id = row[0]
+
+            if admin_comment is not None:
+                await db.execute(
+                    "UPDATE bookings SET admin_comment = ?, updated_at = ? WHERE id = ?",
+                    (admin_comment, now, booking_id),
+                )
+
+            if status is not None:
+                await db.execute(
+                    "UPDATE bookings SET status = ?, updated_at = ? WHERE id = ?",
+                    (status.value, now, booking_id),
+                )
+                if status == BookingStatus.CANCELLED:
+                    await db.execute(
+                        """
+                        UPDATE slots
+                        SET status = ?, user_id = NULL, username = NULL, first_name = NULL,
+                            last_name = NULL, booked_at = NULL, updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (SlotStatus.AVAILABLE.value, now, slot_id),
+                    )
+                elif status in (
+                    BookingStatus.RESERVED,
+                    BookingStatus.AWAITING_PAYMENT,
+                    BookingStatus.PREPAID,
+                    BookingStatus.PAID_FULL,
+                ):
+                    slot_status = {
+                        BookingStatus.RESERVED: SlotStatus.RESERVED,
+                        BookingStatus.AWAITING_PAYMENT: SlotStatus.AWAITING_PAYMENT,
+                        BookingStatus.PREPAID: SlotStatus.PREPAID,
+                        BookingStatus.PAID_FULL: SlotStatus.PAID_FULL,
+                    }[status]
+                    await db.execute(
+                        "UPDATE slots SET status = ?, updated_at = ? WHERE id = ?",
+                        (slot_status.value, now, slot_id),
+                    )
+
+            await db.commit()
+
+        booking = await self.get_booking(booking_id)
+        if not booking:
+            raise ValueError("Запись не найдена.")
+        return booking
+
+    async def list_slots_by_date(self, date: datetime) -> list[Slot]:
+        day_iso = date.strftime("%Y-%m-%d")
+        async with self._connect() as db:
+            async with db.execute(
+                """
+                SELECT id, slot_at, status, user_id, username, first_name, last_name,
+                       created_at, updated_at
+                FROM slots
+                WHERE date(slot_at) = date(?)
+                ORDER BY slot_at
+                """,
+                (f"{day_iso}T00:00:00",),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        return [self._row_to_slot(row) for row in rows]
+
+    async def list_slots_filtered(
+        self,
+        filter: Literal["all", "available", "occupied"],
+        *,
+        future_only: bool = True,
+        limit: int = 500,
+    ) -> list[Slot]:
+        await self.expire_stale_unpaid_slots()
+        now = now_local_iso()
+        sql = """
+            SELECT id, slot_at, status, user_id, username, first_name, last_name,
+                   created_at, updated_at
+            FROM slots
+        """
+        params: list = []
+        clauses: list[str] = []
+        if filter == "available":
+            clauses.append("status = ?")
+            params.append(SlotStatus.AVAILABLE.value)
+        elif filter == "occupied":
+            clauses.append("status != ?")
+            params.append(SlotStatus.AVAILABLE.value)
+        if future_only:
+            clauses.append("slot_at >= ?")
+            params.append(now)
+        if clauses:
+            sql += " WHERE " + " AND ".join(clauses)
+        sql += " ORDER BY slot_at ASC LIMIT ?"
+        params.append(limit)
+
+        async with self._connect() as db:
+            async with db.execute(sql, params) as cursor:
+                rows = await cursor.fetchall()
+        return [self._row_to_slot(row) for row in rows]
+
+    async def update_slot_time(self, slot_id: int, new_slot_at: datetime) -> Slot:
+        iso = slot_to_iso(new_slot_at)
+        now = datetime.now().isoformat()
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT status FROM slots WHERE id = ?",
+                (slot_id,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                raise ValueError("Слот не найден.")
+            if row[0] != SlotStatus.AVAILABLE.value:
+                raise ValueError("Перенести можно только свободный слот.")
+            try:
+                await db.execute(
+                    "UPDATE slots SET slot_at = ?, updated_at = ? WHERE id = ?",
+                    (iso, now, slot_id),
+                )
+                await db.commit()
+            except aiosqlite.IntegrityError as exc:
+                raise ValueError(
+                    f"Слот уже существует: {format_slot_datetime(new_slot_at)}"
+                ) from exc
+
+        slot = await self.get_slot(slot_id)
+        if not slot:
+            raise ValueError("Слот не найден.")
+        return slot
+
+    async def _migrate_app_settings(self, db: aiosqlite.Connection) -> None:
+        async with db.execute("PRAGMA table_info(app_settings)") as cursor:
+            columns = {row[1] for row in await cursor.fetchall()}
+        if "phone" not in columns:
+            await db.execute("ALTER TABLE app_settings ADD COLUMN phone TEXT")
+        if "recipient_name" not in columns:
+            await db.execute("ALTER TABLE app_settings ADD COLUMN recipient_name TEXT")
 
     async def _migrate_columns(self, db: aiosqlite.Connection) -> None:
         async with db.execute("PRAGMA table_info(slots)") as cursor:

@@ -102,3 +102,12 @@ def format_time_button(dt: datetime) -> str:
 def user_display_name(first_name: str | None, last_name: str | None) -> str:
     parts = [part for part in (first_name, last_name) if part]
     return " ".join(parts) if parts else "—"
+
+
+def format_phone_display(phone: str) -> str:
+    digits = "".join(ch for ch in phone if ch.isdigit())
+    if digits.startswith("7") and len(digits) == 11:
+        digits = "8" + digits[1:]
+    if len(digits) == 11 and digits.startswith("8"):
+        return f"{digits[0]}-{digits[1:4]}-{digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+    return phone
