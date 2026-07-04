@@ -149,7 +149,21 @@ function normalizeUtcSlotTimestamps(db) {
   const rows = db.prepare("SELECT id, slot_at FROM slots WHERE slot_at LIKE '%Z'").all();
   for (const row of rows) {
     const localIso = slotToLocalIso(new Date(row.slot_at));
-    db.prepare("UPDATE slots SET slot_at = ? WHERE id = ?").run(localIso, row.id);
+    const duplicate = db
+      .prepare("SELECT id FROM slots WHERE slot_at = ? AND id != ?")
+      .get(localIso, row.id);
+    if (duplicate) {
+      const current = db.prepare("SELECT status FROM slots WHERE id = ?").get(row.id);
+      if (current?.status === "available") {
+        db.prepare("DELETE FROM slots WHERE id = ?").run(row.id);
+      }
+      continue;
+    }
+    try {
+      db.prepare("UPDATE slots SET slot_at = ? WHERE id = ?").run(localIso, row.id);
+    } catch (e) {
+      if (!String(e.message).includes("UNIQUE")) throw e;
+    }
   }
 }
 

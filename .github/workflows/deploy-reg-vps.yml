@@ -1,6 +1,6 @@
 name: Deploy to Reg VPS
 # При push: деплой backend; выбранные Secrets пишутся в .env на VPS (patch_dotenv), если заданы.
-# trigger: 2026-07-04 — Anna photo booking sync, bot reschedule, admin masks
+# trigger: 2026-07-04 — fix UTC slot migration UNIQUE conflicts on deploy
 
 on:
   push:

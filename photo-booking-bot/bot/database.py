@@ -129,11 +129,23 @@ class Database:
             await db.commit()
 
     async def _normalize_utc_slot_timestamps(self, db: aiosqlite.Connection) -> None:
-        async with db.execute("SELECT id, slot_at FROM slots WHERE slot_at LIKE '%Z'") as cursor:
+        async with db.execute("SELECT id, slot_at, status FROM slots WHERE slot_at LIKE '%Z'") as cursor:
             rows = await cursor.fetchall()
-        for row_id, slot_at in rows:
+        for row_id, slot_at, status in rows:
             local_iso = slot_to_iso(parse_stored_datetime(slot_at))
-            await db.execute("UPDATE slots SET slot_at = ? WHERE id = ?", (local_iso, row_id))
+            async with db.execute(
+                "SELECT id FROM slots WHERE slot_at = ? AND id != ?",
+                (local_iso, row_id),
+            ) as cursor:
+                duplicate = await cursor.fetchone()
+            if duplicate:
+                if status == SlotStatus.AVAILABLE.value:
+                    await db.execute("DELETE FROM slots WHERE id = ?", (row_id,))
+                continue
+            try:
+                await db.execute("UPDATE slots SET slot_at = ? WHERE id = ?", (local_iso, row_id))
+            except aiosqlite.IntegrityError:
+                continue
 
     async def _ensure_pricing_defaults(self, db: aiosqlite.Connection) -> None:
         now = datetime.now().isoformat()
