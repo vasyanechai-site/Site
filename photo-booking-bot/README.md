@@ -56,7 +56,9 @@ pm2 save
 | `ADMIN_ID` | Telegram user ID администратора |
 | `PHONE` | Номер для СБП |
 | `RECIPIENT_NAME` | Имя получателя |
-| `HTTPS_PROXY` | Опционально, если `api.telegram.org` недоступен с VPS |
+| `TELEGRAM_BOT_PROXY_URL` | Cloudflare Worker для Bot API (бесплатно, если Telegram заблокирован на VPS) |
+| `TELEGRAM_BOT_PROXY_SECRET` | Секрет worker (можно тот же, что `TELEGRAM_RELAY_SECRET`) |
+| `HTTPS_PROXY` | Платный запасной вариант, если worker не используется |
 
 Полная стоимость и % предоплаты — в админке **/anna**, таблица `app_settings` в SQLite.
 

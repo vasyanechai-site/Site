@@ -16,7 +16,18 @@
 
 Уже должны быть: `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_APP_PATH`.
 
-Если `api.telegram.org` недоступен с VPS — добавьте `TELEGRAM_HTTPS_PROXY` или `HTTPS_PROXY`.
+Если `api.telegram.org` недоступен с VPS — **бесплатно** через Cloudflare Worker (как заявки с сайта Нечай):
+
+| Secret | Значение |
+|--------|----------|
+| `TELEGRAM_BOT_PROXY_URL` | `https://telegram-bot-proxy.<account>.workers.dev` |
+| `TELEGRAM_BOT_PROXY_SECRET` | опционально, если уже есть `TELEGRAM_RELAY_SECRET` — можно не дублировать |
+
+Деплой worker: Actions → **Deploy telegram-bot-proxy (Cloudflare)** (нужны `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
+
+Подробнее: [TELEGRAM_RELAY.md](./TELEGRAM_RELAY.md#бот-записи-на-фотосессию).
+
+Запасной вариант (платный): `TELEGRAM_HTTPS_PROXY` или `HTTPS_PROXY`.
 
 ## Автодеплой
 

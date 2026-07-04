@@ -1,0 +1,37 @@
+name: Deploy telegram-bot-proxy (Cloudflare)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workers/telegram-bot-proxy
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install
+        run: npm install
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          secrets: |
+            TELEGRAM_BOT_PROXY_SECRET
+        env:
+          TELEGRAM_BOT_PROXY_SECRET: ${{ secrets.TELEGRAM_BOT_PROXY_SECRET || secrets.TELEGRAM_RELAY_SECRET }}
+
+      - name: Print VPS env hint
+        run: |
+          echo "В GitHub Secrets (Deploy photo booking bot / Deploy to Reg VPS):"
+          echo "TELEGRAM_BOT_PROXY_URL=https://telegram-bot-proxy.<account>.workers.dev"
+          echo "TELEGRAM_BOT_PROXY_SECRET=(тот же секрет, можно не задавать если есть TELEGRAM_RELAY_SECRET)"

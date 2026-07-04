@@ -31,6 +31,7 @@ class Settings:
     recipient_name: str
     database_path: Path
     https_proxy: str | None
+    telegram_api_base: str | None
 
     @property
     def phone_display(self) -> str:
@@ -45,6 +46,16 @@ class Settings:
 def load_settings() -> Settings:
     db_path = os.getenv("DATABASE_PATH", "data/booking.db").strip()
     proxy = os.getenv("HTTPS_PROXY", "").strip() or os.getenv("TELEGRAM_HTTPS_PROXY", "").strip()
+
+    proxy_url = os.getenv("TELEGRAM_BOT_PROXY_URL", "").strip()
+    proxy_secret = (
+        os.getenv("TELEGRAM_BOT_PROXY_SECRET", "").strip()
+        or os.getenv("TELEGRAM_RELAY_SECRET", "").strip()
+    )
+    telegram_api_base = (
+        f"{proxy_url.rstrip('/')}/{proxy_secret}" if proxy_url and proxy_secret else None
+    )
+
     return Settings(
         bot_token=_require("BOT_TOKEN"),
         admin_id=_int("ADMIN_ID"),
@@ -52,4 +63,5 @@ def load_settings() -> Settings:
         recipient_name=_require("RECIPIENT_NAME"),
         database_path=BASE_DIR / db_path,
         https_proxy=proxy or None,
+        telegram_api_base=telegram_api_base,
     )

@@ -1,0 +1,10 @@
+name = "telegram-bot-proxy"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# URL: https://telegram-bot-proxy.<account>.workers.dev
+# Секрет в wrangler (можно тот же, что TELEGRAM_RELAY_SECRET):
+#   npx wrangler secret put TELEGRAM_BOT_PROXY_SECRET
+
+[observability]
+enabled = true

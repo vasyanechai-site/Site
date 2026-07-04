@@ -143,6 +143,19 @@ jobs:
               patch_bot_env ADMIN_ID "${{ secrets.PHOTO_BOOKING_ADMIN_ID }}"
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
+            if [ -n "${{ secrets.TELEGRAM_BOT_PROXY_URL }}" ]; then
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_BOT_PROXY_URL }}"
+            elif [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
+              DERIVED_PROXY_URL=$(echo "${{ secrets.TELEGRAM_RELAY_URL }}" | sed 's/telegram-relay/telegram-bot-proxy/')
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "$DERIVED_PROXY_URL"
+            fi
+            BOT_PROXY_SECRET="${{ secrets.TELEGRAM_BOT_PROXY_SECRET }}"
+            if [ -z "$BOT_PROXY_SECRET" ]; then
+              BOT_PROXY_SECRET="${{ secrets.TELEGRAM_RELAY_SECRET }}"
+            fi
+            if [ -n "$BOT_PROXY_SECRET" ]; then
+              patch_bot_env TELEGRAM_BOT_PROXY_SECRET "$BOT_PROXY_SECRET"
+            fi
             if [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
                 patch_bot_env HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"
               elif [ -n "${{ secrets.HTTPS_PROXY }}" ]; then

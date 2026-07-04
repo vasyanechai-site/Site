@@ -106,6 +106,48 @@ Workflow **Deploy telegram-relay (Cloudflare)** — ручной запуск и
 - Диагностика: `GET /api/debug/telegram/status`, `POST /api/debug/telegram/ping`.
 - Старый Supabase relay: [`supabase/functions/telegram-relay/`](../supabase/functions/telegram-relay/) — тот же контракт, можно не использовать.
 
+## Бот записи на фотосессию (@AnnaNechaiBot)
+
+Relay выше умеет только **`sendMessage`** в один чат — для **интерактивного бота** (polling, кнопки, диалог) нужен полный Bot API.
+
+**Бесплатно:** Cloudflare Worker **telegram-bot-proxy** — проксирует все методы (`getUpdates`, `sendMessage`, …) с VPS в РФ → Telegram.
+
+Код: [`workers/telegram-bot-proxy/`](../workers/telegram-bot-proxy/)
+
+### 1. Деплой worker
+
+```bash
+cd workers/telegram-bot-proxy
+npm install
+npx wrangler login
+npx wrangler secret put TELEGRAM_BOT_PROXY_SECRET   # или тот же, что TELEGRAM_RELAY_SECRET
+npx wrangler deploy
+```
+
+Или GitHub Actions → **Deploy telegram-bot-proxy (Cloudflare)**.
+
+URL: `https://telegram-bot-proxy.<ваш>.workers.dev`
+
+### 2. GitHub Secrets (бот на VPS)
+
+| Secret | Значение |
+|--------|----------|
+| `TELEGRAM_BOT_PROXY_URL` | URL worker |
+| `TELEGRAM_BOT_PROXY_SECRET` | тот же секрет (не нужен, если уже задан `TELEGRAM_RELAY_SECRET`) |
+
+Деплой: **Deploy photo booking bot** или push в `photo-booking-bot/**`.
+
+В логах PM2 должно быть: `Telegram API via Cloudflare proxy`.
+
+### Схема
+
+| Сервис | Обход блокировки |
+|--------|------------------|
+| Заявки с сайта Нечай | `telegram-relay` worker → `sendMessage` |
+| @AnnaNechaiBot | `telegram-bot-proxy` worker → весь Bot API |
+
+VPN на вашем компьютере **не помогает VPS** Reg.ru — бот крутится на сервере в РФ, поэтому нужен relay/proxy **на стороне сервера**.
+
 ## TELEGRAM_CHAT_ID
 
 - Канал для заявок: id вида `-100…` (бот — **админ** канала с правом публиковать).

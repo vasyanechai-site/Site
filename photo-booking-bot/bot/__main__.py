@@ -3,6 +3,7 @@ import logging
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.client.telegram import TelegramAPIServer
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from bot.config import load_settings
@@ -17,13 +18,28 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def build_bot(settings) -> Bot:
+    if settings.telegram_api_base:
+        session = AiohttpSession(
+            api=TelegramAPIServer.from_base(settings.telegram_api_base),
+        )
+        host = settings.telegram_api_base.split("/")[2]
+        logger.info("Telegram API via Cloudflare proxy (%s)", host)
+        return Bot(token=settings.bot_token, session=session)
+    if settings.https_proxy:
+        session = AiohttpSession(proxy=settings.https_proxy)
+        logger.info("Telegram API via HTTPS proxy")
+        return Bot(token=settings.bot_token, session=session)
+    logger.info("Telegram API direct (api.telegram.org)")
+    return Bot(token=settings.bot_token)
+
+
 async def main() -> None:
     settings = load_settings()
     db = Database(settings.database_path)
     await db.init()
 
-    session = AiohttpSession(proxy=settings.https_proxy) if settings.https_proxy else None
-    bot = Bot(token=settings.bot_token, session=session)
+    bot = build_bot(settings)
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.update.middleware(InjectMiddleware(db, settings))
