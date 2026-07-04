@@ -77,16 +77,7 @@ jobs:
 
             ABS_DB="${{ secrets.VPS_APP_PATH }}/photo-booking-bot/data/booking.db"
             patch_bot_env DATABASE_PATH "$ABS_DB"
-            mkdir -p "$(dirname "$ABS_DB")"
-            for LEGACY in \
-              "${{ secrets.VPS_APP_PATH }}/photo-booking-bot/booking.db" \
-              "${{ secrets.VPS_APP_PATH }}/booking.db"; do
-              if [ -f "$LEGACY" ] && [ "$LEGACY" != "$ABS_DB" ]; then
-                echo "[deploy] merge available slots from $LEGACY"
-                sqlite3 "$ABS_DB" "ATTACH DATABASE '$LEGACY' AS leg; INSERT OR IGNORE INTO main.slots (slot_at, status, created_at, updated_at) SELECT slot_at, status, COALESCE(created_at, datetime('now')), COALESCE(updated_at, datetime('now')) FROM leg.slots WHERE status='available'; DETACH leg;" 2>/dev/null || true
-              fi
-            done
-            sqlite3 "$ABS_DB" "SELECT status, COUNT(*) FROM slots GROUP BY status;" 2>/dev/null || true
+            bash scripts/merge_booking_dbs.sh "${{ secrets.VPS_APP_PATH }}"
             cd ..
             python3 server/deploy/patch_dotenv.py PHOTO_BOOKING_DB_PATH "$ABS_DB"
             cd photo-booking-bot

@@ -40,13 +40,22 @@ function getDbPath() {
 }
 
 function getDb() {
-  if (dbInstance) return dbInstance;
   const dbPath = getDbPath();
+  if (dbInstance) {
+    const currentPath = dbInstance.name;
+    if (currentPath !== dbPath) {
+      dbInstance.close();
+      dbInstance = null;
+    }
+  }
+  if (dbInstance) return dbInstance;
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
   dbInstance = new Database(dbPath);
   dbInstance.pragma("journal_mode = WAL");
   dbInstance.pragma("busy_timeout = 5000");
   ensureSchema(dbInstance);
+  const slotCount = dbInstance.prepare("SELECT COUNT(*) AS c FROM slots").get()?.c ?? 0;
+  console.info(`[photoBooking] db=${dbPath} slots=${slotCount}`);
   return dbInstance;
 }
 
