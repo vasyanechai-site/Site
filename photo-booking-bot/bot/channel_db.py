@@ -114,6 +114,10 @@ class ChannelDbMixin:
             await db.execute(
                 "ALTER TABLE app_settings ADD COLUMN channel_monthly_price INTEGER DEFAULT 500"
             )
+        if "closed_channel_telegram_id" not in columns:
+            await db.execute(
+                "ALTER TABLE app_settings ADD COLUMN closed_channel_telegram_id INTEGER"
+            )
 
         await db.execute(
             """
@@ -192,6 +196,30 @@ class ChannelDbMixin:
             )
             await db.commit()
         return await self.get_channel_settings()
+
+    async def get_closed_channel_id(self, settings) -> int:
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT closed_channel_telegram_id FROM app_settings WHERE id = 1"
+            ) as cursor:
+                row = await cursor.fetchone()
+        if row and row[0] is not None:
+            return int(row[0])
+        return settings.closed_channel_id
+
+    async def set_closed_channel_telegram_id(self, chat_id: int) -> int:
+        now = now_local_iso()
+        async with self._connect() as db:
+            await db.execute(
+                """
+                UPDATE app_settings
+                SET closed_channel_telegram_id = ?, updated_at = ?
+                WHERE id = 1
+                """,
+                (chat_id, now),
+            )
+            await db.commit()
+        return chat_id
 
     async def expire_channel_subscriptions(self) -> None:
         now = now_local_iso()

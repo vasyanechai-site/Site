@@ -125,6 +125,9 @@ function ensureSchema(db) {
   if (!settingsCols.includes("channel_monthly_price")) {
     db.exec("ALTER TABLE app_settings ADD COLUMN channel_monthly_price INTEGER DEFAULT 500");
   }
+  if (!settingsCols.includes("closed_channel_telegram_id")) {
+    db.exec("ALTER TABLE app_settings ADD COLUMN closed_channel_telegram_id INTEGER");
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS channel_subscriptions (

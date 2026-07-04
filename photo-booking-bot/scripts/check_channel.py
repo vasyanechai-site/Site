@@ -29,7 +29,12 @@ async def main() -> int:
     settings = load_settings()
     bot = build_bot(settings)
     try:
-        info = await inspect_closed_channel(bot, settings)
+        from bot.database import Database
+
+        db = Database(settings.database_path)
+        await db.init()
+        channel_id = await db.get_closed_channel_id(settings)
+        info = await inspect_closed_channel(bot, channel_id)
         print(json.dumps(info, ensure_ascii=False, indent=2, default=str))
         if info.get("ok"):
             print(

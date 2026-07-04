@@ -23,12 +23,11 @@ def channel_id_env_hint(chat_id: int) -> str:
     return s
 
 
-async def inspect_closed_channel(bot: Bot, settings: Settings) -> dict:
-    """Return diagnostics for configured closed channel."""
-    chat_id = settings.closed_channel_id
-    result = {"configured_id": chat_id, "ok": False}
+async def inspect_closed_channel(bot: Bot, channel_id: int) -> dict:
+    """Return diagnostics for a Telegram channel/supergroup id."""
+    result = {"configured_id": channel_id, "ok": False}
     try:
-        chat = await bot.get_chat(chat_id)
+        chat = await bot.get_chat(channel_id)
     except TelegramBadRequest as exc:
         result["error"] = exc.message
         return result
@@ -92,8 +91,9 @@ async def notify_admins_channel_misconfigured(bot: Bot, settings: Settings, info
             logger.exception("Failed to notify admin %s about channel config", admin_id)
 
 
-async def validate_closed_channel_on_startup(bot: Bot, settings: Settings) -> None:
-    info = await inspect_closed_channel(bot, settings)
+async def validate_closed_channel_on_startup(bot: Bot, db, settings: Settings) -> None:
+    channel_id = await db.get_closed_channel_id(settings)
+    info = await inspect_closed_channel(bot, channel_id)
     if info.get("ok"):
         logger.info(
             "Closed channel OK: %s (%s, id=%s)",

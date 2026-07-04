@@ -90,9 +90,10 @@ async def channel_entry(message: Message, bot: Bot, db: Database, settings: Sett
 
     if sub and db.subscription_is_active(sub):
         if sub.joined_at:
+            channel_id = await db.get_closed_channel_id(settings)
             await message.answer(
                 "У вас уже есть активный доступ к закрытому каналу.",
-                reply_markup=channel_active_kb(settings.closed_channel_id),
+                reply_markup=channel_active_kb(channel_id),
             )
             return
         try:
@@ -185,10 +186,11 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
     await notify_admin_channel_paid(bot, settings, user, sub)
 
     if channel_payment_skips_invite(sub_before):
+        channel_id = await db.get_closed_channel_id(settings)
         await callback.message.edit_text(
             "Спасибо! Подписка продлена.\n\n"
             f"Доступ сохранён до {sub.ends_at.strftime('%d.%m.%Y') if sub.ends_at else '—'}.",
-            reply_markup=channel_active_kb(settings.closed_channel_id),
+            reply_markup=channel_active_kb(channel_id),
         )
         await callback.answer("Подписка продлена")
         return

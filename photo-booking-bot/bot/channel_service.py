@@ -21,13 +21,15 @@ async def create_personal_invite(
     db: Database,
     settings: Settings,
     subscription: ChannelSubscription,
+    *,
+    channel_id: int,
 ) -> ChannelInviteLink:
     expires_at = datetime.now() + timedelta(hours=INVITE_EXPIRE_HOURS)
     expire_ts = int(expires_at.timestamp())
     name = f"s{subscription.id}u{subscription.telegram_user_id}"[:32]
     try:
         link = await bot.create_chat_invite_link(
-            chat_id=settings.closed_channel_id,
+            chat_id=channel_id,
             member_limit=1,
             expire_date=expire_ts,
             name=name,
@@ -35,10 +37,12 @@ async def create_personal_invite(
     except Exception as exc:
         logger.exception(
             "create_chat_invite_link failed chat_id=%s user=%s",
-            settings.closed_channel_id,
+            channel_id,
             subscription.telegram_user_id,
         )
-        await notify_admin_invite_failed(bot, settings, subscription, str(exc))
+        await notify_admin_invite_failed(
+            bot, settings, subscription, channel_id, str(exc)
+        )
         raise
     return await db.save_invite_link(
         subscription_id=subscription.id,
@@ -53,15 +57,27 @@ async def notify_admin_invite_failed(
     bot: Bot,
     settings: Settings,
     subscription: ChannelSubscription,
+    channel_id: int,
     error: str,
 ) -> None:
+    hint = ""
+    try:
+        chat = await bot.get_chat(channel_id)
+        if chat.type == "private":
+            hint = (
+                "\n\nПохоже, CLOSED_CHANNEL_ID — это ID пользователя, а не канала. "
+                "Добавьте бота админом в закрытый канал или перешлите боту любой пост из канала."
+            )
+    except Exception:
+        pass
     text = (
         "Не удалось создать invite-ссылку в закрытый канал.\n\n"
         f"Пользователь: {subscription.telegram_user_id}\n"
         f"Подписка #{subscription.id}\n"
-        f"CLOSED_CHANNEL_ID: {settings.closed_channel_id}\n"
+        f"Channel ID: {channel_id}\n"
         f"Ошибка Telegram: {error}\n\n"
-        "Проверьте: бот — админ канала с правом invite; ID канала в секретах верный."
+        "Проверьте: бот — админ канала с правом invite; ID канала верный."
+        f"{hint}"
     )
     for admin_id in settings.admin_ids:
         try:
@@ -76,10 +92,16 @@ async def issue_channel_invite(
     settings: Settings,
     subscription: ChannelSubscription,
 ) -> ChannelInviteLink:
+    channel_id = await db.get_closed_channel_id(settings)
     pending = await db.get_pending_invite_for_user(subscription.telegram_user_id)
     if pending and pending.subscription_id == subscription.id:
         return pending
-    return await create_personal_invite(bot, db, settings, subscription)
+    return await create_personal_invite(
+        bot, db, settings, subscription, channel_id=channel_id
+    )
+
+
+async def deliver_channel_invite(
 
 
 async def deliver_channel_invite(
@@ -164,10 +186,10 @@ async def notify_admin_wrong_join(
             logger.exception("Failed to notify admin %s about wrong join", admin_id)
 
 
-async def kick_from_channel(bot: Bot, settings: Settings, user_id: int) -> bool:
+async def kick_from_channel(bot: Bot, channel_id: int, user_id: int) -> bool:
     try:
-        await bot.ban_chat_member(settings.closed_channel_id, user_id)
-        await bot.unban_chat_member(settings.closed_channel_id, user_id)
+        await bot.ban_chat_member(channel_id, user_id)
+        await bot.unban_chat_member(channel_id, user_id)
         return True
     except Exception as exc:
         logger.warning("Could not remove user %s from channel: %s", user_id, exc)
@@ -190,9 +212,10 @@ async def handle_channel_join(
 
     if user_id == record.expected_user_id:
         await db.mark_invite_used(record.id, used_by_user_id=user_id, ok=True)
+        channel_id = await db.get_closed_channel_id(settings)
         await bot.send_message(
             user_id,
-            f"Добро пожаловать в закрытый канал!\n\nОткрыть: {channel_open_url(settings.closed_channel_id)}",
+            f"Добро пожаловать в закрытый канал!\n\nОткрыть: {channel_open_url(channel_id)}",
         )
         return
 
@@ -204,13 +227,15 @@ async def handle_channel_join(
         actual_user_id=user_id,
         invite_link=invite_url,
     )
-    await kick_from_channel(bot, settings, user_id)
+    channel_id = await db.get_closed_channel_id(settings)
+    await kick_from_channel(bot, channel_id, user_id)
     try:
         new_invite = await create_personal_invite(
             bot,
             db,
             settings,
             await db.get_channel_subscription_by_id(record.subscription_id),
+            channel_id=channel_id,
         )
         await send_invite_to_user(
             bot,

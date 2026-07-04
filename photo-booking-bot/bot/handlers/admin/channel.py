@@ -3,7 +3,7 @@ import logging
 from aiogram import Bot, F, Router
 from aiogram.types import CallbackQuery
 
-from bot.channel_service import create_personal_invite, send_invite_to_user
+from bot.channel_service import deliver_channel_invite, send_invite_to_user
 from bot.channel_utils import SubscriptionStatus
 from bot.config import Settings
 from bot.database import Database
@@ -98,8 +98,7 @@ async def admin_resend_invite(
     if invite:
         await send_invite_to_user(bot, sub.telegram_user_id, invite.invite_link, renewed=True)
     else:
-        invite = await create_personal_invite(bot, db, settings, sub)
-        await send_invite_to_user(bot, sub.telegram_user_id, invite.invite_link, renewed=True)
+        invite = await deliver_channel_invite(bot, db, settings, sub, renewed=True)
     await callback.answer("Ссылка отправлена")
 
 
@@ -109,8 +108,7 @@ async def admin_new_invite(
 ) -> None:
     sub_id = int(callback.data.split(":")[-1])
     sub = await db.get_channel_subscription_by_id(sub_id)
-    invite = await create_personal_invite(bot, db, settings, sub)
-    await send_invite_to_user(bot, sub.telegram_user_id, invite.invite_link, renewed=True)
+    await deliver_channel_invite(bot, db, settings, sub, renewed=True)
     await callback.answer("Новая ссылка создана")
 
 
