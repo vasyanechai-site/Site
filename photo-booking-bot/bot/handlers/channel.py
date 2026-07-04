@@ -88,35 +88,40 @@ async def channel_entry(message: Message, bot: Bot, db: Database, settings: Sett
     ch_settings = await db.get_channel_settings()
     sub = await db.get_user_channel_subscription(user.id)
 
-    if sub and db.subscription_is_active(sub):
-        if sub.joined_at:
-            channel_id = await db.get_closed_channel_id(settings)
-            await message.answer(
-                "У вас уже есть активный доступ к закрытому каналу.",
-                reply_markup=channel_active_kb(channel_id),
-            )
-            return
+    if sub and sub.paid_at and db.subscription_is_active(sub):
         try:
-            invite = await deliver_channel_invite(bot, db, settings, sub, renewed=True)
+            invite = await deliver_channel_invite(
+                bot, db, settings, sub, renewed=True, force_new=True
+            )
         except Exception:
             logger.exception("Failed to deliver invite for user %s", user.id)
             await message.answer(
                 "Оплата получена. Ссылку для входа сейчас не удалось создать — "
-                "администратор уже уведомлён. Попробуйте «Закрытый канал» через несколько минут "
-                "или напишите @anyutaporohina."
+                "администратор уже уведомлён. Попробуйте через минуту или напишите @anyutaporohina."
             )
             return
-        await message.answer(
-            "Оплата получена. Вступите в канал по вашей персональной ссылке:",
-            reply_markup=channel_invite_kb(invite.invite_link),
-        )
+        if sub.joined_at:
+            channel_id = await db.get_closed_channel_id(settings)
+            await message.answer(
+                "У вас активная подписка. Персональная ссылка для входа:",
+                reply_markup=channel_invite_kb(invite.invite_link),
+            )
+            await message.answer(
+                "Или откройте канал напрямую:",
+                reply_markup=channel_active_kb(channel_id),
+            )
+        else:
+            await message.answer(
+                "Оплата получена. Вступите в канал по вашей персональной ссылке:",
+                reply_markup=channel_invite_kb(invite.invite_link),
+            )
         return
 
-    pending_invite = await db.get_pending_invite_for_user(user.id)
-    if sub and sub.status == SubscriptionStatus.ACTIVE and sub.paid_at and not sub.joined_at and pending_invite:
+    if sub and sub.paid_at and sub.status == SubscriptionStatus.EXPIRED:
         await message.answer(
-            "Оплата получена. Вступите в канал по вашей персональной ссылке:",
-            reply_markup=channel_invite_kb(pending_invite.invite_link),
+            "Срок подписки на закрытый канал истёк.\n\n"
+            f"Продление: {ch_settings.monthly_price} ₽ в месяц",
+            reply_markup=channel_intro_kb(),
         )
         return
 
@@ -196,7 +201,7 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
         return
 
     try:
-        invite = await deliver_channel_invite(bot, db, settings, sub)
+        invite = await deliver_channel_invite(bot, db, settings, sub, force_new=True)
     except Exception as exc:
         logger.exception("Invite creation failed for user %s", user.id)
         await callback.message.edit_text(

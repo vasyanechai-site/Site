@@ -91,17 +91,17 @@ async def issue_channel_invite(
     db: Database,
     settings: Settings,
     subscription: ChannelSubscription,
+    *,
+    force_new: bool = False,
 ) -> ChannelInviteLink:
     channel_id = await db.get_closed_channel_id(settings)
-    pending = await db.get_pending_invite_for_user(subscription.telegram_user_id)
-    if pending and pending.subscription_id == subscription.id:
-        return pending
+    if not force_new:
+        pending = await db.get_pending_invite_for_user(subscription.telegram_user_id)
+        if pending and pending.subscription_id == subscription.id:
+            return pending
     return await create_personal_invite(
         bot, db, settings, subscription, channel_id=channel_id
     )
-
-
-async def deliver_channel_invite(
 
 
 async def deliver_channel_invite(
@@ -111,8 +111,11 @@ async def deliver_channel_invite(
     subscription: ChannelSubscription,
     *,
     renewed: bool = False,
+    force_new: bool = False,
 ) -> ChannelInviteLink:
-    invite = await issue_channel_invite(bot, db, settings, subscription)
+    invite = await issue_channel_invite(
+        bot, db, settings, subscription, force_new=force_new
+    )
     try:
         await send_invite_to_user(
             bot,
