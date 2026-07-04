@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install
         run: npm install
@@ -49,7 +49,7 @@ jobs:
 
       - name: Verify worker
         run: |
-          curl -fsS "https://telegram-relay.coffeenechai.workers.dev/" | grep -q bot-api-proxy && echo "Relay updated OK"
+          curl -fsS "https://telegram-relay.coffeenechai.workers.dev/" | grep -q file-download-proxy && echo "Relay updated OK"
 
       - name: Print VPS env hint
         run: |
