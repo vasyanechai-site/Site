@@ -19,6 +19,32 @@ def _resolve_db_path() -> Path:
     return (BASE_DIR / path).resolve()
 
 
+DEFAULT_RELAY_URL = "https://telegram-relay.coffeenechai.workers.dev"
+
+
+def _resolve_telegram_proxy_url() -> str:
+    """Всегда telegram-relay; игнорируем сломанный telegram-bot-proxy из секретов."""
+    candidates = [
+        os.getenv("TELEGRAM_RELAY_URL", "").strip(),
+        os.getenv("TELEGRAM_BOT_PROXY_URL", "").strip(),
+    ]
+    for url in candidates:
+        if not url:
+            continue
+        if "telegram-bot-proxy" in url or "<" in url or "account" in url.lower():
+            continue
+        if "telegram-relay" in url and "workers.dev" in url:
+            return url.rstrip("/")
+    return DEFAULT_RELAY_URL
+
+
+def _resolve_telegram_proxy_secret() -> str:
+    return (
+        os.getenv("TELEGRAM_BOT_PROXY_SECRET", "").strip()
+        or os.getenv("TELEGRAM_RELAY_SECRET", "").strip()
+    )
+
+
 def _require(name: str) -> str:
     value = os.getenv(name, "").strip()
     if not value:
@@ -58,13 +84,10 @@ def load_settings() -> Settings:
     database_path = _resolve_db_path()
     proxy = os.getenv("HTTPS_PROXY", "").strip() or os.getenv("TELEGRAM_HTTPS_PROXY", "").strip()
 
-    proxy_url = os.getenv("TELEGRAM_BOT_PROXY_URL", "").strip()
-    proxy_secret = (
-        os.getenv("TELEGRAM_BOT_PROXY_SECRET", "").strip()
-        or os.getenv("TELEGRAM_RELAY_SECRET", "").strip()
-    )
+    proxy_url = _resolve_telegram_proxy_url()
+    proxy_secret = _resolve_telegram_proxy_secret()
     telegram_api_base = (
-        f"{proxy_url.rstrip('/')}/{proxy_secret}" if proxy_url and proxy_secret else None
+        f"{proxy_url}/{proxy_secret}" if proxy_secret else None
     )
 
     return Settings(

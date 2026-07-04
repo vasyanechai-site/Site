@@ -79,6 +79,9 @@ done < <(find "$APP_ROOT" -name 'booking.db' 2>/dev/null | sort -u)
 ls -la "${APP_ROOT}/photo-booking-bot/data/"booking.db* 2>/dev/null || true
 ls -la "${APP_ROOT}/data/"booking.db* 2>/dev/null || true
 
+# Слить WAL в основной файл — иначе check_db видит 4096 байт без слотов
+sqlite3 "$CANON" "PRAGMA wal_checkpoint(FULL);" 2>/dev/null || true
+
 FINAL="$(sqlite3 "$CANON" "SELECT COUNT(*) FROM slots;" 2>/dev/null || echo 0)"
 AVAIL="$(sqlite3 "$CANON" "SELECT COUNT(*) FROM slots WHERE status='available';" 2>/dev/null || echo 0)"
 echo "[merge_db] canonical total=$FINAL available=$AVAIL"

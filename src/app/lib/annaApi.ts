@@ -100,6 +100,10 @@ export async function updateAnnaBooking(
   });
 }
 
+export async function fetchAnnaSyncStatus() {
+  return annaFetch("/sync-status");
+}
+
 export async function fetchAnnaSettings() {
   return annaFetch("/settings");
 }

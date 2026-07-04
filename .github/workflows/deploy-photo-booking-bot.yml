@@ -48,16 +48,15 @@ jobs:
             patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
             patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
 
-            if [ -n "${{ secrets.TELEGRAM_BOT_PROXY_URL }}" ]; then
-              patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_BOT_PROXY_URL }}"
-            elif [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
-              patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_RELAY_URL }}"
+            # Всегда telegram-relay; секрет TELEGRAM_BOT_PROXY_URL часто указывает на старый worker
+            RELAY_URL="https://telegram-relay.coffeenechai.workers.dev"
+            if [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
+              RELAY_URL="${{ secrets.TELEGRAM_RELAY_URL }}"
             elif [ -f ../.env ] && grep -q '^TELEGRAM_RELAY_URL=' ../.env; then
               RELAY_URL=$(grep '^TELEGRAM_RELAY_URL=' ../.env | cut -d= -f2- | tr -d '"')
-              patch_bot_env TELEGRAM_BOT_PROXY_URL "$RELAY_URL"
-            else
-              patch_bot_env TELEGRAM_BOT_PROXY_URL "https://telegram-relay.coffeenechai.workers.dev"
             fi
+            patch_bot_env TELEGRAM_BOT_PROXY_URL "$RELAY_URL"
+            patch_bot_env TELEGRAM_RELAY_URL "$RELAY_URL"
             BOT_PROXY_SECRET="${{ secrets.TELEGRAM_BOT_PROXY_SECRET }}"
             if [ -z "$BOT_PROXY_SECRET" ]; then
               BOT_PROXY_SECRET="${{ secrets.TELEGRAM_RELAY_SECRET }}"
@@ -120,14 +119,20 @@ jobs:
             pm2 env photo-booking-bot 2>/dev/null | grep DATABASE_PATH || true
             pm2 env site-api 2>/dev/null | grep PHOTO_BOOKING_DB_PATH || true
             cd photo-booking-bot
-            .venv/bin/python scripts/check_db.py || true
+            .venv/bin/python scripts/check_db.py
+            if ! .venv/bin/python scripts/healthcheck.py; then
+              echo "[deploy] FAIL: healthcheck failed — see output above"
+              pm2 logs photo-booking-bot --lines 80 --nostream || true
+              exit 1
+            fi
             cd ..
             pm2 logs photo-booking-bot --lines 40 --nostream || true
             pm2 status photo-booking-bot || true
             if pm2 describe photo-booking-bot 2>/dev/null | grep -q online; then
               echo "[deploy] photo-booking-bot is online"
             else
-              echo "[deploy] WARNING: photo-booking-bot not online — see logs above"
+              echo "[deploy] FAIL: photo-booking-bot not online"
               pm2 logs photo-booking-bot --lines 80 --nostream || true
+              exit 1
             fi
-            grep -E '^(TELEGRAM_BOT_PROXY_URL|TELEGRAM_BOT_PROXY_SECRET)=' photo-booking-bot/.env || true
+            grep -E '^(TELEGRAM_BOT_PROXY_URL|TELEGRAM_RELAY_URL|TELEGRAM_BOT_PROXY_SECRET)=' photo-booking-bot/.env || true

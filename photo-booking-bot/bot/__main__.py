@@ -50,6 +50,14 @@ async def main() -> None:
         )
 
     bot = build_bot(settings)
+    try:
+        me = await bot.get_me()
+        logger.info("Telegram connected: @%s (id=%s)", me.username, me.id)
+    except Exception as exc:
+        logger.error("Telegram connection failed: %s", exc)
+        await bot.session.close()
+        raise SystemExit(1) from exc
+
     dp = Dispatcher(storage=MemoryStorage())
 
     dp.update.middleware(InjectMiddleware(db, settings))

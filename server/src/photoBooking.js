@@ -332,6 +332,48 @@ export function registerPhotoBookingRoutes(app) {
     res.json({ pricing: getPricing(db) });
   });
 
+  app.get("/api/anna/sync-status", annaAuthMiddleware, (_req, res) => {
+    const dbPath = getDbPath();
+    let dbExists = false;
+    let dbSize = 0;
+    try {
+      const st = fs.statSync(dbPath);
+      dbExists = st.isFile();
+      dbSize = st.size;
+    } catch {
+      /* missing */
+    }
+    const db = getDb();
+    const now = nowIso();
+    const total = db.prepare("SELECT COUNT(*) AS c FROM slots").get()?.c ?? 0;
+    const available = db
+      .prepare("SELECT COUNT(*) AS c FROM slots WHERE status = 'available' AND slot_at >= ?")
+      .get(now)?.c ?? 0;
+    const futureDates = db
+      .prepare(
+        `SELECT COUNT(DISTINCT date(slot_at)) AS c FROM slots
+         WHERE status = 'available' AND slot_at >= ?`
+      )
+      .get(now)?.c ?? 0;
+    const relayUrl =
+      process.env.TELEGRAM_RELAY_URL ||
+      process.env.TELEGRAM_BOT_PROXY_URL ||
+      "https://telegram-relay.coffeenechai.workers.dev";
+    const relayOk = !relayUrl.includes("telegram-bot-proxy");
+    res.json({
+      dbPath,
+      dbExists,
+      dbSize,
+      slots: { total, available, futureDates },
+      relay: { url: relayUrl, configured: relayOk },
+      hint: relayOk
+        ? available > 0
+          ? "Админка видит слоты. Если бот пишет «нет слотов» — проверьте /dbcheck в Telegram."
+          : "В БД нет свободных слотов — добавьте через «Добавить слот»."
+        : "Неверный TELEGRAM relay URL (старый telegram-bot-proxy). Нужен telegram-relay.coffeenechai.workers.dev",
+    });
+  });
+
   app.get("/api/anna/stats", annaAuthMiddleware, (_req, res) => {
     const db = getDb();
     const now = nowIso();

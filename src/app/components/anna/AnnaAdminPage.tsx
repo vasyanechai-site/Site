@@ -24,6 +24,7 @@ import {
   fetchAnnaSettings,
   fetchAnnaSlots,
   fetchAnnaStats,
+  fetchAnnaSyncStatus,
   getAnnaToken,
   updateAnnaBooking,
   updateAnnaSettings,
@@ -196,6 +197,7 @@ function AnnaAdminPageInner() {
   const [modalDateDigits, setModalDateDigits] = useState("");
   const [modalTimeDigits, setModalTimeDigits] = useState("");
   const [savingSlot, setSavingSlot] = useState(false);
+  const [syncHint, setSyncHint] = useState<string | null>(null);
   const selectedDayRef = useRef(selectedDay);
   selectedDayRef.current = selectedDay;
 
@@ -284,6 +286,30 @@ function AnnaAdminPageInner() {
     }
   }, []);
 
+  const loadSyncStatus = useCallback(async () => {
+    if (!getAnnaToken()) return;
+    try {
+      const data = await fetchAnnaSyncStatus();
+      const issues: string[] = [];
+      if (!data.relay?.configured) {
+        issues.push("Неверный Telegram relay (нужен telegram-relay.coffeenechai.workers.dev)");
+      }
+      if (data.slots?.available === 0 && (data.slots?.total ?? 0) > 0) {
+        issues.push("Все слоты заняты или в прошлом");
+      }
+      if (data.slots?.available === 0 && (data.slots?.total ?? 0) === 0) {
+        issues.push("В БД нет слотов — добавьте через «Добавить слот»");
+      }
+      if (issues.length) {
+        setSyncHint(`${issues.join(". ")}. ${data.hint || ""}`.trim());
+      } else {
+        setSyncHint(data.hint || null);
+      }
+    } catch {
+      setSyncHint(null);
+    }
+  }, []);
+
   const refreshAll = useCallback(
     async (silent = false) => {
       if (!getAnnaToken()) return;
@@ -293,6 +319,7 @@ function AnnaAdminPageInner() {
           loadStatsAndSettings(),
           loadCalendarMonth(monthKey),
           loadBookings(),
+          loadSyncStatus(),
         ]);
         await loadDaySlots(selectedDayRef.current, true);
       } catch (e) {
@@ -310,7 +337,7 @@ function AnnaAdminPageInner() {
         if (!silent) setRefreshing(false);
       }
     },
-    [loadStatsAndSettings, loadCalendarMonth, loadBookings, loadDaySlots, monthKey]
+    [loadStatsAndSettings, loadCalendarMonth, loadBookings, loadDaySlots, loadSyncStatus, monthKey]
   );
 
   useEffect(() => {
@@ -323,6 +350,7 @@ function AnnaAdminPageInner() {
           loadStatsAndSettings(),
           loadCalendarMonth(monthKey),
           loadBookings(),
+          loadSyncStatus(),
         ]);
         if (!cancelled) await loadDaySlots(selectedDay, true);
       } catch (e) {
@@ -542,6 +570,12 @@ function AnnaAdminPageInner() {
           </div>
         ) : (
           <>
+            {syncHint ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                {syncHint}
+              </div>
+            ) : null}
+
             <section className="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
               <StatCard title="Будущие слоты" value={stats?.counts.totalFuture ?? 0} />
               <StatCard title="Свободные" value={stats?.counts.available ?? 0} />
