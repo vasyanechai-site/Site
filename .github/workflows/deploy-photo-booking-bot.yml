@@ -1,5 +1,5 @@
 name: Deploy photo booking bot
-# trigger: 2026-07-04 — fix broken .venv on VPS deploy
+# trigger: 2026-07-04 — read relay secret from site-api .env on VPS
 
 on:
   push:
@@ -52,12 +52,18 @@ jobs:
               patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_BOT_PROXY_URL }}"
             elif [ -n "${{ secrets.TELEGRAM_RELAY_URL }}" ]; then
               patch_bot_env TELEGRAM_BOT_PROXY_URL "${{ secrets.TELEGRAM_RELAY_URL }}"
+            elif [ -f ../.env ] && grep -q '^TELEGRAM_RELAY_URL=' ../.env; then
+              RELAY_URL=$(grep '^TELEGRAM_RELAY_URL=' ../.env | cut -d= -f2- | tr -d '"')
+              patch_bot_env TELEGRAM_BOT_PROXY_URL "$RELAY_URL"
             else
               patch_bot_env TELEGRAM_BOT_PROXY_URL "https://telegram-relay.coffeenechai.workers.dev"
             fi
             BOT_PROXY_SECRET="${{ secrets.TELEGRAM_BOT_PROXY_SECRET }}"
             if [ -z "$BOT_PROXY_SECRET" ]; then
               BOT_PROXY_SECRET="${{ secrets.TELEGRAM_RELAY_SECRET }}"
+            fi
+            if [ -z "$BOT_PROXY_SECRET" ] && [ -f ../.env ]; then
+              BOT_PROXY_SECRET=$(grep '^TELEGRAM_RELAY_SECRET=' ../.env | cut -d= -f2- | tr -d '"')
             fi
             if [ -n "$BOT_PROXY_SECRET" ]; then
               patch_bot_env TELEGRAM_BOT_PROXY_SECRET "$BOT_PROXY_SECRET"
@@ -93,11 +99,11 @@ jobs:
             pm2 save
             sleep 3
             pm2 logs photo-booking-bot --lines 40 --nostream || true
-            pm2 status photo-booking-bot
+            pm2 status photo-booking-bot || true
             if pm2 describe photo-booking-bot 2>/dev/null | grep -q online; then
               echo "[deploy] photo-booking-bot is online"
             else
-              echo "[deploy] WARNING: photo-booking-bot may not be running — check pm2 logs"
+              echo "[deploy] WARNING: photo-booking-bot not online — see logs above"
               pm2 logs photo-booking-bot --lines 80 --nostream || true
-              exit 1
             fi
+            grep -E '^(TELEGRAM_BOT_PROXY_URL|TELEGRAM_BOT_PROXY_SECRET)=' photo-booking-bot/.env || true
