@@ -9,8 +9,9 @@ mkdir -p "$(dirname "$CANON")"
 echo "[merge_db] canonical=$CANON"
 
 if ! command -v sqlite3 >/dev/null; then
-  echo "[merge_db] sqlite3 not installed — skip merge"
-  exit 0
+  echo "[merge_db] installing sqlite3"
+  sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y sqlite3
 fi
 
 # Схема на случай пустого файла (совместимо с API/ботом)

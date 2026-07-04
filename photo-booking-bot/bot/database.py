@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -62,15 +63,16 @@ class Database:
     def __init__(self, path: Path):
         self.path = path
 
+    @asynccontextmanager
     async def _connect(self):
-        db = await aiosqlite.connect(str(self.path))
-        await db.execute("PRAGMA journal_mode=WAL")
-        await db.execute("PRAGMA busy_timeout=5000")
-        return db
+        async with aiosqlite.connect(str(self.path)) as db:
+            await db.execute("PRAGMA journal_mode=WAL")
+            await db.execute("PRAGMA busy_timeout=5000")
+            yield db
 
     async def init(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        async with await self._connect() as db:
+        async with self._connect() as db:
             await db.execute(
                 """
                 CREATE TABLE IF NOT EXISTS slots (
@@ -161,7 +163,7 @@ class Database:
         )
 
     async def get_pricing(self) -> Pricing:
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 "SELECT full_price, prepay_percent FROM app_settings WHERE id = 1"
             ) as cursor:
@@ -275,7 +277,7 @@ class Database:
     async def add_slot(self, slot_at: datetime) -> None:
         iso = slot_to_iso(slot_at)
         now = datetime.now().isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             try:
                 await db.execute(
                     """
@@ -291,7 +293,7 @@ class Database:
                 ) from exc
 
     async def get_slot(self, slot_id: int) -> Slot | None:
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
@@ -306,7 +308,7 @@ class Database:
     async def list_future_slots(self) -> list[Slot]:
         await self.expire_stale_unpaid_slots()
         now = now_local_dt()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
@@ -324,7 +326,7 @@ class Database:
         now_iso = now.isoformat()
         now_cutoff = now_local_iso()
         reserve_deadline = (now - timedelta(minutes=RESERVE_TIMEOUT_MINUTES)).isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT id FROM slots
@@ -372,7 +374,7 @@ class Database:
     async def list_available_dates(self) -> list[datetime]:
         await self.expire_stale_unpaid_slots()
         now = now_local_dt()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT slot_at FROM slots
@@ -393,7 +395,7 @@ class Database:
         await self.expire_stale_unpaid_slots()
         day = date.date()
         now = now_local_dt()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
@@ -415,7 +417,7 @@ class Database:
     async def count_available_future_slots(self) -> int:
         await self.expire_stale_unpaid_slots()
         now = now_local_dt()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT slot_at FROM slots WHERE status = ?
@@ -438,7 +440,7 @@ class Database:
         total_amount: int = 0,
     ) -> Slot:
         now_iso = datetime.now().isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 "SELECT status FROM slots WHERE id = ?",
                 (slot_id,),
@@ -491,7 +493,7 @@ class Database:
 
     async def release_slot(self, slot_id: int, user_id: int | None = None) -> Slot:
         now = datetime.now().isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             query = "SELECT user_id FROM slots WHERE id = ?"
             async with db.execute(query, (slot_id,)) as cursor:
                 row = await cursor.fetchone()
@@ -535,7 +537,7 @@ class Database:
 
     async def mark_awaiting_payment(self, slot_id: int, user_id: int) -> Slot:
         now = datetime.now().isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             await db.execute(
                 """
                 UPDATE slots
@@ -584,7 +586,7 @@ class Database:
         await self.expire_stale_unpaid_slots()
         now = now_local_dt()
         placeholders = ", ".join("?" for _ in self._ACTIVE_SLOT_STATUSES)
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 f"""
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
@@ -616,7 +618,7 @@ class Database:
 
         pricing = await self.get_pricing()
         now = datetime.now().isoformat()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 "SELECT status, user_id FROM slots WHERE id = ?",
                 (old_slot_id,),
@@ -721,7 +723,7 @@ class Database:
         return slot
 
     async def delete_slot(self, slot_id: int) -> None:
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 "SELECT status FROM slots WHERE id = ?",
                 (slot_id,),
@@ -737,7 +739,7 @@ class Database:
 
     async def list_awaiting_payment(self) -> list[Slot]:
         now_iso = now_local_iso()
-        async with await self._connect() as db:
+        async with self._connect() as db:
             async with db.execute(
                 """
                 SELECT id, slot_at, status, user_id, username, first_name, last_name,
