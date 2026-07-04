@@ -16,6 +16,7 @@ from bot.keyboards import (
     start_keyboard,
     times_keyboard,
 )
+from bot.notifications import notify_admins
 from bot.utils import DATE_BUTTON_FORMAT, SlotStatus, format_date_button, format_phone_display, format_slot_datetime
 
 router = Router()
@@ -269,7 +270,13 @@ async def choose_date(callback: CallbackQuery, db: Database, state: FSMContext) 
 
 
 @router.callback_query(F.data.startswith("time:"))
-async def choose_time(callback: CallbackQuery, db: Database, state: FSMContext) -> None:
+async def choose_time(
+    callback: CallbackQuery,
+    db: Database,
+    state: FSMContext,
+    bot: Bot,
+    settings: Settings,
+) -> None:
     if _is_reschedule_state(await state.get_state()):
         await callback.answer(
             "Вы переносите запись — выберите время в сообщении о переносе выше.",
@@ -323,6 +330,16 @@ async def choose_time(callback: CallbackQuery, db: Database, state: FSMContext) 
     )
     await callback.answer()
 
+    await notify_admins(
+        bot,
+        settings,
+        title="🆕 <b>Новая бронь</b>",
+        user=callback.from_user,
+        slot=slot,
+        prepay=prepay,
+        footer="Клиенту даны 15 минут на предоплату.",
+    )
+
 
 @router.callback_query(F.data.startswith("pay:"))
 async def pay_booking(
@@ -361,19 +378,14 @@ async def pay_booking(
     )
     await callback.answer()
 
-    username_line = f"@{user.username}" if user.username else "нет username"
-    admin_text = (
-        "📸 <b>Новая запись — ожидает оплату</b>\n\n"
-        f"Имя: {user.full_name}\n"
-        f"Username: {username_line}\n"
-        f"Telegram ID: <code>{user.id}</code>\n"
-        f"Дата: {slot.slot_at.strftime('%d.%m.%Y')}\n"
-        f"Время: {slot.slot_at.strftime('%H:%M')}\n"
-        f"Предоплата: {prepay} ₽\n"
-        "Статус: Ожидает оплату"
+    await notify_admins(
+        bot,
+        settings,
+        title="💳 <b>Клиент перешёл к оплате</b>",
+        user=user,
+        slot=slot,
+        prepay=prepay,
     )
-    for admin_id in settings.admin_ids:
-        await bot.send_message(admin_id, admin_text, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("cancel:"))
@@ -552,17 +564,13 @@ async def reschedule_choose_time(
     )
     await callback.answer("Запись перенесена")
 
-    username_line = f"@{user.username}" if user.username else "нет username"
-    admin_text = (
-        "🔄 <b>Перенос записи</b>\n\n"
-        f"Имя: {user.full_name}\n"
-        f"Username: {username_line}\n"
-        f"Telegram ID: <code>{user.id}</code>\n"
-        f"Новое время: {format_slot_datetime(slot.slot_at)}\n"
-        f"Статус: {slot.status.label_ru}"
+    await notify_admins(
+        bot,
+        settings,
+        title="🔄 <b>Перенос записи</b>",
+        user=user,
+        slot=slot,
     )
-    for admin_id in settings.admin_ids:
-        await bot.send_message(admin_id, admin_text, parse_mode="HTML")
 
 
 @router.callback_query(F.data == "noop")
