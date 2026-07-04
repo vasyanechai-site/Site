@@ -127,3 +127,40 @@ jobs:
             export API_PUBLIC_HOST="${{ secrets.API_PUBLIC_HOST }}"
             export CERTBOT_EMAIL="${{ secrets.CERTBOT_EMAIL }}"
             bash server/deploy/install-api-proxy.sh
+
+            # Photo booking bot (24/7, PM2)
+            if [ -d photo-booking-bot ]; then
+              cd photo-booking-bot
+              touch .env
+              patch_bot_env() {
+                KEY="$1"
+                VAL="$2"
+                if [ -n "$VAL" ]; then
+                  python3 ../server/deploy/patch_dotenv.py "$KEY" "$VAL"
+                fi
+              }
+              patch_bot_env BOT_TOKEN "${{ secrets.PHOTO_BOOKING_BOT_TOKEN }}"
+              patch_bot_env ADMIN_ID "${{ secrets.PHOTO_BOOKING_ADMIN_ID }}"
+              patch_bot_env PHONE "${{ secrets.PHOTO_BOOKING_PHONE }}"
+              patch_bot_env RECIPIENT_NAME "${{ secrets.PHOTO_BOOKING_RECIPIENT_NAME }}"
+              patch_bot_env FULL_PRICE "${{ secrets.PHOTO_BOOKING_FULL_PRICE }}"
+              patch_bot_env PREPAY_PERCENT "${{ secrets.PHOTO_BOOKING_PREPAY_PERCENT }}"
+              if [ -n "${{ secrets.TELEGRAM_HTTPS_PROXY }}" ]; then
+                patch_bot_env HTTPS_PROXY "${{ secrets.TELEGRAM_HTTPS_PROXY }}"
+              elif [ -n "${{ secrets.HTTPS_PROXY }}" ]; then
+                patch_bot_env HTTPS_PROXY "${{ secrets.HTTPS_PROXY }}"
+              fi
+              if grep -q '^BOT_TOKEN=.\+' .env; then
+                if [ ! -d .venv ]; then python3 -m venv .venv; fi
+                . .venv/bin/activate
+                pip install -q -r requirements.txt
+                cd ..
+                pm2 delete photo-booking-bot 2>/dev/null || true
+                pm2 start ecosystem.config.cjs --only photo-booking-bot
+                pm2 save
+                echo "[deploy] photo-booking-bot started"
+              else
+                cd ..
+                echo "[deploy] photo-booking-bot skipped: set PHOTO_BOOKING_BOT_TOKEN secret or photo-booking-bot/.env on VPS"
+              fi
+            fi
