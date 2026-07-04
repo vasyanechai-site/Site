@@ -100,8 +100,9 @@ async def channel_entry(message: Message, bot: Bot, db: Database, settings: Sett
         except Exception:
             logger.exception("Failed to deliver invite for user %s", user.id)
             await message.answer(
-                "Оплата получена, но не удалось создать ссылку для входа.\n"
-                "Напишите администратору."
+                "Оплата получена. Ссылку для входа сейчас не удалось создать — "
+                "администратор уже уведомлён. Попробуйте «Закрытый канал» через несколько минут "
+                "или напишите @anyutaporohina."
             )
             return
         await message.answer(
@@ -197,8 +198,8 @@ async def channel_paid(callback: CallbackQuery, bot: Bot, db: Database, settings
     except Exception as exc:
         logger.exception("Invite creation failed for user %s", user.id)
         await callback.message.edit_text(
-            f"Оплата зафиксирована, но не удалось создать invite-ссылку: {exc}\n"
-            "Напишите «Закрытый канал» ещё раз или обратитесь к администратору."
+            "Оплата зафиксирована. Ссылку для входа сейчас не удалось создать — "
+            "администратор уже уведомлён. Нажмите «Закрытый канал» позже или напишите @anyutaporohina."
         )
         await callback.answer()
         return

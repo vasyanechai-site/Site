@@ -137,6 +137,6 @@ def load_settings() -> Settings:
         telegram_api_base=telegram_api_base,
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip() or None,
         closed_channel_id=resolve_channel_id(
-            os.getenv("CLOSED_CHANNEL_ID", "393215352")
+            os.getenv("CLOSED_CHANNEL_ID", "").strip() or "0"
         ),
     )

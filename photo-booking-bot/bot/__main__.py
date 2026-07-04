@@ -82,6 +82,9 @@ async def main() -> None:
     logger.info("Webhook cleared — waiting before polling")
 
     from bot.channel_renewals import renewal_reminder_loop
+    from bot.channel_setup import validate_closed_channel_on_startup
+
+    await validate_closed_channel_on_startup(bot, settings)
 
     reminder_task = asyncio.create_task(renewal_reminder_loop(bot, db, settings))
     logger.info("Channel renewal reminder loop started (hourly)")
@@ -90,7 +93,7 @@ async def main() -> None:
         await asyncio.sleep(5)
         await dp.start_polling(
             bot,
-            allowed_updates=["message", "callback_query", "chat_member"],
+            allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"],
         )
     finally:
         reminder_task.cancel()

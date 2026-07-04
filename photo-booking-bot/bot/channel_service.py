@@ -24,12 +24,22 @@ async def create_personal_invite(
 ) -> ChannelInviteLink:
     expires_at = datetime.now() + timedelta(hours=INVITE_EXPIRE_HOURS)
     expire_ts = int(expires_at.timestamp())
-    link = await bot.create_chat_invite_link(
-        chat_id=settings.closed_channel_id,
-        member_limit=1,
-        expire_date=expire_ts,
-        name=f"sub{subscription.id}_u{subscription.telegram_user_id}",
-    )
+    name = f"s{subscription.id}u{subscription.telegram_user_id}"[:32]
+    try:
+        link = await bot.create_chat_invite_link(
+            chat_id=settings.closed_channel_id,
+            member_limit=1,
+            expire_date=expire_ts,
+            name=name,
+        )
+    except Exception as exc:
+        logger.exception(
+            "create_chat_invite_link failed chat_id=%s user=%s",
+            settings.closed_channel_id,
+            subscription.telegram_user_id,
+        )
+        await notify_admin_invite_failed(bot, settings, subscription, str(exc))
+        raise
     return await db.save_invite_link(
         subscription_id=subscription.id,
         telegram_user_id=subscription.telegram_user_id,
@@ -37,6 +47,27 @@ async def create_personal_invite(
         expected_user_id=subscription.telegram_user_id,
         expires_at=expires_at,
     )
+
+
+async def notify_admin_invite_failed(
+    bot: Bot,
+    settings: Settings,
+    subscription: ChannelSubscription,
+    error: str,
+) -> None:
+    text = (
+        "Не удалось создать invite-ссылку в закрытый канал.\n\n"
+        f"Пользователь: {subscription.telegram_user_id}\n"
+        f"Подписка #{subscription.id}\n"
+        f"CLOSED_CHANNEL_ID: {settings.closed_channel_id}\n"
+        f"Ошибка Telegram: {error}\n\n"
+        "Проверьте: бот — админ канала с правом invite; ID канала в секретах верный."
+    )
+    for admin_id in settings.admin_ids:
+        try:
+            await bot.send_message(admin_id, text)
+        except Exception:
+            logger.exception("Failed to notify admin %s about invite error", admin_id)
 
 
 async def issue_channel_invite(
