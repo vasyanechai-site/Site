@@ -45,12 +45,12 @@ export type AnnaSlot = {
 };
 
 export const STATUS_COLORS: Record<string, string> = {
-  available: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  reserved: "bg-amber-100 text-amber-800 border-amber-200",
-  awaiting_payment: "bg-orange-100 text-orange-800 border-orange-200",
-  prepaid: "bg-sky-100 text-sky-800 border-sky-200",
-  paid_full: "bg-violet-100 text-violet-800 border-violet-200",
-  cancelled: "bg-zinc-100 text-zinc-600 border-zinc-200",
+  available: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  reserved: "bg-amber-50 text-amber-700 border-amber-200",
+  awaiting_payment: "bg-orange-50 text-orange-700 border-orange-200",
+  prepaid: "bg-sky-50 text-sky-700 border-sky-200",
+  paid_full: "bg-violet-50 text-violet-700 border-violet-200",
+  cancelled: "bg-zinc-50 text-zinc-600 border-zinc-200",
 };
 
 export const BOOKING_STATUS_OPTIONS = [
