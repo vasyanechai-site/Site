@@ -151,11 +151,56 @@ async def booking_start(message: Message, db: Database, state: FSMContext) -> No
     )
 
 
+def _parse_reschedule_date(data: str) -> tuple[int, str] | None:
+    """rdate:{old_slot_id}:{dd.mm.yyyy}"""
+    if not data.startswith("rdate:"):
+        return None
+    rest = data.removeprefix("rdate:")
+    if ":" not in rest:
+        return None
+    slot_part, date_str = rest.split(":", 1)
+    try:
+        return int(slot_part), date_str
+    except ValueError:
+        return None
+
+
+def _parse_reschedule_time(data: str) -> tuple[int, int] | None:
+    """rtime:{old_slot_id}:{new_slot_id}"""
+    if not data.startswith("rtime:"):
+        return None
+    parts = data.split(":")
+    if len(parts) != 3:
+        return None
+    try:
+        return int(parts[1]), int(parts[2])
+    except ValueError:
+        return None
+
+
+async def _verify_reschedule_slot(db: Database, slot_id: int, user_id: int) -> Slot | None:
+    slot = await db.get_slot(slot_id)
+    if not slot or slot.user_id != user_id:
+        return None
+    if slot.status not in (SlotStatus.RESERVED, SlotStatus.AWAITING_PAYMENT, SlotStatus.PREPAID):
+        return None
+    return slot
+
+
 @router.callback_query(F.data == "flow:cancel")
 async def flow_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await callback.message.edit_text(
         "Выбор отменён. Нажмите «Записаться» в меню ниже, когда будете готовы."
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("flow:cancel_reschedule:"))
+async def flow_cancel_reschedule(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await callback.message.edit_text(
+        "Перенос отменён. Откройте «Моя запись», если понадобится снова."
     )
     await callback.answer()
 
@@ -365,18 +410,26 @@ async def reschedule_start(callback: CallbackQuery, db: Database, state: FSMCont
     await callback.message.edit_text(
         f"Перенос записи с {format_slot_datetime(slot.slot_at)}.\n\n"
         "Выберите новую дату:",
-        reply_markup=dates_keyboard(dates, prefix="rdate"),
+        reply_markup=dates_keyboard(dates, prefix="rdate", booking_slot_id=slot_id),
     )
     await callback.answer()
 
 
 @router.callback_query(F.data.startswith("rdate:"))
 async def reschedule_choose_date(callback: CallbackQuery, db: Database, state: FSMContext) -> None:
-    if await state.get_state() != RescheduleStates.choosing_date:
-        await callback.answer("Сессия переноса истекла. Откройте «Моя запись».", show_alert=True)
+    parsed = _parse_reschedule_date(callback.data)
+    if not parsed:
+        await callback.answer("Устаревшая кнопка. Откройте «Моя запись» → «Перенести».", show_alert=True)
         return
 
-    date_str = callback.data.removeprefix("rdate:")
+    old_slot_id, date_str = parsed
+    user = callback.from_user
+    old_slot = await _verify_reschedule_slot(db, old_slot_id, user.id)
+    if not old_slot:
+        await state.clear()
+        await callback.answer("Запись не найдена или перенос недоступен.", show_alert=True)
+        return
+
     try:
         selected_date = datetime.strptime(date_str, DATE_BUTTON_FORMAT)
     except ValueError:
@@ -392,32 +445,32 @@ async def reschedule_choose_date(callback: CallbackQuery, db: Database, state: F
         return
 
     await state.set_state(RescheduleStates.choosing_time)
+    await state.update_data(old_slot_id=old_slot_id)
     await callback.message.edit_text(
         f"Выберите новое время на {format_date_button(selected_date)}:",
         reply_markup=times_keyboard(
             slots,
             prefix="rtime",
-            back_callback="flow:reschedule_back_dates",
+            booking_slot_id=old_slot_id,
+            back_callback=f"flow:reschedule_back_dates:{old_slot_id}",
         ),
     )
     await callback.answer()
 
 
-@router.callback_query(F.data == "flow:reschedule_back_dates")
+@router.callback_query(F.data.startswith("flow:reschedule_back_dates:"))
 async def reschedule_back_dates(callback: CallbackQuery, db: Database, state: FSMContext) -> None:
-    if await state.get_state() not in (
-        RescheduleStates.choosing_date,
-        RescheduleStates.choosing_time,
-    ):
-        await callback.answer("Сессия переноса истекла. Откройте «Моя запись».", show_alert=True)
+    try:
+        old_slot_id = int(callback.data.split(":")[-1])
+    except ValueError:
+        await callback.answer("Сессия переноса истекла.", show_alert=True)
         return
 
-    data = await state.get_data()
-    old_slot_id = data.get("old_slot_id")
-    slot = await db.get_slot(old_slot_id) if old_slot_id else None
+    user = callback.from_user
+    slot = await _verify_reschedule_slot(db, old_slot_id, user.id)
     if not slot:
         await state.clear()
-        await callback.answer("Сессия переноса истекла.", show_alert=True)
+        await callback.answer("Запись не найдена.", show_alert=True)
         return
 
     dates = await db.list_available_dates()
@@ -426,10 +479,11 @@ async def reschedule_back_dates(callback: CallbackQuery, db: Database, state: FS
         return
 
     await state.set_state(RescheduleStates.choosing_date)
+    await state.update_data(old_slot_id=old_slot_id)
     await callback.message.edit_text(
         f"Перенос записи с {format_slot_datetime(slot.slot_at)}.\n\n"
         "Выберите новую дату:",
-        reply_markup=dates_keyboard(dates, prefix="rdate"),
+        reply_markup=dates_keyboard(dates, prefix="rdate", booking_slot_id=old_slot_id),
     )
     await callback.answer()
 
@@ -442,19 +496,18 @@ async def reschedule_choose_time(
     settings: Settings,
     bot: Bot,
 ) -> None:
-    if await state.get_state() != RescheduleStates.choosing_time:
-        await callback.answer("Сессия переноса истекла. Откройте «Моя запись».", show_alert=True)
+    parsed = _parse_reschedule_time(callback.data)
+    if not parsed:
+        await callback.answer("Устаревшая кнопка. Откройте «Моя запись» → «Перенести».", show_alert=True)
         return
 
-    data = await state.get_data()
-    old_slot_id = data.get("old_slot_id")
-    if not old_slot_id:
-        await callback.answer("Сессия переноса истекла.", show_alert=True)
-        await state.clear()
-        return
-
-    new_slot_id = int(callback.data.removeprefix("rtime:"))
+    old_slot_id, new_slot_id = parsed
     user = callback.from_user
+
+    if not await _verify_reschedule_slot(db, old_slot_id, user.id):
+        await state.clear()
+        await callback.answer("Запись не найдена или перенос недоступен.", show_alert=True)
+        return
 
     try:
         slot = await db.reschedule_booking(
@@ -474,7 +527,7 @@ async def reschedule_choose_time(
             label = format_slot_datetime(old_slot.slot_at) if old_slot else "текущей"
             await callback.message.edit_text(
                 f"Это время занято. Выберите другую дату для переноса с {label}:",
-                reply_markup=dates_keyboard(dates, prefix="rdate"),
+                reply_markup=dates_keyboard(dates, prefix="rdate", booking_slot_id=old_slot_id),
             )
         return
 

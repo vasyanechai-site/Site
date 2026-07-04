@@ -23,6 +23,11 @@ module.exports = {
       script: ".venv/bin/python",
       args: "-m bot",
       cwd: path.join(__dirname, "photo-booking-bot"),
+      instances: 1,
+      autorestart: true,
+      max_restarts: 20,
+      min_uptime: 5000,
+      kill_timeout: 8000,
       env: {
         PYTHONUNBUFFERED: "1",
         DATABASE_PATH: BOOKING_DB,

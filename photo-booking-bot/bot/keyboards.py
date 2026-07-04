@@ -13,19 +13,35 @@ def start_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def dates_keyboard(dates, prefix: str = "date") -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=format_date_button(date),
-                callback_data=f"{prefix}:{date.strftime(DATE_BUTTON_FORMAT)}",
-            )
-        ]
-        for date in dates
-    ]
+def dates_keyboard(
+    dates,
+    prefix: str = "date",
+    *,
+    booking_slot_id: int | None = None,
+) -> InlineKeyboardMarkup:
+    rows = []
+    for date in dates:
+        date_key = date.strftime(DATE_BUTTON_FORMAT)
+        if booking_slot_id is not None:
+            cb = f"{prefix}:{booking_slot_id}:{date_key}"
+        else:
+            cb = f"{prefix}:{date_key}"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=format_date_button(date),
+                    callback_data=cb,
+                )
+            ]
+        )
     if not rows:
         rows = [[InlineKeyboardButton(text="Нет свободных дат", callback_data="noop")]]
-    rows.append([InlineKeyboardButton(text="Отмена", callback_data="flow:cancel")])
+    cancel_cb = (
+        f"flow:cancel_reschedule:{booking_slot_id}"
+        if booking_slot_id is not None
+        else "flow:cancel"
+    )
+    rows.append([InlineKeyboardButton(text="Отмена", callback_data=cancel_cb)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
@@ -33,23 +49,36 @@ def times_keyboard(
     slots: list[Slot],
     prefix: str = "time",
     *,
+    booking_slot_id: int | None = None,
     back_callback: str = "flow:back_dates",
 ) -> InlineKeyboardMarkup:
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=format_time_button(slot.slot_at),
-                callback_data=f"{prefix}:{slot.id}",
-            )
-        ]
-        for slot in slots
-    ]
+    rows = []
+    for slot in slots:
+        if booking_slot_id is not None:
+            cb = f"{prefix}:{booking_slot_id}:{slot.id}"
+        else:
+            cb = f"{prefix}:{slot.id}"
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    text=format_time_button(slot.slot_at),
+                    callback_data=cb,
+                )
+            ]
+        )
     if not rows:
         rows = [[InlineKeyboardButton(text="Нет свободного времени", callback_data="noop")]]
     rows.append(
         [
             InlineKeyboardButton(text="← Другая дата", callback_data=back_callback),
-            InlineKeyboardButton(text="Отмена", callback_data="flow:cancel"),
+            InlineKeyboardButton(
+                text="Отмена",
+                callback_data=(
+                    f"flow:cancel_reschedule:{booking_slot_id}"
+                    if booking_slot_id is not None
+                    else "flow:cancel"
+                ),
+            ),
         ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)

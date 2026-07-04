@@ -66,6 +66,8 @@ async def main() -> None:
     dp.include_router(admin.router)
 
     logger.info("Photo booking bot started")
+    await bot.delete_webhook(drop_pending_updates=True)
+    logger.info("Webhook cleared — single polling instance")
     await dp.start_polling(bot)
 
 
