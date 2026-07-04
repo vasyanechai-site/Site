@@ -86,12 +86,15 @@ jobs:
               exit 1
             fi
 
-            if [ ! -f .venv/bin/python ]; then
+            if [ ! -x .venv/bin/python ] || ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
               echo "[deploy] creating photo-booking-bot venv (missing or broken .venv)"
               rm -rf .venv
-              python3 -m venv .venv
+              if ! python3 -m venv .venv; then
+                echo "ERROR: python3 -m venv failed — on VPS run: apt install python3-venv"
+                exit 1
+              fi
             fi
-            .venv/bin/pip install -q -r requirements.txt
+            .venv/bin/python -m pip install -q -r requirements.txt
 
             cd ..
             pm2 delete photo-booking-bot 2>/dev/null || true
