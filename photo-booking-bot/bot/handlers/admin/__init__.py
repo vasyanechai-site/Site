@@ -14,7 +14,7 @@ router.include_router(bookings.router)
 router.include_router(payments.router)
 router.include_router(stats.router)
 router.include_router(settings.router)
-router.include_router(voice.router)
 router.include_router(legacy.router)
+router.include_router(voice.router)
 
 __all__ = ["router"]

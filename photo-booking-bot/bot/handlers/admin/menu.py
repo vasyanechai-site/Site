@@ -20,7 +20,8 @@ async def admin_entry(message: Message, state: FSMContext) -> None:
     await message.answer(
         "⚙️ <b>Админ-панель</b>\n\n"
         "Управление слотами, записями и настройками.\n"
-        "Голосовые команды доступны, если задан OPENAI_API_KEY.",
+        "Голосовые команды: Whisper + GPT (нужен OPENAI_API_KEY).\n"
+        "Текстом тоже можно: «покажи записи», «статистика».",
         reply_markup=admin_main_menu_kb(),
         parse_mode="HTML",
     )

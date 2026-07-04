@@ -85,6 +85,11 @@ def parse_intent(client: OpenAI, text: str) -> dict:
     return json.loads(raw)
 
 
+def parse_text_intent(api_key: str, text: str, https_proxy: str | None) -> dict:
+    client = build_openai_client(api_key, https_proxy)
+    return parse_intent(client, text)
+
+
 def process_voice(
     api_key: str,
     audio_bytes: bytes,

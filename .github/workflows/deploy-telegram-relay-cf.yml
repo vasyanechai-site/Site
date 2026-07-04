@@ -24,6 +24,14 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Check Cloudflare secrets
+        run: |
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; then
+            echo "::error::Задайте GitHub Secrets CLOUDFLARE_API_TOKEN и CLOUDFLARE_ACCOUNT_ID"
+            echo "Или деплой вручную: cd workers/telegram-relay && npx wrangler login && npx wrangler deploy"
+            exit 1
+          fi
+
       - name: Install
         run: npm install
 
