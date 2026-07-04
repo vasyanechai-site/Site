@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Component, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import { format, parseISO, startOfMonth } from "date-fns";
 import { ru } from "date-fns/locale";
@@ -129,9 +129,62 @@ function LoginScreen({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+function safeFormatIso(iso: string | null | undefined, pattern: string) {
+  if (!iso) return "—";
+  try {
+    const d = parseISO(iso);
+    if (Number.isNaN(d.getTime())) return "—";
+    return format(d, pattern, { locale: ru });
+  } catch {
+    return "—";
+  }
+}
+
+class AnnaErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: string | null }
+> {
+  state = { error: null as string | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error: error.message || "Ошибка интерфейса" };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-6">
+          <div className="max-w-md rounded-2xl border border-red-200 bg-white p-6 text-center shadow-sm">
+            <p className="text-lg font-semibold text-zinc-900">Что-то пошло не так</p>
+            <p className="mt-2 text-sm text-zinc-600">{this.state.error}</p>
+            <Button
+              className="mt-4 rounded-xl"
+              onClick={() => {
+                clearAnnaToken();
+                window.location.reload();
+              }}
+            >
+              Сбросить и обновить
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export function AnnaAdminPage() {
+  return (
+    <AnnaErrorBoundary>
+      <AnnaAdminPageInner />
+    </AnnaErrorBoundary>
+  );
+}
+
+function AnnaAdminPageInner() {
   const [authed, setAuthed] = useState(!!getAnnaToken());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!getAnnaToken());
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState<AnnaStats | null>(null);
   const [calendarDays, setCalendarDays] = useState<Record<string, { total: number; available: number; occupied: number }>>({});
@@ -182,16 +235,33 @@ export function AnnaAdminPage() {
         fetchAnnaBookings(bookingParams),
         fetchAnnaSettings(),
       ]);
-      setStats(statsData);
-      setCalendarDays(calData.days || {});
-      setDaySlots(slotsData);
-      setBookings(bookingsData);
-      const p = settingsData.pricing;
-      setPricing(p);
-      setPricingDraft({
-        fullPrice: String(p.fullPrice),
-        prepayPercent: String(p.prepayPercent),
-      });
+      setStats(
+        statsData?.counts
+          ? statsData
+          : {
+              counts: {
+                totalFuture: 0,
+                available: 0,
+                reserved: 0,
+                awaiting_payment: 0,
+                prepaid: 0,
+                paid_full: 0,
+                cancelled: 0,
+              },
+              nearestSession: null,
+            }
+      );
+      setCalendarDays(calData?.days || {});
+      setDaySlots(Array.isArray(slotsData) ? slotsData : []);
+      setBookings(Array.isArray(bookingsData) ? bookingsData : []);
+      const p = settingsData?.pricing;
+      if (p) {
+        setPricing(p);
+        setPricingDraft({
+          fullPrice: String(p.fullPrice),
+          prepayPercent: String(p.prepayPercent),
+        });
+      }
     } catch (e) {
       if (!silent) {
         toast.error(e instanceof Error ? e.message : "Ошибка загрузки");
@@ -232,7 +302,7 @@ export function AnnaAdminPage() {
   }, [bookings, search]);
 
   const nearestLabel = stats?.nearestSession
-    ? format(parseISO(stats.nearestSession), "d MMMM, HH:mm", { locale: ru })
+    ? safeFormatIso(stats.nearestSession, "d MMMM, HH:mm")
     : "—";
 
   const handleSavePricing = async () => {
@@ -703,7 +773,7 @@ function BookingCard({
             {booking.totalAmount || pricing.fullPrice} ₽
           </p>
           <p className="text-xs text-zinc-400">
-            Создано: {format(parseISO(booking.createdAt), "d MMM yyyy, HH:mm", { locale: ru })}
+            Создано: {safeFormatIso(booking.createdAt, "d MMM yyyy, HH:mm")}
           </p>
           {booking.telegramUsername && (
             <a
