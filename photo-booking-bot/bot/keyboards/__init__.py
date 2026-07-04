@@ -1,7 +1,10 @@
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, Message, ReplyKeyboardMarkup
 
 from bot.database import Slot
 from bot.utils import DATE_BUTTON_FORMAT, format_date_button, format_slot_datetime, format_time_button
+
+# Telegram rejects ZWSP-only sendMessage; braille blank works for keyboard-only updates.
+KEYBOARD_PLACEHOLDER = "\u2800"
 
 
 def start_keyboard(*, is_admin: bool = False) -> ReplyKeyboardMarkup:
@@ -12,6 +15,18 @@ def start_keyboard(*, is_admin: bool = False) -> ReplyKeyboardMarkup:
     if is_admin:
         rows.append([KeyboardButton(text="⚙️ Админка")])
     return ReplyKeyboardMarkup(keyboard=rows, resize_keyboard=True)
+
+
+async def refresh_reply_keyboard(message: Message, *, is_admin: bool = False) -> None:
+    await message.answer(KEYBOARD_PLACEHOLDER, reply_markup=start_keyboard(is_admin=is_admin))
+
+
+def main_menu_inline_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Закрытый канал", callback_data="ch:open")],
+        ]
+    )
 
 
 def dates_keyboard(

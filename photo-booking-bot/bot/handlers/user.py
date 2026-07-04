@@ -13,6 +13,7 @@ from bot.keyboards import (
     active_booking_keyboard,
     dates_keyboard,
     nearest_slots_keyboard,
+    main_menu_inline_kb,
     payment_keyboard,
     start_keyboard,
     times_keyboard,
@@ -90,20 +91,31 @@ async def cmd_start(message: Message, db: Database, settings: Settings, state: F
                 "Фотосессия займёт один час.",
                 reply_markup=nearest_slots_keyboard(slots),
             )
+            await message.answer("Дополнительно:", reply_markup=main_menu_inline_kb())
             return
         text += "\n\nСейчас нет свободных слотов. Загляните позже."
     if is_admin:
         text += "\n\n⚙️ Для управления записями нажмите «Админка»."
     await message.answer(text, reply_markup=start_keyboard(is_admin=is_admin))
+    await message.answer("Дополнительно:", reply_markup=main_menu_inline_kb())
 
 
-@router.message(F.text == "Моя запись")
-async def my_booking(message: Message, db: Database) -> None:
+def _menu_kb(user_id: int, settings: Settings):
+    return start_keyboard(is_admin=user_id in settings.admin_ids)
+
+
+def _menu_text_match(label: str):
+    return F.text.func(lambda t: bool(t and t.strip() == label))
+
+
+@router.message(_menu_text_match("Моя запись"))
+async def my_booking(message: Message, db: Database, settings: Settings) -> None:
     slot = await db.get_user_active_slot(message.from_user.id)
+    kb = _menu_kb(message.from_user.id, settings)
     if not slot:
         await message.answer(
             "У вас пока нет активной записи. Нажмите «Записаться», чтобы выбрать время.",
-            reply_markup=start_keyboard(),
+            reply_markup=kb,
         )
         return
 
@@ -118,6 +130,7 @@ async def my_booking(message: Message, db: Database) -> None:
 async def cmd_cancel(message: Message, state: FSMContext, settings: Settings) -> None:
     user = message.from_user
     current = await state.get_state()
+    kb = _menu_kb(user.id, settings)
 
     if user.id in settings.admin_ids and current == AddSlotsState.waiting_for_lines.state:
         await state.clear()
@@ -126,23 +139,24 @@ async def cmd_cancel(message: Message, state: FSMContext, settings: Settings) ->
 
     if _is_reschedule_state(current):
         await state.clear()
-        await message.answer("Перенос отменён.", reply_markup=start_keyboard())
+        await message.answer("Перенос отменён.", reply_markup=kb)
         return
 
     if current:
         await state.clear()
-        await message.answer("Действие отменено.", reply_markup=start_keyboard())
+        await message.answer("Действие отменено.", reply_markup=kb)
         return
 
     await message.answer(
         "Нечего отменять. Используйте «Записаться» или «Моя запись».",
-        reply_markup=start_keyboard(),
+        reply_markup=kb,
     )
 
 
-@router.message(F.text == "Записаться")
-async def booking_start(message: Message, db: Database, state: FSMContext) -> None:
+@router.message(_menu_text_match("Записаться"))
+async def booking_start(message: Message, db: Database, settings: Settings, state: FSMContext) -> None:
     await state.clear()
+    kb = _menu_kb(message.from_user.id, settings)
     active = await db.get_user_active_slot(message.from_user.id)
     if active:
         pricing = await db.get_pricing()
@@ -158,7 +172,7 @@ async def booking_start(message: Message, db: Database, state: FSMContext) -> No
     if not dates:
         await message.answer(
             "Сейчас нет свободных слотов. Загляните позже.",
-            reply_markup=start_keyboard(),
+            reply_markup=kb,
         )
         return
 
@@ -370,6 +384,7 @@ async def pay_booking(
         await callback.answer(str(exc), show_alert=True)
         return
 
+    await callback.answer()
     pricing = await db.get_pricing()
     contact = await db.get_contact_settings(
         env_phone=settings.phone,
@@ -389,8 +404,6 @@ async def pay_booking(
             show_cancel=True,
         ),
     )
-    await callback.answer()
-
     await notify_admins(
         bot,
         settings,
@@ -402,7 +415,9 @@ async def pay_booking(
 
 
 @router.callback_query(F.data.startswith("cancel:"))
-async def cancel_booking(callback: CallbackQuery, db: Database, state: FSMContext) -> None:
+async def cancel_booking(
+    callback: CallbackQuery, db: Database, state: FSMContext, settings: Settings
+) -> None:
     slot_id = int(callback.data.removeprefix("cancel:"))
     user = callback.from_user
 
@@ -413,15 +428,15 @@ async def cancel_booking(callback: CallbackQuery, db: Database, state: FSMContex
         return
 
     await state.clear()
+    await callback.answer("Запись отменена")
     try:
         await callback.message.edit_reply_markup(reply_markup=None)
     except Exception:
         pass
-    await callback.answer("Запись отменена")
     await callback.message.answer(
         "Запись отменена. Слот снова свободен.\n\n"
         "Когда захотите — нажмите «Записаться».",
-        reply_markup=start_keyboard(),
+        reply_markup=_menu_kb(user.id, settings),
     )
 
 
@@ -443,6 +458,7 @@ async def reschedule_start(callback: CallbackQuery, db: Database, state: FSMCont
         await callback.answer("Нет свободных дат для переноса.", show_alert=True)
         return
 
+    await callback.answer()
     await state.set_state(RescheduleStates.choosing_date)
     await state.update_data(old_slot_id=slot_id)
     await callback.message.edit_text(
@@ -450,7 +466,6 @@ async def reschedule_start(callback: CallbackQuery, db: Database, state: FSMCont
         "Выберите новую дату:",
         reply_markup=dates_keyboard(dates, prefix="rdate", booking_slot_id=slot_id),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("rdate:"))
@@ -592,9 +607,9 @@ async def noop_callback(callback: CallbackQuery) -> None:
 
 
 @router.message()
-async def fallback_message(message: Message) -> None:
+async def fallback_message(message: Message, settings: Settings) -> None:
     await message.answer(
         "Не понял сообщение. Используйте кнопки «Записаться» или «Моя запись».\n"
         "Чтобы отменить текущий выбор — отправьте /cancel.",
-        reply_markup=start_keyboard(),
+        reply_markup=_menu_kb(message.from_user.id, settings),
     )

@@ -6,12 +6,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.client.telegram import TelegramAPIServer
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import ErrorEvent
 
 from bot.config import load_settings
 from bot.database import Database
 from bot.handlers import admin, channel, channel_member, user
 from bot.local_guard import refuse_accidental_local_polling
-from bot.middleware import InjectMiddleware
+from bot.middleware import ErrorLoggingMiddleware, InjectMiddleware
 from bot.single_instance import acquire_single_instance_lock
 
 logging.basicConfig(
@@ -65,7 +66,22 @@ async def main() -> None:
 
     dp = Dispatcher(storage=MemoryStorage())
 
+    dp.update.middleware(ErrorLoggingMiddleware())
     dp.update.middleware(InjectMiddleware(db, settings))
+
+    @dp.errors()
+    async def on_handler_error(event: ErrorEvent) -> bool:
+        logger.exception("Update handler error: %s", event.exception)
+        cq = event.update.callback_query
+        if cq:
+            try:
+                await cq.answer(
+                    "Не удалось выполнить действие. Отправьте /start или попробуйте снова.",
+                    show_alert=True,
+                )
+            except Exception:
+                pass
+        return True
 
     dp.include_router(channel.router)
     dp.include_router(channel_member.router)
@@ -84,7 +100,7 @@ async def main() -> None:
     from bot.channel_renewals import renewal_reminder_loop
     from bot.channel_setup import validate_closed_channel_on_startup
 
-    await validate_closed_channel_on_startup(bot, settings)
+    await validate_closed_channel_on_startup(bot, db, settings)
 
     reminder_task = asyncio.create_task(renewal_reminder_loop(bot, db, settings))
     logger.info("Channel renewal reminder loop started (hourly)")

@@ -1,4 +1,5 @@
 from aiogram import Bot, F, Router
+from aiogram.filters import Command
 from aiogram.types import CallbackQuery, Message
 
 import logging
@@ -10,6 +11,7 @@ from bot.channel_service import (
 from bot.channel_utils import SubscriptionStatus, channel_payment_skips_invite, renewal_discounted_price
 from bot.config import Settings
 from bot.database import Database
+from bot.keyboards import refresh_reply_keyboard
 from bot.keyboards.channel_kb import (
     channel_active_kb,
     channel_intro_kb,
@@ -82,11 +84,16 @@ async def _start_channel_payment(
     await callback.answer()
 
 
-@router.message(F.text == "Закрытый канал")
-async def channel_entry(message: Message, bot: Bot, db: Database, settings: Settings) -> None:
-    user = message.from_user
+async def _open_channel_for_user(
+    *,
+    bot: Bot,
+    db: Database,
+    settings: Settings,
+    user_id: int,
+    answer,
+) -> None:
     ch_settings = await db.get_channel_settings()
-    sub = await db.get_user_channel_subscription(user.id)
+    sub = await db.get_user_channel_subscription(user_id)
 
     if sub and sub.paid_at and db.subscription_is_active(sub):
         try:
@@ -94,41 +101,78 @@ async def channel_entry(message: Message, bot: Bot, db: Database, settings: Sett
                 bot, db, settings, sub, renewed=True, force_new=True
             )
         except Exception:
-            logger.exception("Failed to deliver invite for user %s", user.id)
-            await message.answer(
+            logger.exception("Failed to deliver invite for user %s", user_id)
+            await answer(
                 "Оплата получена. Ссылку для входа сейчас не удалось создать — "
                 "администратор уже уведомлён. Попробуйте через минуту или напишите @anyutaporohina."
             )
             return
         if sub.joined_at:
             channel_id = await db.get_closed_channel_id(settings)
-            await message.answer(
+            await answer(
                 "У вас активная подписка. Персональная ссылка для входа:",
                 reply_markup=channel_invite_kb(invite.invite_link),
             )
-            await message.answer(
+            await answer(
                 "Или откройте канал напрямую:",
                 reply_markup=channel_active_kb(channel_id),
             )
         else:
-            await message.answer(
+            await answer(
                 "Оплата получена. Вступите в канал по вашей персональной ссылке:",
                 reply_markup=channel_invite_kb(invite.invite_link),
             )
         return
 
     if sub and sub.paid_at and sub.status == SubscriptionStatus.EXPIRED:
-        await message.answer(
+        await answer(
             "Срок подписки на закрытый канал истёк.\n\n"
             f"Продление: {ch_settings.monthly_price} ₽ в месяц",
             reply_markup=channel_intro_kb(),
         )
         return
 
-    await message.answer(
+    await answer(
         _intro_text(ch_settings.monthly_price),
         reply_markup=channel_intro_kb(),
     )
+
+
+@router.message(F.text.func(lambda t: bool(t and t.strip() == "Закрытый канал")))
+@router.message(Command("channel"))
+async def channel_entry(message: Message, bot: Bot, db: Database, settings: Settings) -> None:
+    is_admin = message.from_user.id in settings.admin_ids
+
+    async def answer(text, **kwargs):
+        return await message.answer(text, **kwargs)
+
+    await _open_channel_for_user(
+        bot=bot,
+        db=db,
+        settings=settings,
+        user_id=message.from_user.id,
+        answer=answer,
+    )
+    await refresh_reply_keyboard(message, is_admin=is_admin)
+
+
+@router.callback_query(F.data == "ch:open")
+async def channel_open_callback(
+    callback: CallbackQuery, bot: Bot, db: Database, settings: Settings
+) -> None:
+    user = callback.from_user
+
+    async def answer(text, **kwargs):
+        return await callback.message.answer(text, **kwargs)
+
+    await _open_channel_for_user(
+        bot=bot,
+        db=db,
+        settings=settings,
+        user_id=user.id,
+        answer=answer,
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "ch:cancel")
