@@ -1,6 +1,11 @@
 name: Deploy telegram-bot-proxy (Cloudflare)
 
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "workers/telegram-bot-proxy/**"
+      - ".github/workflows/deploy-telegram-bot-proxy-cf.yml"
   workflow_dispatch:
 
 jobs:
