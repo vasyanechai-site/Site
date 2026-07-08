@@ -8,6 +8,7 @@ import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Ticker } from './Ticker';
 import { fetchRetailProducts, type RetailProduct, fetchFavorites, addToFavorites, removeFromFavorites } from '../lib/api';
 import { fetchCategoryOrder, DEFAULT_CATEGORY_ORDER } from '../lib/api';
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 import { RetailProductDetail } from './RetailProductDetail';
 import { RetailCartItem } from './RetailCart';
 import { RetailCartPage } from './RetailCartPage';
