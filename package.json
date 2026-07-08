@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "vite",
     "dev:client": "vite",
     "dev:server": "node --watch server/src/index.js",
@@ -91,7 +93,8 @@
     "@tailwindcss/vite": "4.1.12",
     "@vitejs/plugin-react": "4.7.0",
     "tailwindcss": "4.1.12",
-    "vite": "6.3.5"
+    "vite": "6.3.5",
+    "vitest": "^4.1.10"
   },
   "peerDependencies": {
     "react": "^18.3.1",
