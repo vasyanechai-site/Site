@@ -1,0 +1,94 @@
+name: Daily Smoke Tests
+
+# Ежедневная проверка ключевых сценариев (заказ в опте/рознице, каталоги,
+# аккаунты, промокоды) + краткий отчёт в Telegram: «всё работает» или «где упало».
+# Запускается по расписанию и вручную (workflow_dispatch).
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC = 09:00 МСК
+  workflow_dispatch:
+  # Дополнительно прогоняем при изменении самих smoke-файлов (в т.ч. первый
+  # запуск при вливании этой фичи в main). Основной режим — ежедневный по cron.
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/daily-smoke.yml"
+      - "scripts/daily-smoke.mjs"
+
+concurrency:
+  group: daily-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (vitest)
+        id: unit
+        run: npm test
+        continue-on-error: true
+
+      - name: Frontend build
+        id: build
+        env:
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+        run: npm run build
+        continue-on-error: true
+
+      - name: Start API server (ephemeral, no external creds)
+        env:
+          PORT: "8787"
+        run: |
+          # Намеренно НЕ передаём TELEGRAM_*/TOCHKA_*/CDEK_* — чтобы сервер не слал
+          # уведомления и не дёргал внешние сервисы во время проверок.
+          node server/src/index.js > server.log 2>&1 &
+          echo $! > server.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8787/api/health > /dev/null; then
+              echo "API up"; exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not start in time"; cat server.log; exit 1
+
+      - name: Run smoke scenarios and send Telegram report
+        env:
+          SMOKE_BASE_URL: http://127.0.0.1:8787
+          PROD_BASE_URL: ${{ secrets.PROD_BASE_URL }}
+          SMOKE_SEND_TELEGRAM: "1"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_RELAY_URL: ${{ secrets.TELEGRAM_RELAY_URL }}
+          TELEGRAM_RELAY_SECRET: ${{ secrets.TELEGRAM_RELAY_SECRET }}
+          UNIT_TESTS_RESULT: ${{ steps.unit.outcome == 'success' && 'ok' || 'fail' }}
+          FRONTEND_BUILD_RESULT: ${{ steps.build.outcome == 'success' && 'ok' || 'fail' }}
+        run: node scripts/daily-smoke.mjs
+
+      - name: Stop API server
+        if: always()
+        run: |
+          if [ -f server.pid ]; then kill "$(cat server.pid)" 2>/dev/null || true; fi
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: |
+            smoke-report.txt
+            smoke-report.json
+            server.log
+          if-no-files-found: warn
