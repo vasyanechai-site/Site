@@ -9,6 +9,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 site-dist-for-upload.zip
+smoke-report.txt
+smoke-report.json
+server.log
+server.pid
 .DS_Store
 __pycache__/
 *.pyc

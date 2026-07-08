@@ -7,6 +7,7 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "smoke": "node scripts/daily-smoke.mjs",
     "dev": "vite",
     "dev:client": "vite",
     "dev:server": "node --watch server/src/index.js",
