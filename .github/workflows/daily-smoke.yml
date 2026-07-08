@@ -8,6 +8,13 @@ on:
   schedule:
     - cron: "0 6 * * *" # 06:00 UTC = 09:00 МСК
   workflow_dispatch:
+  # Дополнительно прогоняем при изменении самих smoke-файлов (в т.ч. первый
+  # запуск при вливании этой фичи в main). Основной режим — ежедневный по cron.
+  push:
+    branches: ["main"]
+    paths:
+      - ".github/workflows/daily-smoke.yml"
+      - "scripts/daily-smoke.mjs"
 
 concurrency:
   group: daily-smoke
