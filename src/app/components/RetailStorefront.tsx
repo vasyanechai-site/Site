@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { transliterate } from '../lib/transliterate';
 import { Footer } from './Footer';
 import { getRetailSessionUser } from '../lib/retailAuth';
+import { API_BASE_URL, API_AUTH_HEADER } from '../lib/backendConfig';
 import { getDisplayOrderNumber } from '../lib/orderNumbers';
 import { SEOHelmet, SEOConfig } from './SEOHelmet';
 import { RetailMobileTabBar, type TabId } from './RetailMobileTabBar';
