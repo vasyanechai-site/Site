@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { format, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { ChevronRight, CreditCard, ShoppingBag, TrendingUp, Users } from 'lucide-react';
+import { CreditCard, ShoppingBag, TrendingUp, Users } from 'lucide-react';
 import { Order } from '../types';
 import { fetchUserLoyalty, fetchUserOrders } from '../lib/api';
 import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
@@ -13,24 +13,26 @@ import { Input } from './ui/input';
 
 // ─── LOYALTY WIDGET (inline) ─────────────────────────────────────────────────
 
+const BRAND_ORANGE = '#F47D37';
+
 const LOYALTY_LEVELS = [
   {
-    level: 0, label: 'Случайный визит',    discount: 0,  color: '#A0A0A0',
+    level: 0, label: 'Случайный визит',    discount: 0,  color: '#222222',
     description: 'По умолчанию у всех новых клиентов.',
     conditions: [] as string[],
   },
   {
-    level: 1, label: 'Нечайная встреча',   discount: 5,  color: '#4A90D9',
+    level: 1, label: 'Нечайная встреча',   discount: 5,  color: BRAND_ORANGE,
     description: null as string | null,
     conditions: ['4 заказа за 3 месяца'],
   },
   {
-    level: 2, label: 'Приятная нечайность',discount: 7,  color: '#4A90D9',
+    level: 2, label: 'Приятная нечайность',discount: 7,  color: BRAND_ORANGE,
     description: null as string | null,
     conditions: ['8 заказов за 6 месяцев', 'Отсутствие перерывов более 45 дней'],
   },
   {
-    level: 3, label: 'Главный Нечай',      discount: 10, color: '#F47D37',
+    level: 3, label: 'Главный Нечай',      discount: 10, color: BRAND_ORANGE,
     description: null as string | null,
     conditions: ['12 заказов за 12 месяцев', 'Отсутствие перерывов более 40 дней'],
   },
@@ -79,95 +81,66 @@ function LoyaltyWidget({ orders, loyaltyInfo }: LoyaltyWidgetProps) {
   const progressLabel = getProgressLabel();
 
   return (
-    <Card className="border border-[#222222]/10 bg-[#FFF4E5] shadow-none rounded-2xl overflow-hidden">
-      <CardContent className="p-0">
-        {/* Header */}
-        <div
-          className="px-5 py-4 flex items-center justify-between"
-          style={{ backgroundColor: `${currentLevelData.color}18` }}
-        >
-          <div className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center"
-              style={{ backgroundColor: currentLevelData.color }}
-            >
-              <CreditCard className="w-5 h-5 text-white" />
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+        <div>
+          <CardTitle className="text-sm font-medium">Ступень лояльности</CardTitle>
+          <p className="text-2xl font-bold mt-1">{currentLevelData.label}</p>
+        </div>
+        {currentLevelData.discount > 0 && (
+          <p className="text-sm font-medium" style={{ color: BRAND_ORANGE }}>
+            −{currentLevelData.discount}%
+          </p>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted-foreground">За 3 месяца</p>
+              <p className="text-2xl font-bold">{loyaltyInfo.ordersIn3Mo} зак.</p>
             </div>
             <div>
-              <p className="text-xs text-[#222222]/50 font-medium">Ступень лояльности</p>
-              <p className="text-base font-bold text-[#222222]">{currentLevelData.label}</p>
-            </div>
-          </div>
-          {currentLevelData.discount > 0 && (
-            <div
-              className="px-3 py-1.5 rounded-full text-sm font-bold text-white"
-              style={{ backgroundColor: currentLevelData.color }}
-            >
-              −{currentLevelData.discount}%
-            </div>
-          )}
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 space-y-4">
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-[#222222]/5 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <TrendingUp className="w-3.5 h-3.5 text-[#FF90A1]" />
-                <span className="text-[10px] font-semibold text-[#222222]/40 uppercase tracking-wider">За 3 месяца</span>
-              </div>
-              <p className="text-sm font-bold text-[#222222]">{loyaltyInfo.ordersIn3Mo} зак.</p>
-            </div>
-            <div className="rounded-xl bg-[#222222]/5 p-3">
-              <div className="flex items-center gap-1.5 mb-1">
-                <ShoppingBag className="w-3.5 h-3.5 text-[#FF90A1]" />
-                <span className="text-[10px] font-semibold text-[#222222]/40 uppercase tracking-wider">Всего заказов</span>
-              </div>
-              <p className="text-sm font-bold text-[#222222]">{orders.length}</p>
+              <p className="text-xs text-muted-foreground">Всего заказов</p>
+              <p className="text-2xl font-bold">{orders.length}</p>
             </div>
           </div>
 
-          {/* Manual override badge */}
           {loyaltyInfo.isManualOverride && (
-            <p className="text-[10px] text-[#222222]/40 bg-[#222222]/5 rounded-lg px-2.5 py-1.5">
-              🔒 Ступень зафиксирована менеджером вручную
+            <p className="text-xs text-muted-foreground">
+              Ступень зафиксирована менеджером вручную
             </p>
           )}
 
-          {/* Progress bar */}
           {!isMaxLevel && nextLevelData && progressLabel && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-[#222222]/50">
+                <span className="text-xs text-muted-foreground">
                   До ступени{' '}
-                  <span className="font-semibold text-[#222222]">{nextLevelData.label}</span>
+                  <span className="font-medium text-foreground">{nextLevelData.label}</span>
                 </span>
-                <span className="text-xs font-semibold text-[#222222]/60">{progressLabel}</span>
+                <span className="text-xs text-muted-foreground">{progressLabel}</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-[#222222]/10 overflow-hidden">
+              <div className="w-full h-2 rounded-full bg-muted overflow-hidden">
                 <div
                   className="h-full rounded-full transition-all duration-700"
-                  style={{ width: `${progress}%`, backgroundColor: nextLevelData.color }}
+                  style={{ width: `${progress}%`, backgroundColor: BRAND_ORANGE }}
                 />
               </div>
             </div>
           )}
 
           {isMaxLevel && (
-            <p className="text-xs text-[#222222]/50 text-center py-1">
-              Вы на максимальной ступени — Главный Нечай 🎉
+            <p className="text-xs text-muted-foreground">
+              Вы на максимальной ступени — Главный Нечай
             </p>
           )}
 
-          {/* CTA — как перейти на следующий уровень */}
           <Dialog>
             <DialogTrigger asChild>
               <button
-                className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-[#FF90A1]/30 bg-white/60 hover:bg-white transition-colors text-sm font-medium text-[#222222]"
+                className="text-sm font-medium text-foreground underline-offset-4 hover:underline"
               >
-                <span>Как перейти на следующую ступень?</span>
-                <ChevronRight className="w-4 h-4 text-[#FF90A1]" />
+                Как перейти на следующую ступень?
               </button>
             </DialogTrigger>
             <DialogContent className="max-w-sm">
@@ -218,11 +191,10 @@ function LoyaltyWidget({ orders, loyaltyInfo }: LoyaltyWidgetProps) {
 
           {/* Footnote */}
           {currentLevelData.discount > 0 && (
-            <p className="text-[11px] text-[#222222]/40 -mt-1">
+            <p className="text-xs text-muted-foreground">
               <sup>*</sup> Цена, на которую не распространяется скидка
             </p>
           )}
-        </div>
       </CardContent>
     </Card>
   );

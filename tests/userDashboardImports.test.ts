@@ -35,7 +35,6 @@ const REQUIRED = [
   'CreditCard',
   'ShoppingBag',
   'TrendingUp',
-  'ChevronRight',
   'Users',
 ];
 
@@ -59,5 +58,12 @@ describe('UserDashboard statistics screen', () => {
     const imported = importedNames(source);
     const missing = REQUIRED.filter((name) => !imported.has(name));
     expect(missing).toEqual([]);
+  });
+
+  it('keeps the loyalty block on a white card with the brand orange accent', () => {
+    const source = fs.readFileSync(file, 'utf8');
+    expect(source).not.toContain('#FFF4E5');
+    expect(source).not.toContain('#4A90D9');
+    expect(source).toContain('#F47D37');
   });
 });
