@@ -11,6 +11,7 @@ import { calculateDelivery, getPickupPoints, searchCities } from "./cdek.js";
 import { createRetailOrderFromCheckout } from "./retailOrderCreate.js";
 import { signRetailToken, verifyRetailToken } from "./retailAuthToken.js";
 import { createWholesaleTochkaBill } from "./tochkaWholesaleInvoice.js";
+import { evaluateWholesaleLoyalty } from "./wholesaleLoyalty.js";
 import {
   buildPaymentsWithReceiptData,
   fetchPaymentsWithReceipt,
@@ -23,10 +24,12 @@ import {
   addRetailOrder,
   deleteOrderById,
   deleteRetailOrderById,
+  getAppSetting,
   getExchangeRate,
   getWholesaleInvoiceCounter,
   setWholesaleInvoiceCounter,
   initStorage,
+  setAppSetting,
   getOrderById,
   getOrders,
   getRetailOrderById,
@@ -218,6 +221,49 @@ function sanitizeUser(user) {
 
 function sanitizeUsers(users) {
   return Array.isArray(users) ? users.map(sanitizeUser) : [];
+}
+
+/** Пересчитывает и сохраняет ступень, если правила это требуют. Админа и ручной уровень не меняет. */
+async function persistWholesaleLoyalty(user, orders) {
+  if (!user?.id || user.role === "admin") return user;
+  const allOrders = orders || (await getOrders());
+  const users = await getUsers();
+  const idx = users.findIndex((item) => item.id === user.id);
+  if (idx < 0) return user;
+  const evaluated = evaluateWholesaleLoyalty(users[idx], allOrders);
+  if (!evaluated.changed) return users[idx];
+  users[idx] = evaluated.user;
+  await setUsers(users);
+  console.log(
+    `[loyalty] ${user.id}: earned=${evaluated.auto.level} applied=${evaluated.appliedLevel} discount=${evaluated.appliedDiscount}`,
+  );
+  return evaluated.user;
+}
+
+/**
+ * Один проход по уже существующим клиентам после восстановления пересчёта.
+ * Повторный запуск сервера уровни заново не снимает: флаг хранится в app_settings.
+ */
+async function backfillWholesaleLoyaltyOnce() {
+  const flag = await getAppSetting("wholesaleLoyaltyBackfillV1", null);
+  if (flag?.done) return;
+  const users = await getUsers();
+  const orders = await getOrders();
+  let updated = 0;
+  const next = users.map((user) => {
+    if (!user || user.role === "admin") return user;
+    const evaluated = evaluateWholesaleLoyalty(user, orders);
+    if (!evaluated.changed) return user;
+    updated += 1;
+    return evaluated.user;
+  });
+  if (updated > 0) await setUsers(next);
+  await setAppSetting("wholesaleLoyaltyBackfillV1", {
+    done: true,
+    updated,
+    at: new Date().toISOString(),
+  });
+  console.log(`[loyalty] backfill done, updated=${updated}`);
 }
 
 async function seedDefaultAdmin() {
@@ -442,7 +488,8 @@ app.post("/api/users/login", async (req, res) => {
   const users = await getUsers();
   const user = findWholesaleUserByCredentials(users, phone, password);
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
-  res.json(sanitizeUser(user));
+  const refreshed = await persistWholesaleLoyalty(user);
+  res.json(sanitizeUser(refreshed));
 });
 
 app.put("/api/users/:id", async (req, res) => {
@@ -461,7 +508,12 @@ app.put("/api/users/:id", async (req, res) => {
     const normalized = normalizeWholesaleLoginPhone(patch.phone);
     if (normalized) patch.phone = normalized;
   }
-  const updated = { ...current, ...patch, id };
+  let updated = { ...current, ...patch, id };
+  // Сброс ручной фиксации сразу пересчитывает ступень по заказам.
+  if (patch.loyaltyLevelManualOverride === false) {
+    const orders = await getOrders();
+    updated = evaluateWholesaleLoyalty(updated, orders).user;
+  }
   await setUsers(users.map((x) => (x.id === id ? updated : x)));
   res.json(sanitizeUser(updated));
 });
@@ -483,21 +535,22 @@ app.get("/api/users/:id/loyalty", async (req, res) => {
   const { id } = req.params;
   const users = await getUsers();
   const user = users.find((x) => x.id === id);
-  const totalKg = Number(user?.totalKg || 0);
-  const loyaltyLevel = Number(user?.loyaltyLevel || 0);
-  const discount = Number(user?.discount || 0);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  const orders = await getOrders();
+  const saved = await persistWholesaleLoyalty(user, orders);
+  const view = evaluateWholesaleLoyalty(saved, orders);
   res.json({
-    loyaltyLevel,
-    discount,
-    loyaltyLevelSetDate: user?.loyaltyLevelSetDate || new Date().toISOString(),
-    totalKg,
-    ordersIn3Mo: 0,
-    ordersIn6Mo: 0,
-    ordersIn12Mo: 0,
-    autoLevel: loyaltyLevel,
-    autoDiscount: discount,
-    isManualOverride: false,
-    nextLevel: null,
+    loyaltyLevel: view.appliedLevel,
+    discount: view.appliedDiscount,
+    loyaltyLevelSetDate: saved.loyaltyLevelSetDate || new Date().toISOString(),
+    totalKg: view.totalKg,
+    ordersIn3Mo: view.auto.ordersIn3Mo,
+    ordersIn6Mo: view.auto.ordersIn6Mo,
+    ordersIn12Mo: view.auto.ordersIn12Mo,
+    autoLevel: view.auto.level,
+    autoDiscount: view.auto.discount,
+    isManualOverride: view.isManual,
+    nextLevel: view.nextLevel,
   });
 });
 
@@ -611,6 +664,15 @@ app.post("/api/orders", async (req, res) => {
       orderType: "wholesale",
     };
     let saved = await addOrder(order);
+    const ownerId = saved.userId || saved.user_id;
+    if (ownerId) {
+      try {
+        const owner = (await getUsers()).find((item) => item.id === ownerId);
+        if (owner) await persistWholesaleLoyalty(owner);
+      } catch (loyaltyError) {
+        console.error("[loyalty] recalc after order", loyaltyError?.message || loyaltyError);
+      }
+    }
     const bill = await createWholesaleTochkaBill(saved, { invoiceNumber: orderNumber });
     if (bill) {
       const invoiceNumber = bill.invoiceNumber || orderNumber;
@@ -1668,6 +1730,7 @@ app.use("/api", (_req, res) => {
 
 initStorage()
   .then(seedDefaultAdmin)
+  .then(backfillWholesaleLoyaltyOnce)
   .then(() => {
     app.listen(port, () => {
       console.log(`[site-api] listening on http://localhost:${port}`);
