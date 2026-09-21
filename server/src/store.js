@@ -172,6 +172,14 @@ async function setJsonSetting(key, value) {
   return value;
 }
 
+export async function getAppSetting(key, fallback = null) {
+  return getJsonSetting(key, fallback);
+}
+
+export async function setAppSetting(key, value) {
+  return setJsonSetting(key, value);
+}
+
 export async function initStorage() {
   if (pgPool) await ensurePgSchema();
 }
