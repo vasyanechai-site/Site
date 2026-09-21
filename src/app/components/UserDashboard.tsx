@@ -1,7 +1,15 @@
-import { FadeIn } from './ui/fade-in';
+import { useEffect, useMemo, useState } from 'react';
+import { format, isWithinInterval, startOfDay, endOfDay, subDays } from 'date-fns';
+import { ru } from 'date-fns/locale';
+import { ChevronRight, CreditCard, ShoppingBag, TrendingUp, Users } from 'lucide-react';
+import { Order } from '../types';
+import { fetchUserLoyalty, fetchUserOrders } from '../lib/api';
 import { wholesaleItemWeightKg } from '../lib/wholesaleUnits';
+import { FadeIn } from './ui/fade-in';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
-import { cn } from './ui/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 // ─── LOYALTY WIDGET (inline) ─────────────────────────────────────────────────
 
@@ -43,7 +51,8 @@ interface LoyaltyWidgetProps {
 }
 
 function LoyaltyWidget({ orders, loyaltyInfo }: LoyaltyWidgetProps) {
-  const currentLevelData = LOYALTY_LEVELS[Math.min(loyaltyInfo.level, LOYALTY_LEVELS.length - 1)];
+  const levelIndex = Number.isFinite(loyaltyInfo.level) ? loyaltyInfo.level : 0;
+  const currentLevelData = LOYALTY_LEVELS[Math.min(Math.max(levelIndex, 0), LOYALTY_LEVELS.length - 1)];
   const isMaxLevel       = loyaltyInfo.level >= LOYALTY_LEVELS.length - 1;
   const nextLevelData    = !isMaxLevel ? LOYALTY_LEVELS[loyaltyInfo.level + 1] : null;
 
@@ -382,8 +391,11 @@ export function UserDashboard({ userId, currentDiscount }: UserDashboardProps) {
     const start = startOfDay(new Date(dateFrom));
     const end = dateTo ? endOfDay(new Date(dateTo)) : endOfDay(new Date(dateFrom));
 
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return orders;
+
     return orders.filter(order => {
       const orderDate = new Date(order.date);
+      if (Number.isNaN(orderDate.getTime())) return false;
       return isWithinInterval(orderDate, { start, end });
     });
   }, [orders, dateFrom, dateTo]);
@@ -391,10 +403,10 @@ export function UserDashboard({ userId, currentDiscount }: UserDashboardProps) {
   // Calculate KPIs
   const kpiStats = useMemo(() => {
     const totalOrders = filteredOrders.length;
-    const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
+    const totalRevenue = filteredOrders.reduce((sum, order) => sum + (Number(order.total) || 0), 0);
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    const totalItems = filteredOrders.reduce((sum, order) => 
-      sum + order.items.reduce((is, i) => is + wholesaleItemWeightKg(i as any), 0), 0
+    const totalItems = filteredOrders.reduce((sum, order) =>
+      sum + (Array.isArray(order.items) ? order.items : []).reduce((is, i) => is + wholesaleItemWeightKg(i as any), 0), 0
     );
 
     return {
@@ -412,13 +424,14 @@ export function UserDashboard({ userId, currentDiscount }: UserDashboardProps) {
     const dataMap = new Map<string, { date: string; revenue: number; count: number }>();
 
     filteredOrders.forEach(order => {
-      // Use full yyyy-MM-dd as unique key to avoid recharts duplicate key warnings
-      const dateKey = format(new Date(order.date), 'yyyy-MM-dd');
+      const orderDate = new Date(order.date);
+      if (Number.isNaN(orderDate.getTime())) return;
+      const dateKey = format(orderDate, 'yyyy-MM-dd');
       const current = dataMap.get(dateKey) || { date: dateKey, revenue: 0, count: 0 };
-      
+
       dataMap.set(dateKey, {
         date: dateKey,
-        revenue: current.revenue + order.total,
+        revenue: current.revenue + (Number(order.total) || 0),
         count: current.count + 1
       });
     });
@@ -430,10 +443,10 @@ export function UserDashboard({ userId, currentDiscount }: UserDashboardProps) {
     const catMap = new Map<string, number>();
 
     filteredOrders.forEach(order => {
-      order.items.forEach(item => {
+      (Array.isArray(order.items) ? order.items : []).forEach(item => {
         const category = item.category || 'Без категории';
         const current = catMap.get(category) || 0;
-        catMap.set(category, current + item.subtotal);
+        catMap.set(category, current + (Number(item.subtotal) || 0));
       });
     });
 
