@@ -95,6 +95,7 @@ import {
   findWholesaleUserByCredentials,
   parseTelegramPublicUsername,
 } from "./wholesaleAccessCredentials.js";
+import { scannerSignupReason } from "./scannerSignup.js";
 
 const __apiDir = path.dirname(fileURLToPath(import.meta.url));
 const __repoRoot = path.resolve(__apiDir, "../..");
@@ -401,8 +402,17 @@ app.get("/api/users", async (_req, res) => {
   res.json(sanitizeUsers(await getUsers()));
 });
 
+function rejectScannerSignup(res, body, route) {
+  const reason = scannerSignupReason(body);
+  if (!reason) return false;
+  console.warn(`[signup] rejected scanner probe (${reason}) on ${route}`);
+  res.status(400).json({ error: "Регистрация отклонена" });
+  return true;
+}
+
 app.post("/api/users", async (req, res) => {
   const body = req.body || {};
+  if (rejectScannerSignup(res, body, "POST /api/users")) return;
   const users = await getUsers();
   const loginPhone = body.phone ? normalizeWholesaleLoginPhone(body.phone) : "";
   if (loginPhone && users.some((x) => wholesaleLoginPhonesMatch(x.phone, loginPhone))) {
@@ -427,6 +437,7 @@ app.post("/api/users", async (req, res) => {
 
 app.post("/api/retail-signup", async (req, res) => {
   const body = req.body || {};
+  if (rejectScannerSignup(res, body, "POST /api/retail-signup")) return;
   const users = await getRetailUsers();
   if (body.email && users.some((x) => String(x.email || "").toLowerCase() === String(body.email).toLowerCase())) {
     return res.status(409).json({ error: "Пользователь с таким email уже существует" });
@@ -557,6 +568,7 @@ app.get("/api/users/:id/loyalty", async (req, res) => {
 app.post("/api/wholesale/request-access", async (req, res) => {
   try {
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    if (rejectScannerSignup(res, body, "POST /api/wholesale/request-access")) return;
     const name = String(body.name || "").trim();
     const company = String(body.company || "").trim();
     const email = String(body.email || "").trim();
@@ -1539,6 +1551,7 @@ app.get("/api/retail-users", async (_req, res) => {
 
 app.post("/api/retail-users", async (req, res) => {
   const body = req.body || {};
+  if (rejectScannerSignup(res, body, "POST /api/retail-users")) return;
   const users = await getRetailUsers();
   const email = String(body.email || "").trim().toLowerCase();
   if (!email) {
