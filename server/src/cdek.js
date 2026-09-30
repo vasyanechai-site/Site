@@ -1,9 +1,17 @@
 const SENDER_CITY_CODE = 137;
 const FALLBACK_TARIFFS = [136, 483, 234, 138, 139];
+const YANDEX_GEOSUGGEST_URL = "https://suggest-maps.yandex.ru/v1/suggest";
+const YANDEX_GEOSUGGEST_KEY =
+  (process.env.YANDEX_GEOSUGGEST_API_KEY ||
+    process.env.YANDEX_MAPS_API_KEY ||
+    process.env.VITE_YANDEX_MAPS_API_KEY ||
+    "d273f32f-f343-413c-b1d4-9fc8c0879682").trim();
+const CITY_SEARCH_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 let cachedToken = null;
 let tokenExpiry = 0;
 let cachedTokenForBase = "";
+const citySearchCache = new Map();
 
 /**
  * Базовый URL API 2.0 (оканчивается на `/v2`).
@@ -92,55 +100,182 @@ async function cdekRequest(endpoint, init = {}) {
   return response.json();
 }
 
-export async function searchCities(query) {
-  const q = (query || "").trim();
-  if (q.length < 2) {
-    return { cities: [] };
-  }
+function normalizeLocationName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replaceAll("ё", "е")
+    .replace(/\s+/g, " ");
+}
 
-  // В API 2.0 нет параметра city_like: неизвестный параметр игнорируется,
-  // и CDEK возвращает первую страницу справочника. Из-за этого находились
-  // только города с небольшим code (например Москва), но не Всеволожск.
-  // `city` — актуальный фильтр CDEK по названию населённого пункта.
-  const raw = await cdekRequest(
-    `/location/cities?city=${encodeURIComponent(q)}&country_codes=RU&size=100`,
-  );
+function withoutLocalityPrefix(value) {
+  return String(value || "")
+    .trim()
+    .replace(
+      /^(?:город|г\.|пос[её]лок(?:\s+городского\s+типа)?|рабочий\s+пос[её]лок|пгт|село|деревня|станица|аул|хутор|агрогородок|насел[её]нный\s+пункт|кп|снт)\s+/i,
+      "",
+    )
+    .trim();
+}
 
-  const list = Array.isArray(raw) ? raw : [];
-  const lower = q.toLowerCase();
-  const filtered = list.filter((i) => {
-    const city = String(i.city || "").toLowerCase();
-    const region = String(i.region || "").toLowerCase();
-    return city === lower || city.includes(lower) || region.includes(lower);
-  });
-
+function mapCdekCity(city) {
   return {
-    cities: filtered.slice(0, 20).map((city) => ({
-      code: city.code,
-      city: city.city,
-      region: city.region,
-      country: city.country,
-      country_code: city.country_code,
-      city_code: city.code,
-      full_name: city.region ? `${city.city}, ${city.region}` : city.city,
-      latitude: Number(city.latitude) || 0,
-      longitude: Number(city.longitude) || 0,
-    })),
+    code: city.code,
+    city: city.city,
+    region: city.region,
+    country: city.country,
+    country_code: city.country_code,
+    city_code: city.code,
+    full_name: city.region ? `${city.city}, ${city.region}` : city.city,
+    latitude: Number(city.latitude) || 0,
+    longitude: Number(city.longitude) || 0,
   };
 }
 
-export async function getPickupPoints({ city_to, city_code }) {
+async function getCdekCitiesByName(cityName) {
+  const raw = await cdekRequest(
+    `/location/cities?city=${encodeURIComponent(cityName)}&country_codes=RU&size=100`,
+  );
+  return Array.isArray(raw) ? raw : [];
+}
+
+async function getYandexCitySuggestions(query) {
+  if (!YANDEX_GEOSUGGEST_KEY) return [];
+
+  const params = new URLSearchParams({
+    apikey: YANDEX_GEOSUGGEST_KEY,
+    text: query,
+    lang: "ru",
+    results: "10",
+    countries: "ru",
+    types: "locality",
+  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+
+  try {
+    const response = await fetch(`${YANDEX_GEOSUGGEST_URL}?${params}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new Error(`Yandex Geosuggest HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const seen = new Set();
+
+    return (Array.isArray(data?.results) ? data.results : [])
+      .map((row) => {
+        const city = String(row?.title?.text || "").trim();
+        const region = String(row?.subtitle?.text || "").trim();
+        return { city, region };
+      })
+      .filter(({ city, region }) => {
+        const key = `${normalizeLocationName(city)}|${normalizeLocationName(region)}`;
+        if (!city || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map(({ city, region }) => ({
+        code: 0,
+        city,
+        region,
+        country: "Россия",
+        country_code: "RU",
+        city_code: 0,
+        full_name: region ? `${city}, ${region}` : city,
+        latitude: 0,
+        longitude: 0,
+      }));
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function searchCities(query) {
+  const q = (query || "").trim();
+  if (q.length < 3) {
+    return { cities: [] };
+  }
+
+  const cacheKey = normalizeLocationName(q);
+  const cached = citySearchCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { cities: cached.cities };
+  }
+
+  let cities = [];
+  try {
+    const cdekCities = await getCdekCitiesByName(q);
+    cities = cdekCities
+      .filter((item) => normalizeLocationName(item.city).includes(cacheKey))
+      .slice(0, 20)
+      .map(mapCdekCity);
+  } catch (error) {
+    console.warn("[cdek] exact city search failed, using geosuggest:", error?.message || error);
+  }
+
+  // CDEK API 2.0 ищет `city` только по полному названию. Для автодополнения
+  // по первым буквам используем Geosuggest, а CDEK-код определяем после
+  // выбора подсказки — перед загрузкой ПВЗ.
+  if (cities.length === 0) {
+    try {
+      cities = await getYandexCitySuggestions(q);
+    } catch (error) {
+      console.warn("[cdek] Yandex city suggestions failed:", error?.message || error);
+    }
+  }
+
+  if (citySearchCache.size >= 200) {
+    citySearchCache.delete(citySearchCache.keys().next().value);
+  }
+  citySearchCache.set(cacheKey, {
+    cities,
+    expiresAt: Date.now() + CITY_SEARCH_CACHE_TTL_MS,
+  });
+
+  return { cities };
+}
+
+async function resolveCdekCity(cityName, regionName) {
+  const requestedRegion = normalizeLocationName(regionName);
+  const names = [...new Set([String(cityName || "").trim(), withoutLocalityPrefix(cityName)].filter(Boolean))];
+
+  for (const name of names) {
+    const rows = await getCdekCitiesByName(name);
+    if (!rows.length) continue;
+
+    const normalizedName = normalizeLocationName(name);
+    const exact = rows.filter((row) => normalizeLocationName(row.city) === normalizedName);
+    const candidates = exact.length > 0 ? exact : rows;
+
+    if (requestedRegion) {
+      const byRegion = candidates.find((row) => {
+        const candidateRegion = normalizeLocationName(row.region);
+        return (
+          candidateRegion &&
+          (requestedRegion.includes(candidateRegion) || candidateRegion.includes(requestedRegion))
+        );
+      });
+      if (byRegion) return byRegion;
+    }
+
+    if (candidates[0]) return candidates[0];
+  }
+
+  return null;
+}
+
+export async function getPickupPoints({ city_to, city_code, region_to }) {
   if (!city_to && !city_code) {
     throw new Error("city_to or city_code is required");
   }
 
   let cityCode = city_code;
   if (!cityCode) {
-    const cities = await cdekRequest(
-      `/location/cities?city=${encodeURIComponent(city_to)}&country_codes=RU&size=1`,
-    );
-    if (!cities?.length) return { city_code: null, pickup_points: [] };
-    cityCode = cities[0].code;
+    const city = await resolveCdekCity(city_to, region_to);
+    if (!city) return { city_code: null, pickup_points: [] };
+    cityCode = city.code;
   }
 
   const pvz = await cdekRequest(`/deliverypoints?city_code=${cityCode}&type=PVZ`);
@@ -162,7 +297,7 @@ export async function getPickupPoints({ city_to, city_code }) {
   };
 }
 
-export async function calculateDelivery({ city_to, city_code, pvz_code, order_price, packages }) {
+export async function calculateDelivery({ city_to, city_code, region_to, pvz_code, order_price, packages }) {
   if (!pvz_code || order_price === undefined) {
     throw new Error("pvz_code and order_price are required");
   }
@@ -174,11 +309,9 @@ export async function calculateDelivery({ city_to, city_code, pvz_code, order_pr
 
   let receiverCityCode = city_code;
   if (!receiverCityCode) {
-    const cities = await cdekRequest(
-      `/location/cities?city=${encodeURIComponent(city_to)}&country_codes=RU&size=1`,
-    );
-    if (!cities?.length) throw new Error("Receiver city code not found");
-    receiverCityCode = cities[0].code;
+    const city = await resolveCdekCity(city_to, region_to);
+    if (!city) throw new Error("Receiver city code not found");
+    receiverCityCode = city.code;
   }
 
   const dims = (packages || []).reduce(

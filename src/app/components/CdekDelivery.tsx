@@ -30,6 +30,7 @@ interface CdekDeliveryProps {
   }>;
   onDeliveryChange: (delivery: {
     city: string;
+    cityRegion?: string;
     cityCode?: number;
     pvzCode: string;
     pvzAddress: string;
@@ -63,6 +64,7 @@ const YANDEX_MAPS_KEY =
 export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDeliveryProps) {
   const [cityInput, setCityInput] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
+  const [selectedCityRegion, setSelectedCityRegion] = useState('');
   const [selectedCityCode, setSelectedCityCode] = useState<number | null>(null);
   const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -163,7 +165,8 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
 
   // Search for city suggestions
   useEffect(() => {
-    if (cityInput.length < 2 || cityInput === selectedCity) {
+    const query = cityInput.trim();
+    if (query.length < 3 || cityInput === selectedCity) {
       setCitySuggestions([]);
       setShowSuggestions(false);
       setIsSearchingCities(false);
@@ -171,11 +174,11 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     }
 
     const controller = new AbortController();
+    setIsSearchingCities(true);
     const timer = setTimeout(async () => {
-      setIsSearchingCities(true);
       try {
         const response = await fetch(
-          `${API_BASE_URL}/cdek/cities?q=${encodeURIComponent(cityInput)}`,
+          `${API_BASE_URL}/cdek/cities?q=${encodeURIComponent(query)}`,
           {
             headers: {
               ...API_AUTH_HEADER
@@ -193,14 +196,15 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           } catch { /* ignore */ }
           console.error('CDEK cities:', response.status, errText.slice(0, 200));
           toast.error(msg);
-          setCitySuggestions([]);
-          setShowSuggestions(false);
           return;
         }
 
         const data = await response.json();
-        setCitySuggestions(data.cities || []);
-        setShowSuggestions((data.cities || []).length > 0);
+        const nextSuggestions = Array.isArray(data.cities) ? data.cities : [];
+        if (nextSuggestions.length > 0) {
+          setCitySuggestions(nextSuggestions);
+          setShowSuggestions(true);
+        }
       } catch (error) {
         if ((error as Error)?.name === 'AbortError') return;
         console.error('Error fetching city suggestions:', error);
@@ -239,6 +243,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
       if (selectedPoint) {
         onDeliveryChange({
           city: selectedCity,
+          cityRegion: selectedCityRegion || undefined,
           cityCode: selectedCityCode || undefined,
           pvzCode: selectedPvz,
           pvzAddress: selectedPoint.address,
@@ -250,11 +255,12 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     } else {
       onDeliveryChange(null);
     }
-  }, [selectedCity, selectedPvz, deliveryCost, deliveryDays, pickupPoints, tariffCode]);
+  }, [selectedCity, selectedCityRegion, selectedCityCode, selectedPvz, deliveryCost, deliveryDays, pickupPoints, tariffCode]);
 
   const handleCitySelect = (suggestion: CitySuggestion) => {
     setSelectedCity(suggestion.city);
-    setSelectedCityCode(suggestion.code);
+    setSelectedCityRegion(suggestion.region || '');
+    setSelectedCityCode(suggestion.code || null);
     setCityInput(suggestion.city);
     const la = Number(suggestion.latitude);
     const lo = Number(suggestion.longitude);
@@ -267,6 +273,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     setCityInput(value);
     if (value !== selectedCity) {
       setSelectedCity('');
+      setSelectedCityRegion('');
       setSelectedCityCode(null);
       setSelectedPvz('');
       setPickupPoints([]);
@@ -283,6 +290,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
   const clearCity = () => {
     setCityInput('');
     setSelectedCity('');
+    setSelectedCityRegion('');
     setSelectedCityCode(null);
     setCitySuggestions([]);
     setShowSuggestions(false);
@@ -308,7 +316,8 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           },
           body: JSON.stringify({
             city_to: selectedCity,
-            city_code: selectedCityCode
+            city_code: selectedCityCode,
+            region_to: selectedCityRegion
           })
         }
       );
@@ -321,6 +330,9 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
 
       const pvzData = await pvzResponse.json();
       setPickupPoints(pvzData.pickup_points || []);
+      if (Number(pvzData.city_code)) {
+        setSelectedCityCode(Number(pvzData.city_code));
+      }
 
       if (pvzData.pickup_points && pvzData.pickup_points.length === 0) {
         setCityError('В этом городе нет пунктов выдачи СДЭК');
@@ -360,6 +372,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           body: JSON.stringify({
             city_to: selectedCity,
             city_code: selectedCityCode,
+            region_to: selectedCityRegion,
             pvz_code: pvzCode,
             order_price: orderPrice,
             packages: packages
@@ -434,13 +447,13 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           balloonContentBody: `
             <div style="font-family: system-ui, sans-serif; max-width: 240px;">
               <div style="margin-bottom: 8px; font-size: 13px; line-height: 1.4; word-wrap: break-word;">${pvz.address}</div>
-              ${pvz.work_time ? `<div style="font-size: 12px; color: #666; margin-bottom: 12px;">${pvz.work_time}</div>` : ''}
               <button 
                 id="select-pvz-${pvz.code}" 
-                style="width: 100%; background: #222; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;"
+                style="width: 100%; background: #222; color: white; border: none; padding: 10px; margin-bottom: 8px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;"
               >
                 Выбрать этот пункт
               </button>
+              ${pvz.work_time ? `<div style="font-size: 12px; color: #666;">${pvz.work_time}</div>` : ''}
             </div>
           `
         },
@@ -509,7 +522,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           <div ref={suggestionsRef} className="absolute z-50 w-full mt-1 bg-[#FFF4E5] border border-[#222222]/10 rounded-xl max-h-[300px] overflow-y-auto">
             {citySuggestions.map((suggestion) => (
               <button
-                key={suggestion.code}
+                key={`${suggestion.city}-${suggestion.region}-${suggestion.code}`}
                 type="button"
                 onClick={() => handleCitySelect(suggestion)}
                 className="w-full text-left px-4 py-3 hover:bg-[#222222]/5 transition-colors border-b last:border-b-0 border-[#222222]/5"
@@ -520,14 +533,6 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
             ))}
           </div>
         )}
-        {cityInput.length >= 2 &&
-          cityInput !== selectedCity &&
-          !isSearchingCities &&
-          citySuggestions.length === 0 && (
-            <p className="text-xs text-[#222222]/60 mt-2">
-              Город не найден. Введите полное официальное название, например «Всеволожск».
-            </p>
-          )}
       </div>
 
       {cityError && (
@@ -626,7 +631,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
 
       {/* Map Modal */}
       <Dialog open={isMapOpen} onOpenChange={setIsMapOpen}>
-        <DialogContent className="max-w-[95vw] w-[800px] p-0 gap-0 overflow-hidden h-[80vh] sm:h-[600px] flex flex-col bg-[#FFF4E5] border border-[#222222]/10 rounded-2xl">
+        <DialogContent className="max-w-[calc(100vw-8px)] sm:max-w-[95vw] w-[800px] p-0 gap-0 overflow-hidden h-[calc(100dvh-8px)] max-h-[calc(100dvh-8px)] sm:h-[92dvh] sm:max-h-[720px] flex flex-col bg-[#FFF4E5] border border-[#222222]/10 rounded-xl sm:rounded-2xl">
           <DialogHeader className="p-4 border-b bg-[#FFF4E5] z-10">
             <DialogTitle className="flex items-center gap-2">
                <MapPin className="w-5 h-5 text-[#FF90A1]" />
@@ -637,7 +642,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
-             <div className="relative bg-secondary/20 min-h-[240px] sm:min-h-0 sm:w-3/5">
+             <div className="relative bg-secondary/20 h-[52dvh] min-h-[360px] max-h-[480px] shrink-0 sm:h-auto sm:min-h-0 sm:max-h-none sm:shrink sm:w-3/5">
                 <div ref={mapRef} className="absolute inset-0 w-full h-full" />
                 {!mapLoaded && (
                   <div className="absolute inset-0 flex items-center justify-center bg-[#FFF4E5]/80 z-20">
