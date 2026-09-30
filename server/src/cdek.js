@@ -98,24 +98,20 @@ export async function searchCities(query) {
     return { cities: [] };
   }
 
-  // Как в legacy Supabase: city_like + фильтр по подстроке (подсказки при вводе).
-  let raw;
-  try {
-    raw = await cdekRequest(
-      `/location/cities?city_like=${encodeURIComponent(q)}&country_codes=RU&size=500`,
-    );
-  } catch {
-    raw = await cdekRequest(
-      `/location/cities?city_like=${encodeURIComponent(q)}&country_code=RU&size=500`,
-    );
-  }
+  // В API 2.0 нет параметра city_like: неизвестный параметр игнорируется,
+  // и CDEK возвращает первую страницу справочника. Из-за этого находились
+  // только города с небольшим code (например Москва), но не Всеволожск.
+  // `city` — актуальный фильтр CDEK по названию населённого пункта.
+  const raw = await cdekRequest(
+    `/location/cities?city=${encodeURIComponent(q)}&country_codes=RU&size=100`,
+  );
 
   const list = Array.isArray(raw) ? raw : [];
   const lower = q.toLowerCase();
   const filtered = list.filter((i) => {
     const city = String(i.city || "").toLowerCase();
     const region = String(i.region || "").toLowerCase();
-    return city.includes(lower) || region.includes(lower);
+    return city === lower || city.includes(lower) || region.includes(lower);
   });
 
   return {

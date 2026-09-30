@@ -144,7 +144,11 @@ export function RetailOrdersManagement() {
           <div>
             <div className="text-sm text-muted-foreground mb-1">Способ получения</div>
             <div className="text-foreground">
-              {order.delivery_method === 'delivery' ? 'Доставка' : 'Самовывоз'}
+              {order.delivery_method === 'cdek'
+                ? 'СДЭК'
+                : order.delivery_method === 'delivery'
+                  ? 'Доставка'
+                  : 'Самовывоз'}
             </div>
           </div>
           

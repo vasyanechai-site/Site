@@ -409,28 +409,31 @@ export function registerDebugRoutes(app) {
           ? b.customerEmail.trim()
           : "debug@coffeenechai.ru";
       const orderId = `DEBUG-10RUB-${Date.now()}`;
-      const saved = await createRetailOrderFromCheckout({
-        orderId,
-        customerName,
-        customerPhone,
-        customerEmail,
-        items: [
-          {
-            product: {
-              id: "debug-pay-10rub",
-              name: "Тестовая оплата 10 ₽ (страница /debug)",
-              category: "Зерно",
-              price: 10,
-              packageWeight: 200,
-              packageLength: 15,
-              packageWidth: 10,
-              packageHeight: 8,
-              imageUrl: "",
+      const saved = await createRetailOrderFromCheckout(
+        {
+          orderId,
+          customerName,
+          customerPhone,
+          customerEmail,
+          items: [
+            {
+              product: {
+                id: "debug-pay-10rub",
+                name: "Тестовая оплата 10 ₽ (страница /debug)",
+                category: "Зерно",
+                price: 10,
+                packageWeight: 200,
+                packageLength: 15,
+                packageWidth: 10,
+                packageHeight: 8,
+                imageUrl: "",
+              },
+              quantity: 1,
             },
-            quantity: 1,
-          },
-        ],
-      });
+          ],
+        },
+        { allowPickup: true },
+      );
       const payUrl = saved.tochkaPaymentUrl || saved.tochka_payment_url;
       const payErr = saved.tochkaPaymentError || saved.tochka_payment_error;
       const note = payUrl

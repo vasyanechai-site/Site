@@ -30,6 +30,7 @@ interface CdekDeliveryProps {
   }>;
   onDeliveryChange: (delivery: {
     city: string;
+    cityCode?: number;
     pvzCode: string;
     pvzAddress: string;
     cost: number;
@@ -72,6 +73,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
   const [selectedPvz, setSelectedPvz] = useState<string>('');
   const [isLoadingCost, setIsLoadingCost] = useState(false);
   const [isLoadingPvz, setIsLoadingPvz] = useState(false);
+  const [isSearchingCities, setIsSearchingCities] = useState(false);
   const [cityError, setCityError] = useState<string>('');
   const [tariffCode, setTariffCode] = useState<number | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
@@ -164,17 +166,21 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     if (cityInput.length < 2 || cityInput === selectedCity) {
       setCitySuggestions([]);
       setShowSuggestions(false);
+      setIsSearchingCities(false);
       return;
     }
 
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
+      setIsSearchingCities(true);
       try {
         const response = await fetch(
           `${API_BASE_URL}/cdek/cities?q=${encodeURIComponent(cityInput)}`,
           {
             headers: {
               ...API_AUTH_HEADER
-            }
+            },
+            signal: controller.signal
           }
         );
 
@@ -196,12 +202,18 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
         setCitySuggestions(data.cities || []);
         setShowSuggestions((data.cities || []).length > 0);
       } catch (error) {
+        if ((error as Error)?.name === 'AbortError') return;
         console.error('Error fetching city suggestions:', error);
         toast.error('Не удалось загрузить города. Проверьте соединение.');
+      } finally {
+        if (!controller.signal.aborted) setIsSearchingCities(false);
       }
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [cityInput, selectedCity]);
 
   // Load delivery info when city is selected
@@ -227,6 +239,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
       if (selectedPoint) {
         onDeliveryChange({
           city: selectedCity,
+          cityCode: selectedCityCode || undefined,
           pvzCode: selectedPvz,
           pvzAddress: selectedPoint.address,
           cost: deliveryCost,
@@ -248,6 +261,23 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     setCityCoordinates(la && lo ? [la, lo] : null);
     setShowSuggestions(false);
     autoMapPendingRef.current = true;
+  };
+
+  const handleCityInputChange = (value: string) => {
+    setCityInput(value);
+    if (value !== selectedCity) {
+      setSelectedCity('');
+      setSelectedCityCode(null);
+      setSelectedPvz('');
+      setPickupPoints([]);
+      setDeliveryCost(null);
+      setDeliveryDays(null);
+      setTariffCode(null);
+      setCityError('');
+      setCityCoordinates(null);
+      autoMapPendingRef.current = false;
+      onDeliveryChange(null);
+    }
   };
 
   const clearCity = () => {
@@ -359,6 +389,12 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
     }
   };
 
+  const selectPickupPoint = (pvzCode: string) => {
+    setSelectedPvz(pvzCode);
+    void calculateDeliveryCost(pvzCode);
+    setIsMapOpen(false);
+  };
+
   const initMap = () => {
     if (!window.ymaps || !mapRef.current || pickupPoints.length === 0) return;
 
@@ -421,10 +457,8 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
           const button = document.getElementById(`select-pvz-${pvz.code}`);
           if (button) {
             button.onclick = () => {
-              setSelectedPvz(pvz.code);
-              calculateDeliveryCost(pvz.code);
               map.balloon.close();
-              setIsMapOpen(false); // Закрываем модальное окно после выбора
+              selectPickupPoint(pvz.code);
             };
           }
         }, 100);
@@ -450,7 +484,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
             ref={inputRef}
             placeholder="Начните вводить название..."
             value={cityInput}
-            onChange={(e) => setCityInput(e.target.value)}
+            onChange={(e) => handleCityInputChange(e.target.value)}
             onFocus={() => {
               if (citySuggestions.length > 0) setShowSuggestions(true);
             }}
@@ -466,6 +500,7 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
               </button>
             )}
             {!cityInput && <Search className="w-4 h-4 text-muted-foreground" />}
+            {isSearchingCities && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
           </div>
         </div>
 
@@ -485,6 +520,14 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
             ))}
           </div>
         )}
+        {cityInput.length >= 2 &&
+          cityInput !== selectedCity &&
+          !isSearchingCities &&
+          citySuggestions.length === 0 && (
+            <p className="text-xs text-[#222222]/60 mt-2">
+              Город не найден. Введите полное официальное название, например «Всеволожск».
+            </p>
+          )}
       </div>
 
       {cityError && (
@@ -593,13 +636,39 @@ export function CdekDelivery({ orderPrice, cartItems, onDeliveryChange }: CdekDe
               Карта для выбора пункта выдачи СДЭК
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 relative bg-secondary/20">
-             <div ref={mapRef} className="absolute inset-0 w-full h-full" />
-             {!mapLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-[#FFF4E5]/80 z-20">
-                   <Loader2 className="w-8 h-8 animate-spin text-[#FF90A1]" />
-                </div>
-             )}
+          <div className="flex-1 min-h-0 flex flex-col sm:flex-row">
+             <div className="relative bg-secondary/20 min-h-[240px] sm:min-h-0 sm:w-3/5">
+                <div ref={mapRef} className="absolute inset-0 w-full h-full" />
+                {!mapLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-[#FFF4E5]/80 z-20">
+                    <div className="text-center text-sm text-muted-foreground">
+                      <Loader2 className="w-8 h-8 animate-spin text-[#FF90A1] mx-auto mb-2" />
+                      Загружаем карту…
+                    </div>
+                  </div>
+                )}
+             </div>
+             <div className="sm:w-2/5 overflow-y-auto border-t sm:border-t-0 sm:border-l border-[#222222]/10 bg-[#FFF4E5] p-3">
+               <p className="text-xs text-[#222222]/60 mb-2">
+                 Если карта не загрузилась, выберите пункт из списка:
+               </p>
+               <div className="space-y-2">
+                 {pickupPoints.map((pvz) => (
+                   <button
+                     key={pvz.code}
+                     type="button"
+                     onClick={() => selectPickupPoint(pvz.code)}
+                     className="w-full text-left rounded-xl border border-[#222222]/10 p-3 hover:border-[#FF90A1] hover:bg-[#FF90A1]/5 transition-colors"
+                   >
+                     <div className="text-sm font-medium text-[#222222]">{pvz.name}</div>
+                     <div className="text-xs text-[#222222]/70 mt-1">{pvz.address}</div>
+                     {pvz.work_time && (
+                       <div className="text-xs text-[#222222]/50 mt-1">{pvz.work_time}</div>
+                     )}
+                   </button>
+                 ))}
+               </div>
+             </div>
           </div>
         </DialogContent>
       </Dialog>

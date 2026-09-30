@@ -789,7 +789,10 @@ app.post("/api/retail/orders", async (req, res) => {
     await telegramNotify("retail_order", formatRetailOrderMessage(saved));
     res.json(saved);
   } catch (e) {
-    const code = e?.statusCode === 400 ? 400 : 500;
+    const code =
+      Number.isInteger(e?.statusCode) && e.statusCode >= 400 && e.statusCode <= 599
+        ? e.statusCode
+        : 500;
     console.error("[retail/orders POST]", e?.message || e);
     res.status(code).json({ error: e?.message || "Failed to create retail order" });
   }

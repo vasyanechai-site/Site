@@ -1,5 +1,6 @@
 import { addRetailOrder, updateRetailOrderById, getRetailLoyalty, setRetailLoyalty, reserveNextRetailOrderNumber } from "./store.js";
 import { createCdekOrder } from "./cdekOrderCreate.js";
+import { calculateDelivery, getPickupPoints } from "./cdek.js";
 import {
   buildPaymentsWithReceiptData,
   fetchPaymentsWithReceipt,
@@ -60,8 +61,9 @@ async function createTochkaAcquiringPayment(order) {
 /**
  * Полный сценарий розничного заказа: расчёт суммы, СДЭК, сохранение, ссылка Точка.
  * @param {Record<string, any>} body — тело как от RetailStorefront
+ * @param {{ allowPickup?: boolean }} [options] — самовывоз разрешён только служебным debug-сценариям
  */
-export async function createRetailOrderFromCheckout(body) {
+export async function createRetailOrderFromCheckout(body, options = {}) {
   const {
     customerName,
     customerPhone,
@@ -92,13 +94,80 @@ export async function createRetailOrderFromCheckout(body) {
   }));
 
   const subtotal = formattedItems.reduce((sum, item) => sum + item.subtotal, 0);
-  const deliveryMethod = deliveryInfo ? "cdek" : "pickup";
-  const deliveryAddress = deliveryInfo ? `${deliveryInfo.city}, ${deliveryInfo.pvzAddress}` : "";
 
-  let deliveryCost = Number(deliveryInfo?.cost) || 0;
+  const cdekPackages = items.map((item) => ({
+    weight: item.product?.packageWeight || 500,
+    length: item.product?.packageLength || 20,
+    width: item.product?.packageWidth || 15,
+    height: item.product?.packageHeight || 10,
+    quantity: item.quantity,
+  }));
+
+  let normalizedDeliveryInfo = null;
+  if (deliveryInfo && typeof deliveryInfo === "object") {
+    const city = String(deliveryInfo.city || "").trim();
+    const pvzCode = String(deliveryInfo.pvzCode || "").trim();
+    if (!city || !pvzCode) {
+      const err = new Error("Выберите город и пункт выдачи СДЭК");
+      err.statusCode = 400;
+      throw err;
+    }
+
+    try {
+      // Не доверяем стоимости и адресу из браузера: проверяем ПВЗ и заново
+      // рассчитываем тариф на сервере непосредственно перед оплатой.
+      const pvzData = await getPickupPoints({
+        city_to: city,
+        city_code: deliveryInfo.cityCode,
+      });
+      const selectedPoint = (pvzData.pickup_points || []).find((point) => point.code === pvzCode);
+      if (!selectedPoint) {
+        const err = new Error("Выбранный пункт выдачи СДЭК не относится к указанному городу");
+        err.statusCode = 400;
+        throw err;
+      }
+
+      const calculated = await calculateDelivery({
+        city_to: city,
+        city_code: pvzData.city_code || deliveryInfo.cityCode,
+        pvz_code: pvzCode,
+        order_price: subtotal,
+        packages: cdekPackages,
+      });
+
+      normalizedDeliveryInfo = {
+        city,
+        cityCode: pvzData.city_code || deliveryInfo.cityCode,
+        pvzCode,
+        pvzAddress: selectedPoint.address,
+        cost: Number(calculated.delivery_cost) || 0,
+        days: Number(calculated.delivery_days) || 0,
+        tariffCode: Number(calculated.tariff_code) || undefined,
+      };
+    } catch (error) {
+      if (error?.statusCode === 400) throw error;
+      const err = new Error(
+        `Не удалось проверить доставку СДЭК: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      err.statusCode = 503;
+      throw err;
+    }
+  } else if (!options.allowPickup) {
+    const err = new Error("Выберите город и пункт выдачи СДЭК перед оплатой");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const deliveryMethod = normalizedDeliveryInfo ? "cdek" : "pickup";
+  const deliveryAddress = normalizedDeliveryInfo
+    ? `${normalizedDeliveryInfo.city}, ${normalizedDeliveryInfo.pvzAddress}`
+    : "";
+
+  let deliveryCost = Number(normalizedDeliveryInfo?.cost) || 0;
   let total = subtotal + deliveryCost;
   let pointsUsed = 0;
   let pointsEarned = 0;
+  let pendingLoyaltyUpdate = null;
 
   if (userId) {
     const current = await getRetailLoyalty(userId);
@@ -110,11 +179,11 @@ export async function createRetailOrderFromCheckout(body) {
       pointsUsed = Math.min(requestedPoints, maxDiscount);
       total -= pointsUsed;
       const newBalance = Math.max(0, currentBalance - pointsUsed);
-      await setRetailLoyalty(userId, {
+      pendingLoyaltyUpdate = {
         ...current,
         balance: newBalance,
         lastUpdated: new Date().toISOString(),
-      });
+      };
     } else {
       pointsEarned = Math.floor(subtotal * 0.05);
     }
@@ -144,7 +213,7 @@ export async function createRetailOrderFromCheckout(body) {
     delivery_address: deliveryAddress,
     delivery_method: deliveryMethod,
     delivery_cost: deliveryCost,
-    delivery_info: deliveryInfo || null,
+    delivery_info: normalizedDeliveryInfo,
     items: formattedItems,
     total,
     subtotal,
@@ -154,7 +223,7 @@ export async function createRetailOrderFromCheckout(body) {
     pointsEarned,
   };
 
-  if (deliveryInfo?.pvzCode) {
+  if (normalizedDeliveryInfo?.pvzCode) {
     const cdekItems = formattedItems.map((item) => {
       const product = items.find((i) => i.product.id === item.id)?.product;
       return {
@@ -173,9 +242,19 @@ export async function createRetailOrderFromCheckout(body) {
       technicalOrderId,
       customerName,
       customerPhone,
-      deliveryInfo,
+      normalizedDeliveryInfo,
       cdekItems,
     );
+
+    if (!cdekResult.success) {
+      const detail =
+        typeof cdekResult.cdek_error === "string"
+          ? cdekResult.cdek_error
+          : JSON.stringify(cdekResult.cdek_error || "unknown error");
+      const err = new Error(`СДЭК не принял заказ: ${detail.slice(0, 500)}`);
+      err.statusCode = 502;
+      throw err;
+    }
 
     order.cdek_uuid = cdekResult.cdek_uuid;
     order.cdek_number = cdekResult.cdek_number;
@@ -186,6 +265,9 @@ export async function createRetailOrderFromCheckout(body) {
   }
 
   await addRetailOrder(order);
+  if (pendingLoyaltyUpdate) {
+    await setRetailLoyalty(userId, pendingLoyaltyUpdate);
+  }
 
   let tochkaPaymentUrl = null;
   let tochkaPaymentError = null;

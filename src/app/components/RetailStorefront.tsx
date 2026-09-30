@@ -720,6 +720,10 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
 
   const handleSubmitOrder = async (customerName: string, customerPhone: string, customerEmail: string, deliveryInfo: any, usedPoints?: number) => {
     try {
+      if (!deliveryInfo?.city || !deliveryInfo?.pvzCode || deliveryInfo?.cost == null) {
+        throw new Error('Сначала выберите город и пункт выдачи СДЭК');
+      }
+
       addLog('info', '🔍 Начало оформления заказа', {
         customerName,
         customerPhone,
@@ -775,8 +779,6 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
       console.log('Order submitted successfully:', result);
       addLog('success', '✅ Заказ создан успешно. Номер: ' + getDisplayOrderNumber(result));
       
-      const orderId = result.orderId;
-
       // Проверяем, есть ли платежная ссылка Точка Банк в ответе
       const tochkaUrl = result.tochkaPaymentUrl || result.tochka_payment_url;
       if (tochkaUrl) {
@@ -795,64 +797,13 @@ export function RetailStorefront({ onNavigateToLogin, onNavigateToProduct, showP
         return;
       }
 
-      // FALLBACK: Если нет платежной ссылки в ответе, пытаемся получь через старый endpoint
-      addLog('warn', '⚠️ Платежная ссылка н найдена в заказе, используем fallback...');
-      
-      addLog('info', '💳 Инициализация оплаты...');
-      
-      const paymentResponse = await fetch(
-        `${API_BASE_URL}/retail/checkout/pay`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...API_AUTH_HEADER
-          },
-          body: JSON.stringify({
-            orderId: orderId,
-            email: customerEmail,
-            phone: customerPhone,
-            cart: cartItems.map(item => ({
-              name: item.product.name,
-              price: item.product.price,
-              quantity: item.quantity,
-              vatType: "none"
-            }))
-          })
-        }
+      // Не создаём отдельную оплату в обход заказа: сервер уже проверяет СДЭК
+      // и возвращает ссылку Точки только после успешного создания доставки.
+      throw new Error(
+        result.tochkaPaymentError ||
+        result.tochka_payment_error ||
+        'Сервер не вернул ссылку на оплату. Заказ не оплачен — попробуйте позже.',
       );
-
-      if (!paymentResponse.ok) {
-        const errorData = await paymentResponse.json();
-        console.error('========================================');
-        console.error('❌ Payment initiation failed!');
-        console.error('Status:', paymentResponse.status);
-        console.error('Error data:', errorData);
-        console.error('Error details:', errorData.details);
-        console.error('Full error object:', JSON.stringify(errorData, null, 2));
-        console.error('========================================');
-        addLog('error', ' Ошибка инициализации оплаты', errorData);
-        throw new Error(errorData.details || 'Не удалось перейти к оплате. Пожалуйста, попробуйте позже.');
-      }
-
-      const paymentResult = await paymentResponse.json();
-      
-      if (paymentResult.paymentLink) {
-        addLog('success', '✅ Ссылка на оплату получена. Переход...');
-        
-        // Очищаем корзину перед переходом
-        setCartItems([]);
-        setIsCartOpen(false);
-        
-        // ВАЖНО: НЕ обновляем баланс вушей здесь!
-        // Вуши списываются тлько после успешной оплаты через webhook на сервере
-        // Пользователь может вернуться со страницы оплаты, не оплатив зааз
-        
-        // Перенаправляем на страницу оплаты
-        window.location.href = paymentResult.paymentLink;
-      } else {
-        throw new Error('Сервер не вернул ссылку на оплату');
-      }
       
     } catch (error) {
       console.error('Error submitting retail order:', error);

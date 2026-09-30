@@ -77,6 +77,7 @@ export function RetailCartPage({
     name?: string;
     phone?: string;
     email?: string;
+    delivery?: string;
     communications?: string;
     privacy?: string;
     terms?: string;
@@ -108,6 +109,7 @@ export function RetailCartPage({
     const newErrors: {
       name?: string;
       phone?: string;
+      delivery?: string;
       communications?: string;
       privacy?: string;
       terms?: string;
@@ -132,6 +134,10 @@ export function RetailCartPage({
       newErrors.email = 'Пожалуйста, введите корректный email';
     }
 
+    if (!deliveryInfo?.city || !deliveryInfo?.pvzCode || deliveryInfo?.cost == null) {
+      newErrors.delivery = 'Выберите город и пункт выдачи СДЭК';
+    }
+
     if (!agreedToCommunications) {
       newErrors.communications = 'Необходимо согласие на получение сообщений';
     }
@@ -151,7 +157,9 @@ export function RetailCartPage({
       toast.error(firstError);
       
       // Scroll to first error
-      const errorElement = document.querySelector('.text-red-500');
+      const errorElement = newErrors.delivery
+        ? document.getElementById('delivery-section')
+        : document.querySelector('.text-red-500');
       if (errorElement) {
         errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
@@ -492,12 +500,22 @@ export function RetailCartPage({
                 </section>
 
                 {/* Delivery */}
-                <section className="mb-8">
+                <section className="mb-8" id="delivery-section">
                    <CdekDelivery 
                       orderPrice={totalAmount}
                       cartItems={items}
-                      onDeliveryChange={setDeliveryInfo}
+                      onDeliveryChange={(delivery) => {
+                        setDeliveryInfo(delivery);
+                        if (delivery && errors.delivery) {
+                          setErrors(prev => ({ ...prev, delivery: undefined }));
+                        }
+                      }}
                    />
+                   {errors.delivery && (
+                     <p className="text-red-500 text-xs mt-2 bg-red-50 p-2 rounded-lg border border-red-100">
+                       {errors.delivery}
+                     </p>
+                   )}
                 </section>
 
                 {/* Agreements */}

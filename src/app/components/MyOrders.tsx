@@ -241,7 +241,11 @@ export function MyOrders({ userId, userCompanyName, userDiscount = 0, onBack, on
                           <p className="text-foreground">{order.company}</p>
                           <p className="text-muted-foreground">{order.address}</p>
                           <p className="text-muted-foreground">
-                            {order.delivery_method === 'delivery' ? 'Доставка' : 'Самовывоз'}
+                            {order.delivery_method === 'cdek'
+                              ? 'СДЭК'
+                              : order.delivery_method === 'delivery'
+                                ? 'Доставка'
+                                : 'Самовывоз'}
                             {order.delivery_company && ` (${order.delivery_company})`}
                           </p>
                         </div>
